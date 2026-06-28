@@ -1,6 +1,6 @@
 #![allow(clippy::diverging_sub_expression)]
 
-use async_graphql::*;
+use gqlrs::*;
 
 mod test_mod {
     use serde::{Deserialize, Serialize};

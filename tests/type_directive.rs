@@ -1,4 +1,4 @@
-use async_graphql::{EmptyMutation, EmptySubscription, SDLExportOptions, Schema, Subscription};
+use gqlrs::{EmptyMutation, EmptySubscription, SDLExportOptions, Schema, Subscription};
 use async_graphql_derive::{
     ComplexObject, Enum, InputObject, Interface, Object, OneofObject, SimpleObject, TypeDirective,
 };

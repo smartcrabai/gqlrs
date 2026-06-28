@@ -1,5 +1,5 @@
 [package]
-name = "async-graphql-parser-fuzz"
+name = "gqlrs-parser-fuzz"
 version = "0.0.0"
 authors = ["Automatically generated"]
 publish = false
@@ -12,6 +12,7 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 
 [dependencies.async-graphql-parser]
+package = "gqlrs-parser"
 path = ".."
 
 # Prevent this from interfering with workspaces

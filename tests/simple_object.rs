@@ -1,4 +1,4 @@
-use async_graphql::*;
+use gqlrs::*;
 
 #[tokio::test]
 async fn test_flatten() {

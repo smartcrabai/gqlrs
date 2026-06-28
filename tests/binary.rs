@@ -1,4 +1,4 @@
-use async_graphql::*;
+use gqlrs::*;
 use bytes::Bytes;
 
 #[tokio::test]

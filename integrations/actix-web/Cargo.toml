@@ -1,14 +1,14 @@
 [package]
 authors = ["sunli <scott_s829@163.com>", "Koxiaet"]
 categories = ["network-programming", "asynchronous"]
-description = "async-graphql for actix-web"
-documentation = "https://docs.rs/async-graphql-actix-web/"
+description = "gqlrs for actix-web"
+documentation = "https://docs.rs/gqlrs-actix-web/"
 edition = "2024"
-homepage = "https://github.com/async-graphql/async-graphql"
+homepage = "https://github.com/smartcrabai/gqlrs"
 keywords = ["futures", "async", "graphql"]
 license = "MIT OR Apache-2.0"
-name = "async-graphql-actix-web"
-repository = "https://github.com/async-graphql/async-graphql"
+name = "gqlrs-actix-web"
+repository = "https://github.com/smartcrabai/gqlrs"
 version = "8.0.0-rc.5"
 
 [dependencies]

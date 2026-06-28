@@ -1,5 +1,5 @@
 use ::http::HeaderValue;
-use async_graphql::*;
+use gqlrs::*;
 
 #[tokio::test]
 pub async fn test_schema_default() {

@@ -3,7 +3,7 @@ use std::sync::{
     atomic::{AtomicI32, Ordering},
 };
 
-use async_graphql::{
+use gqlrs::{
     extensions::{
         Extension, ExtensionContext, ExtensionFactory, NextExecute, NextParseQuery,
         NextPrepareRequest, NextRequest, NextResolve, NextSubscribe, NextValidation, ResolveInfo,

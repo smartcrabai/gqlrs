@@ -40,7 +40,7 @@ pub fn get_crate_path(crate_path: &Option<syn::Path>, internal: bool) -> syn::Pa
     } else if let Some(path) = crate_path {
         path.clone()
     } else {
-        let name = match crate_name("async-graphql") {
+        let name = match crate_name("gqlrs").or_else(|_| crate_name("async-graphql")) {
             Ok(FoundCrate::Name(name)) => name,
             Ok(FoundCrate::Itself) | Err(_) => "async_graphql".to_string(),
         };

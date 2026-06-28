@@ -1,4 +1,4 @@
-use async_graphql::*;
+use gqlrs::*;
 use futures_util::stream::{Stream, StreamExt};
 
 #[derive(Eq, PartialEq, Copy, Clone)]

@@ -1,14 +1,14 @@
 [package]
 authors = ["Daniel Wiesenberg <daniel@wsnbrg.de>"]
 categories = ["network-programming", "asynchronous"]
-description = "async-graphql for Rocket.rs"
-documentation = "https://docs.rs/async-graphql/"
+description = "gqlrs for Rocket.rs"
+documentation = "https://docs.rs/gqlrs-rocket/"
 edition = "2024"
-homepage = "https://github.com/async-graphql/async-graphql"
+homepage = "https://github.com/smartcrabai/gqlrs"
 keywords = ["futures", "async", "graphql", "rocket"]
 license = "MIT OR Apache-2.0"
-name = "async-graphql-rocket"
-repository = "https://github.com/async-graphql/async-graphql"
+name = "gqlrs-rocket"
+repository = "https://github.com/smartcrabai/gqlrs"
 version = "8.0.0-rc.5"
 
 [dependencies]

@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use async_graphql::{
+use gqlrs::{
     http::{WebSocketProtocols, WsMessage},
     runtime::TokioTimer,
     *,

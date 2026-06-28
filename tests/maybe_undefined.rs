@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use async_graphql::*;
+    use gqlrs::*;
 
     #[derive(InputObject)]
     struct MyInput {

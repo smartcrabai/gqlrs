@@ -1,4 +1,4 @@
-use async_graphql::{connection::*, *};
+use gqlrs::{connection::*, *};
 
 #[tokio::test]
 pub async fn test_connection_additional_fields() {

@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use async_graphql::*;
+use gqlrs::*;
 use futures_util::{Stream, StreamExt};
 
 #[tokio::test]

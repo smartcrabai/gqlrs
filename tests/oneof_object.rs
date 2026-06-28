@@ -1,7 +1,7 @@
 #![allow(clippy::uninlined_format_args)]
 #![allow(dead_code)]
 
-use async_graphql::{
+use gqlrs::{
     registry::{MetaType, Registry},
     *,
 };
@@ -269,7 +269,7 @@ async fn test_oneof_object_validation() {
 
 #[tokio::test]
 async fn test_oneof_object_vec() {
-    use async_graphql::*;
+    use gqlrs::*;
 
     #[derive(SimpleObject)]
     pub struct User {

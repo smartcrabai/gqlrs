@@ -86,11 +86,11 @@
 //!
 //! ## Integrations
 //!
-//! * Poem [async-graphql-poem](https://crates.io/crates/async-graphql-poem)
-//! * Actix-web [async-graphql-actix-web](https://crates.io/crates/async-graphql-actix-web)
-//! * Warp [async-graphql-warp](https://crates.io/crates/async-graphql-warp)
-//! * Rocket [async-graphql-rocket](https://github.com/async-graphql/async-graphql/tree/master/integrations/rocket)
-//! * Axum [async-graphql-axum](https://github.com/async-graphql/async-graphql/tree/master/integrations/axum)
+//! * Poem `gqlrs-poem`
+//! * Actix-web `gqlrs-actix-web`
+//! * Warp `gqlrs-warp`
+//! * Rocket `gqlrs-rocket`
+//! * Axum `gqlrs-axum`
 //!
 //! ## License
 //!

@@ -1,10 +1,10 @@
-use async_graphql::*;
+use gqlrs::*;
 
 #[test]
 #[should_panic]
 fn object() {
     mod t {
-        use async_graphql::*;
+        use gqlrs::*;
 
         pub struct MyObj;
 
@@ -45,7 +45,7 @@ fn object() {
 #[should_panic]
 fn simple_object() {
     mod t {
-        use async_graphql::*;
+        use gqlrs::*;
 
         #[derive(SimpleObject, Default)]
         pub struct MyObj {
@@ -78,7 +78,7 @@ fn simple_object() {
 #[should_panic]
 fn merged_object() {
     mod t {
-        use async_graphql::*;
+        use gqlrs::*;
 
         #[derive(SimpleObject, Default)]
         pub struct Query {
@@ -105,7 +105,7 @@ fn merged_object() {
 #[should_panic]
 fn merged_object_root() {
     mod example {
-        use async_graphql::{MergedObject, SimpleObject};
+        use gqlrs::{MergedObject, SimpleObject};
 
         #[derive(SimpleObject, Default)]
         pub struct Obj {
@@ -131,7 +131,7 @@ fn merged_object_root() {
 #[should_panic]
 fn enum_type() {
     mod t {
-        use async_graphql::*;
+        use gqlrs::*;
 
         #[derive(Enum, Eq, PartialEq, Copy, Clone)]
         pub enum MyEnum {
@@ -164,7 +164,7 @@ fn enum_type() {
 #[should_panic]
 fn union() {
     mod t {
-        use async_graphql::*;
+        use gqlrs::*;
 
         #[derive(SimpleObject, Default)]
         pub struct ObjA {
@@ -215,7 +215,7 @@ fn union() {
 #[should_panic]
 fn interface() {
     mod t {
-        use async_graphql::*;
+        use gqlrs::*;
 
         #[derive(SimpleObject, Default)]
         pub struct ObjA {

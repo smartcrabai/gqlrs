@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(unexpected_cfgs)]
 
-use async_graphql::*;
+use gqlrs::*;
 use futures_util::stream::{Stream, StreamExt};
 
 #[tokio::test]
