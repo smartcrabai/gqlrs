@@ -1,0 +1,33 @@
+[package]
+authors = ["sunli <scott_s829@163.com>"]
+categories = ["network-programming", "asynchronous"]
+description = "async-graphql for axum"
+documentation = "https://docs.rs/async-graphql-axum/"
+edition = "2024"
+homepage = "https://github.com/async-graphql/async-graphql"
+keywords = ["futures", "async", "graphql", "axum"]
+license = "MIT OR Apache-2.0"
+name = "async-graphql-axum"
+repository = "https://github.com/async-graphql/async-graphql"
+version = "8.0.0-rc.5"
+
+[dependencies]
+async-graphql = { workspace = true, features = ["tokio"] }
+
+bytes.workspace = true
+futures-util.workspace = true
+serde_json.workspace = true
+tokio = { version = "1.36.0", features = ["time"] }
+tokio-util = { workspace = true, default-features = false, features = [
+    "io",
+    "compat",
+] }
+tokio-stream = "0.1.15"
+tower-service = "0.3"
+tracing = { version = "0.1.40", optional = true, default-features = false }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+axum = { version = "0.8.1", default-features = false }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+axum = { version = "0.8.1", features = ["ws"] }
