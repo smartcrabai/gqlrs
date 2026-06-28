@@ -94,7 +94,17 @@ jobs:
           components: rustfmt
       - name: Check format
         run: cargo +${{ matrix.rust }} fmt --all -- --check
+      - name: Check examples availability
+        id: examples
+        run: |
+          if [ -f examples/Cargo.toml ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "examples/Cargo.toml is not present; skipping examples format check"
+          fi
       - name: Check examples format
+        if: steps.examples.outputs.available == 'true'
         working-directory: ./examples
         run: cargo +${{ matrix.rust }} fmt --all -- --check
 
