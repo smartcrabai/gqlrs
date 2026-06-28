@@ -1559,7 +1559,7 @@ impl Registry {
                     visible: None,
                     inaccessible: false,
                     tags: Default::default(),
-                    rust_typename: Some("async_graphql::federation::Entity"),
+                    rust_typename: Some("gqlrs::federation::Entity"),
                     directive_invocations: vec![],
                 },
             );
@@ -1723,7 +1723,7 @@ impl Registry {
                 inaccessible: false,
                 tags: Default::default(),
                 is_subscription: false,
-                rust_typename: Some("async_graphql::federation::Service"),
+                rust_typename: Some("gqlrs::federation::Service"),
                 directive_invocations: vec![],
                 requires_scopes: vec![],
             },

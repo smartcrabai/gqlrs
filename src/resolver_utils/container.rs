@@ -21,14 +21,14 @@ pub trait ContainerType: OutputType {
     }
 
     /// Resolves a field value and outputs it as a json value
-    /// `async_graphql::Value`.
+    /// `gqlrs::Value`.
     ///
     /// If the field was not found returns None.
     #[cfg(feature = "boxed-trait")]
     async fn resolve_field(&self, ctx: &Context<'_>) -> ServerResult<Option<Value>>;
 
     /// Resolves a field value and outputs it as a json value
-    /// `async_graphql::Value`.
+    /// `gqlrs::Value`.
     ///
     /// If the field was not found returns None.
     #[cfg(not(feature = "boxed-trait"))]

@@ -66,7 +66,7 @@ some simple fields, and use the `ComplexObject` macro to define some other field
 # Examples
 
 ```rust
-use async_graphql::*;
+use gqlrs::*;
 
 #[derive(SimpleObject)]
 #[graphql(complex)] // NOTE: If you want the `ComplexObject` macro to take effect, this `complex` attribute is required.

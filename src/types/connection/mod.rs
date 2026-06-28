@@ -77,8 +77,8 @@ pub struct DisableNodesField;
 /// ```rust
 /// use std::borrow::Cow;
 ///
-/// use async_graphql::*;
-/// use async_graphql::types::connection::*;
+/// use gqlrs::*;
+/// use gqlrs::types::connection::*;
 ///
 /// struct Query;
 ///
@@ -146,7 +146,7 @@ pub struct DisableNodesField;
 /// # Custom connection and edge type names
 ///
 /// ```
-/// use async_graphql::{connection::*, *};
+/// use gqlrs::{connection::*, *};
 ///
 /// #[derive(SimpleObject)]
 /// struct MyObj {
@@ -259,8 +259,8 @@ where
 ///
 /// ```rust
 /// 
-/// use async_graphql::*;
-/// use async_graphql::types::connection::*;
+/// use gqlrs::*;
+/// use gqlrs::types::connection::*;
 ///
 /// #[derive(SimpleObject)]
 /// struct MyEdge {

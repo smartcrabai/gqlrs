@@ -46,7 +46,7 @@ impl fmt::Display for GraphiQLVersion<'_> {
 /// # Example
 ///
 /// ```rust
-/// use async_graphql::http::*;
+/// use gqlrs::http::*;
 ///
 /// GraphiQLSource::build()
 ///     .endpoint("/")

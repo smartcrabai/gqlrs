@@ -92,7 +92,7 @@ impl<'a> FieldValue<'a> {
     /// # Examples
     ///
     /// ```
-    /// use async_graphql::dynamic::*;
+    /// use gqlrs::dynamic::*;
     ///
     /// let query =
     ///     Object::new("Query").field(Field::new("value", TypeRef::named(TypeRef::INT), |ctx| {
@@ -153,7 +153,7 @@ impl<'a> FieldValue<'a> {
     /// # Examples
     ///
     /// ```
-    /// use async_graphql::{dynamic::*, value, Value};
+    /// use gqlrs::{dynamic::*, value, Value};
     ///
     /// struct MyObjData {
     ///     a: i32,

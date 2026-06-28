@@ -95,7 +95,7 @@ impl ServerError {
     /// ```rust
     /// use std::io::ErrorKind;
     ///
-    /// use async_graphql::*;
+    /// use gqlrs::*;
     ///
     /// struct Query;
     ///

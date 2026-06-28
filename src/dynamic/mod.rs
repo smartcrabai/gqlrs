@@ -3,7 +3,7 @@
 //! # Create a simple GraphQL schema
 //!
 //! ```
-//! use async_graphql::{dynamic::*, value, Value};
+//! use gqlrs::{dynamic::*, value, Value};
 //!
 //! let query = Object::new("Query").field(Field::new("value", TypeRef::named_nn(TypeRef::INT), |ctx| {
 //!     FieldFuture::new(async move { Ok(Some(Value::from(100))) })

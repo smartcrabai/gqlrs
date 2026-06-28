@@ -106,7 +106,7 @@ impl Query {
 Implements GraphQL Object for struct.
 
 ```rust
-use async_graphql::*;
+use gqlrs::*;
 
 struct Query {
     value: i32,
@@ -158,7 +158,7 @@ assert_eq!(res, value!({
 Implements GraphQL Object for trait object.
 
 ```rust
-use async_graphql::*;
+use gqlrs::*;
 
 trait MyTrait: Send + Sync {
     fn name(&self) -> &str;

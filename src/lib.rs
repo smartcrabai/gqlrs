@@ -61,8 +61,8 @@
 //!
 //! | feature                        | enables                                                                                                                                                                                       |
 //! |:-------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-//! | **`apollo_tracing`**           | Enable the [Apollo tracing extension](https://docs.rs/async-graphql/latest/async_graphql/extensions/struct.ApolloTracing.html).                                                               |
-//! | **`apollo_persisted_queries`** | Enable the [Apollo persisted queries extension](https://docs.rs/async-graphql/latest/async_graphql/extensions/apollo_persisted_queries/struct.ApolloPersistedQueries.html).                   |
+//! | **`apollo_tracing`**           | Enable the [Apollo tracing extension](https://docs.rs/async-graphql/latest/gqlrs/extensions/struct.ApolloTracing.html).                                                               |
+//! | **`apollo_persisted_queries`** | Enable the [Apollo persisted queries extension](https://docs.rs/async-graphql/latest/gqlrs/extensions/apollo_persisted_queries/struct.ApolloPersistedQueries.html).                   |
 //! | **`boxed-trait`**              | Enables [`async-trait`](https://crates.io/crates/async-trait) for all traits.                                                                                                                 |
 //! | **`chrono`**                   | Integrate with the [`chrono` crate](https://crates.io/crates/chrono).                                                                                                                         |
 //! | **`chrono-tz`**                | Integrate with the [`chrono-tz` crate](https://crates.io/crates/chrono-tz).                                                                                                                   |
@@ -72,13 +72,13 @@
 //! | **`fast_chemail`**             | Integrate with the [`fast_chemail` crate](https://crates.io/crates/fast_chemail).                                                                                                             |
 //! | **`graphiql`**                 | Enables the [GraphiQL IDE](https://github.com/graphql/graphiql) integration                                                                                                                   |
 //! | **`jiff`**                     | Integrate with the [`jiff` crate](https://crates.io/crates/jiff).                                                                                                                             |
-//! | **`log`**                      | Enable the [Logger extension](https://docs.rs/async-graphql/latest/async_graphql/extensions/struct.Logger.html).                                                                              |
-//! | **`opentelemetry`**            | Enable the [OpenTelemetry extension](https://docs.rs/async-graphql/latest/async_graphql/extensions/struct.OpenTelemetry.html).                                                                |
+//! | **`log`**                      | Enable the [Logger extension](https://docs.rs/async-graphql/latest/gqlrs/extensions/struct.Logger.html).                                                                              |
+//! | **`opentelemetry`**            | Enable the [OpenTelemetry extension](https://docs.rs/async-graphql/latest/gqlrs/extensions/struct.OpenTelemetry.html).                                                                |
 //! | **`rawvalue`**                 | Support raw values from [`serde_json`](https://crates.io/crates/serde_json)                                                                                                                   |
 //! | **`secrecy`**                  | Integrate with the [`secrecy` crate](https://crates.io/crates/secrecy).                                                                                                                       |
 //! | **`string_number`**            | Enable the [StringNumber](types/struct.StringNumber.html).                                                                                                                                    |
 //! | **`time`**                     | Integrate with the [`time` crate](https://github.com/time-rs/time).                                                                                                                           |
-//! | **`tracing`**                  | Enable the [Tracing extension](https://docs.rs/async-graphql/latest/async_graphql/extensions/struct.Tracing.html).                                                                            |
+//! | **`tracing`**                  | Enable the [Tracing extension](https://docs.rs/async-graphql/latest/gqlrs/extensions/struct.Tracing.html).                                                                            |
 //! | **`tempfile`**                 | Save the uploaded content in the temporary file.                                                                                                                                              |
 //! | **`unblock`**                  | Support [Asynchronous reader for Upload](types/struct.Upload.html)                                                                                                                            |
 //! | **`uuid`**                     | Integrate with the [`uuid` crate](https://crates.io/crates/uuid).                                                                                                                             |
@@ -244,11 +244,11 @@ pub use types::*;
 pub use validation::{ValidationMode, ValidationResult, VisitorContext};
 pub use validators::CustomValidator;
 
-/// An alias of [async_graphql::Error](struct.Error.html). Present for backward
+/// An alias of [gqlrs::Error](struct.Error.html). Present for backward
 /// compatibility reasons.
 pub type FieldError = Error;
 
-/// An alias of [async_graphql::Result](type.Result.html). Present for backward
+/// An alias of [gqlrs::Result](type.Result.html). Present for backward
 /// compatibility reasons.
 pub type FieldResult<T> = Result<T>;
 

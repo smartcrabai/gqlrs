@@ -136,7 +136,7 @@ impl<Query, Mutation, Subscription> SchemaBuilder<Query, Mutation, Subscription>
     /// # Examples
     ///
     /// ```rust
-    /// use async_graphql::*;
+    /// use gqlrs::*;
     ///
     /// struct Query;
     ///

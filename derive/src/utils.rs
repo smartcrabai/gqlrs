@@ -42,7 +42,7 @@ pub fn get_crate_path(crate_path: &Option<syn::Path>, internal: bool) -> syn::Pa
     } else {
         let name = match crate_name("gqlrs").or_else(|_| crate_name("async-graphql")) {
             Ok(FoundCrate::Name(name)) => name,
-            Ok(FoundCrate::Itself) | Err(_) => "async_graphql".to_string(),
+            Ok(FoundCrate::Itself) | Err(_) => "gqlrs".to_string(),
         };
         let ident = Ident::new(&name, Span::call_site());
         parse_quote! { ::#ident }

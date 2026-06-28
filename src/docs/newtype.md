@@ -18,7 +18,7 @@ It also implements `From<InnerType>` and `Into<InnerType>`.
 ## Use the original scalar name
 
 ```rust
-use async_graphql::*;
+use gqlrs::*;
 
 #[derive(NewType)]
 struct Weight(f64);
@@ -74,7 +74,7 @@ assert_eq!(res, value!({
 ## Define a new scalar
 
 ```rust
-use async_graphql::*;
+use gqlrs::*;
 
 /// Widget NewType
 #[derive(NewType)]

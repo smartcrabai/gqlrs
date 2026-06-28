@@ -15,7 +15,7 @@ use crate::{
 /// # Examples
 ///
 /// ```
-/// use async_graphql::{dynamic::*, value, Value};
+/// use gqlrs::{dynamic::*, value, Value};
 ///
 /// let my_scalar = Scalar::new("MyScalar");
 ///
