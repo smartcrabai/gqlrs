@@ -3,6 +3,8 @@ use std::sync::{
     atomic::{AtomicI32, Ordering},
 };
 
+use async_graphql_value::ConstValue;
+use futures_util::{StreamExt, lock::Mutex, stream::Stream};
 use gqlrs::{
     extensions::{
         Extension, ExtensionContext, ExtensionFactory, NextExecute, NextParseQuery,
@@ -12,8 +14,6 @@ use gqlrs::{
     parser::types::ExecutableDocument,
     *,
 };
-use async_graphql_value::ConstValue;
-use futures_util::{StreamExt, lock::Mutex, stream::Stream};
 
 #[tokio::test]
 pub async fn test_extension_ctx() {

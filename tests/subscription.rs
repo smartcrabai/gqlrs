@@ -1,5 +1,5 @@
-use gqlrs::*;
 use futures_util::stream::{Stream, StreamExt, TryStreamExt};
+use gqlrs::*;
 
 struct Query;
 

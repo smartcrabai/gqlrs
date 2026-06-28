@@ -155,13 +155,25 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
           components: clippy, rustfmt
+      - name: Check examples availability
+        id: examples
+        run: |
+          if [ -f examples/Cargo.toml ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "examples/Cargo.toml is not present; skipping examples job"
+          fi
       - name: Check examples with clippy
+        if: steps.examples.outputs.available == 'true'
         run: cargo clippy --all
         working-directory: ./examples
       - name: Build examples
+        if: steps.examples.outputs.available == 'true'
         run: cargo build --workspace --verbose
         working-directory: ./examples
       - name: Clean examples
+        if: steps.examples.outputs.available == 'true'
         run: cargo clean
         working-directory: ./examples
 

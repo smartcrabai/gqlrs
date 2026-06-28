@@ -1,7 +1,7 @@
 #![allow(clippy::diverging_sub_expression)]
 
-use gqlrs::*;
 use futures_util::Stream;
+use gqlrs::*;
 use serde::Deserialize;
 
 #[tokio::test]

@@ -1,5 +1,5 @@
-use gqlrs::*;
 use futures_util::stream::{Stream, StreamExt};
+use gqlrs::*;
 
 #[derive(SimpleObject)]
 struct Object1 {

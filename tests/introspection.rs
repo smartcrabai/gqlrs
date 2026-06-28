@@ -2,9 +2,9 @@
 #![allow(clippy::uninlined_format_args)]
 #![allow(clippy::diverging_sub_expression)]
 
-use gqlrs::*;
 use chrono::{NaiveDate, NaiveDateTime};
 use futures_util::stream::{self, Stream};
+use gqlrs::*;
 
 #[derive(Clone, Debug)]
 struct Circle {

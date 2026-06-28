@@ -1,5 +1,5 @@
-use gqlrs::*;
 use futures_util::stream::{Stream, StreamExt, TryStreamExt};
+use gqlrs::*;
 
 #[tokio::test]
 pub async fn test_input_value_custom_error() {

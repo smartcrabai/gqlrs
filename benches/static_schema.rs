@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
+use criterion::{Criterion, criterion_group, criterion_main};
 use gqlrs::{
     Context, Enum, Error, Interface, Object, OutputType, Result,
     connection::{Connection, Edge, query},
     *,
 };
-use criterion::{Criterion, criterion_group, criterion_main};
 use slab::Slab;
 
 pub struct StarWarsChar {

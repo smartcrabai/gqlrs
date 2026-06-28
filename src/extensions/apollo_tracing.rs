@@ -84,9 +84,7 @@ impl Extension for ApolloTracingExtension {
 
         let mut inner = self.inner.lock().await;
         inner.end_time = Utc::now();
-        inner
-            .resolves
-            .sort_by(|a, b| a.start_offset.cmp(&b.start_offset));
+        inner.resolves.sort_by_key(|resolve| resolve.start_offset);
         resp.extension(
             "tracing",
             value!({
