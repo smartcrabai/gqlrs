@@ -46,8 +46,8 @@ impl<'a> FromRequest<'a> for GraphQLProtocol {
 ///
 /// ```
 /// use async_graphql::{EmptyMutation, Object, Schema, Subscription};
-/// use async_graphql_poem::GraphQLSubscription;
 /// use futures_util::{Stream, stream};
+/// use gqlrs_poem::GraphQLSubscription;
 /// use poem::{Route, get};
 ///
 /// struct Query;

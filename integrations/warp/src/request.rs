@@ -16,7 +16,7 @@ use crate::{GraphQLBadRequest, GraphQLBatchResponse, graphql_batch_opts};
 /// use std::convert::Infallible;
 ///
 /// use async_graphql::*;
-/// use async_graphql_warp::*;
+/// use gqlrs_warp::*;
 /// use warp::Filter;
 ///
 /// struct QueryRoot;
@@ -32,9 +32,9 @@ use crate::{GraphQLBadRequest, GraphQLBatchResponse, graphql_batch_opts};
 ///
 /// # tokio::runtime::Runtime::new().unwrap().block_on(async {
 /// let schema = Schema::new(QueryRoot, EmptyMutation, EmptySubscription);
-/// let filter = async_graphql_warp::graphql(schema).and_then(
+/// let filter = gqlrs_warp::graphql(schema).and_then(
 ///     |(schema, request): (MySchema, async_graphql::Request)| async move {
-///         Ok::<_, Infallible>(async_graphql_warp::GraphQLResponse::from(
+///         Ok::<_, Infallible>(gqlrs_warp::GraphQLResponse::from(
 ///             schema.execute(request).await,
 ///         ))
 ///     },

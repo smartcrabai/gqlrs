@@ -22,8 +22,8 @@ use warp::{Error, Filter, Rejection, Reply, filters::ws, ws::Message};
 /// use std::time::Duration;
 ///
 /// use async_graphql::*;
-/// use async_graphql_warp::*;
 /// use futures_util::stream::{Stream, StreamExt};
+/// use gqlrs_warp::*;
 /// use warp::Filter;
 ///
 /// struct QueryRoot;
@@ -55,8 +55,7 @@ use warp::{Error, Filter, Rejection, Reply, filters::ws, ws::Message};
 ///
 /// # tokio::runtime::Runtime::new().unwrap().block_on(async {
 /// let schema = Schema::new(QueryRoot, EmptyMutation, SubscriptionRoot);
-/// let filter =
-///     async_graphql_warp::graphql_subscription(schema).or(warp::any().map(|| "Hello, World!"));
+/// let filter = gqlrs_warp::graphql_subscription(schema).or(warp::any().map(|| "Hello, World!"));
 /// warp::serve(filter).run(([0, 0, 0, 0], 8000)).await;
 /// # });
 /// ```
@@ -106,8 +105,8 @@ pub fn graphql_protocol() -> impl Filter<Extract = (WebSocketProtocols,), Error 
 /// use std::time::Duration;
 ///
 /// use async_graphql::*;
-/// use async_graphql_warp::*;
 /// use futures_util::stream::{Stream, StreamExt};
+/// use gqlrs_warp::*;
 /// use warp::{Filter, ws};
 ///
 /// struct QueryRoot;

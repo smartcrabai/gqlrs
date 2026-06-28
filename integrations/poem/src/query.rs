@@ -16,7 +16,7 @@ use crate::{GraphQLBatchRequest, GraphQLBatchResponse, GraphQLRequest};
 ///
 /// ```
 /// use async_graphql::{EmptyMutation, EmptySubscription, Object, Schema};
-/// use async_graphql_poem::GraphQL;
+/// use gqlrs_poem::GraphQL;
 /// use poem::{Route, post};
 ///
 /// struct Query;

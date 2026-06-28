@@ -16,7 +16,7 @@ use tokio_util::compat::TokioAsyncReadCompatExt;
 ///
 /// ```
 /// use async_graphql::{EmptyMutation, EmptySubscription, Object, Schema};
-/// use async_graphql_poem::GraphQLRequest;
+/// use gqlrs_poem::GraphQLRequest;
 /// use poem::{
 ///     EndpointExt, Route, handler,
 ///     middleware::AddData,
