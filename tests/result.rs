@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-use async_graphql::*;
 use futures_util::stream::Stream;
+use gqlrs::*;
 
 #[tokio::test]
 pub async fn test_fieldresult() {

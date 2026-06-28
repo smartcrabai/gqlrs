@@ -1,10 +1,10 @@
-# Integrations for async-graphql
+# Integrations for gqlrs
 
-This directory provides various integrations for `async-graphql` to various crates in the ecosystem.
+This directory provides various integrations for `gqlrs` to various crates in the ecosystem.
 
 ## Requirements for an HTTP integration
 
-This is a list of criteria for HTTP integrations with `async-graphql` in order to make sure all
+This is a list of criteria for HTTP integrations with `gqlrs` in order to make sure all
 integrations are implemented consistently.
 
 Integrations may provide additional functionality to better integrate with the specific library, but

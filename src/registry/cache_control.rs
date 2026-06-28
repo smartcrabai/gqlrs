@@ -3,7 +3,7 @@
 /// # Examples
 ///
 /// ```rust
-/// use async_graphql::*;
+/// use gqlrs::*;
 ///
 /// struct Query;
 ///

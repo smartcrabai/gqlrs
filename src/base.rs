@@ -86,7 +86,7 @@ pub trait OutputType: Send + Sync {
     /// Create type information in the registry and return qualified typename.
     fn create_type_info(registry: &mut registry::Registry) -> String;
 
-    /// Resolve an output value to `async_graphql::Value`.
+    /// Resolve an output value to `gqlrs::Value`.
     #[cfg(feature = "boxed-trait")]
     async fn resolve(
         &self,
@@ -94,7 +94,7 @@ pub trait OutputType: Send + Sync {
         field: &Positioned<Field>,
     ) -> ServerResult<Value>;
 
-    /// Resolve an output value to `async_graphql::Value`.
+    /// Resolve an output value to `gqlrs::Value`.
     #[cfg(not(feature = "boxed-trait"))]
     fn resolve(
         &self,

@@ -1,6 +1,6 @@
-# async-graphql-extras
+# gqlrs-extras
 
-Extras for `async-graphql` that are maintained separately from the core library.
+Extras for `gqlrs` that are maintained separately from the core library.
 
 ## Features
 
@@ -13,8 +13,8 @@ This crate offers the following optional features:
 
 ## Documentation
 
-- [API Documentation](https://docs.rs/async-graphql-extras)
-- [Main async-graphql Documentation](https://async-graphql.github.io/async-graphql/en/index.html)
+- [API Documentation](https://docs.rs/gqlrs-extras)
+- [Upstream async-graphql Documentation](https://async-graphql.github.io/async-graphql/en/index.html)
 
 ## License
 

@@ -1,6 +1,6 @@
 #[cfg(feature = "dynamic-schema")]
 mod tests {
-    use async_graphql::{
+    use gqlrs::{
         Value,
         dynamic::{
             Directive, Enum, EnumItem, Field, FieldFuture, InputObject, InputValue, Interface,

@@ -1,5 +1,5 @@
-use async_graphql::*;
 use bytes::Bytes;
+use gqlrs::*;
 
 #[tokio::test]
 pub async fn test_batch_request() {

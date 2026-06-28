@@ -2,15 +2,15 @@
 authors = ["sunli <scott_s829@163.com>", "Koxiaet"]
 categories = ["network-programming", "asynchronous"]
 description = "A GraphQL server library implemented in Rust"
-documentation = "https://docs.rs/async-graphql/"
+documentation = "https://docs.rs/gqlrs/"
 edition = "2024"
 rust-version = "1.89.0"
-homepage = "https://github.com/async-graphql/async-graphql"
+homepage = "https://github.com/smartcrabai/gqlrs"
 keywords = ["futures", "async", "graphql"]
 license = "MIT OR Apache-2.0"
-name = "async-graphql"
+name = "gqlrs"
 readme = "README.md"
-repository = "https://github.com/async-graphql/async-graphql"
+repository = "https://github.com/smartcrabai/gqlrs"
 version = "8.0.0-rc.5"
 
 [features]
@@ -144,10 +144,10 @@ members = [
 ]
 
 [workspace.dependencies]
-async-graphql = { path = ".", version = "8.0.0-rc.5", default-features = false }
-async-graphql-derive = { path = "derive", version = "8.0.0-rc.5" }
-async-graphql-parser = { path = "parser", version = "8.0.0-rc.5" }
-async-graphql-value = { path = "value", version = "8.0.0-rc.5" }
+async-graphql = { package = "gqlrs", path = ".", version = "8.0.0-rc.5", default-features = false }
+async-graphql-derive = { package = "gqlrs-derive", path = "derive", version = "8.0.0-rc.5" }
+async-graphql-parser = { package = "gqlrs-parser", path = "parser", version = "8.0.0-rc.5" }
+async-graphql-value = { package = "gqlrs-value", path = "value", version = "8.0.0-rc.5" }
 
 
 serde = { version = "1.0.197", features = ["derive"] }

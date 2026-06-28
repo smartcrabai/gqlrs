@@ -11,7 +11,7 @@ use crate::{InputType, InputValueError, InputValueResult, Value, registry};
 /// # Examples
 ///
 /// ```rust
-/// use async_graphql::*;
+/// use gqlrs::*;
 ///
 /// struct Query;
 ///
@@ -176,7 +176,7 @@ impl<T> MaybeUndefined<T> {
     /// # Example
     ///
     /// ```rust
-    /// use async_graphql::MaybeUndefined;
+    /// use gqlrs::MaybeUndefined;
     ///
     /// let mut value = None;
     ///

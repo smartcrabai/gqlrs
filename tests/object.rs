@@ -1,4 +1,4 @@
-use async_graphql::*;
+use gqlrs::*;
 
 #[tokio::test]
 async fn test_flatten() {
@@ -232,7 +232,7 @@ async fn ignore_name_conflicts() {
 
 #[tokio::test]
 async fn test_impl_dyn_trait() {
-    use async_graphql::*;
+    use gqlrs::*;
 
     trait MyTrait: Send + Sync {
         fn name(&self) -> &str;

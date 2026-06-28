@@ -11,7 +11,7 @@ use crate::{
 /// # Examples
 ///
 /// ```
-/// use async_graphql::{dynamic::*, value, Value};
+/// use gqlrs::{dynamic::*, value, Value};
 ///
 /// let my_input = InputObject::new("MyInput")
 ///     .field(InputValue::new("a", TypeRef::named_nn(TypeRef::INT)))

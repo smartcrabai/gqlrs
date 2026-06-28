@@ -1,4 +1,4 @@
-use async_graphql::*;
+use gqlrs::*;
 use serde::Deserialize;
 
 #[derive(SimpleObject)]

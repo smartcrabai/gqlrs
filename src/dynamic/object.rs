@@ -11,7 +11,7 @@ use crate::{
 /// # Examples
 ///
 /// ```
-/// use async_graphql::{dynamic::*, value, Value};
+/// use gqlrs::{dynamic::*, value, Value};
 ///
 /// let query = Object::new("Query").field(Field::new("value", TypeRef::named_nn(TypeRef::STRING), |ctx| {
 ///     FieldFuture::new(async move { Ok(Some(Value::from("abc"))) })
@@ -112,7 +112,7 @@ impl Object {
     /// # Examples
     ///
     /// ```
-    /// use async_graphql::{Value, dynamic::*};
+    /// use gqlrs::{Value, dynamic::*};
     ///
     /// let obj = Object::new("MyObj")
     ///     .field(Field::new("a", TypeRef::named(TypeRef::INT), |_| {
@@ -139,7 +139,7 @@ impl Object {
     /// # Examples
     ///
     /// ```
-    /// use async_graphql::{Value, dynamic::*};
+    /// use gqlrs::{Value, dynamic::*};
     ///
     /// let obj = Object::new("MyObj")
     ///     .field(Field::new("a", TypeRef::named(TypeRef::INT), |_| {

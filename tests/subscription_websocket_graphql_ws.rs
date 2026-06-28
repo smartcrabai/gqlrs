@@ -6,15 +6,15 @@ use std::{
     time::Duration,
 };
 
-use async_graphql::{
-    http::{WebSocketProtocols, WsMessage},
-    runtime::TokioTimer,
-    *,
-};
 use futures_channel::mpsc;
 use futures_util::{
     SinkExt,
     stream::{BoxStream, Stream, StreamExt},
+};
+use gqlrs::{
+    http::{WebSocketProtocols, WsMessage},
+    runtime::TokioTimer,
+    *,
 };
 
 #[tokio::test]

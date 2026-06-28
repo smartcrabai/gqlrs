@@ -1,4 +1,4 @@
-use async_graphql::*;
+use gqlrs::*;
 
 #[tokio::test]
 pub async fn test_union_simple_object() {
@@ -494,7 +494,7 @@ pub async fn test_union_with_generic() {
         concrete(name = "MyObjString", params(String)),
         concrete(name = "MyObjInt", params(i64))
     )]
-    impl<T: Send + Sync + async_graphql::OutputType> MyObj<T> {
+    impl<T: Send + Sync + gqlrs::OutputType> MyObj<T> {
         async fn id(&self) -> i32 {
             10
         }
@@ -511,7 +511,7 @@ pub async fn test_union_with_generic() {
     #[derive(Union)]
     #[graphql(concrete(name = "NodeInt", params(i64)))]
     #[graphql(concrete(name = "NodeString", params(String)))]
-    enum Node<T: Send + Sync + async_graphql::OutputType> {
+    enum Node<T: Send + Sync + gqlrs::OutputType> {
         MyObj(MyObj<T>),
     }
 
@@ -584,7 +584,7 @@ pub async fn test_union_with_sub_generic() {
 
     #[derive(Union)]
     #[graphql(concrete(name = "NodeMyObj", params("MyObj<G>"), bounds("G: Send + Sync")))]
-    enum Node<T: Send + Sync + async_graphql::OutputType> {
+    enum Node<T: Send + Sync + gqlrs::OutputType> {
         Nested(MyObj2<T>),
         NotNested(T),
     }

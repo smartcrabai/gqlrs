@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, fmt::Debug};
 
-use async_graphql_value::*;
 use bytes::Bytes;
+use gqlrs_value::*;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 fn test_value<T: Serialize + DeserializeOwned + Clone + PartialEq + Debug>(value: T) {

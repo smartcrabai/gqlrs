@@ -1,7 +1,7 @@
 #![allow(clippy::diverging_sub_expression)]
 #![allow(dead_code)]
 
-use async_graphql::*;
+use gqlrs::*;
 use static_assertions_next::_core::marker::PhantomData;
 
 #[derive(SimpleObject)]

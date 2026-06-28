@@ -1,7 +1,7 @@
 #![allow(clippy::diverging_sub_expression)]
 
-use async_graphql::*;
 use futures_util::Stream;
+use gqlrs::*;
 use serde::Deserialize;
 
 #[tokio::test]
@@ -205,7 +205,7 @@ pub async fn test_enum_value_visible() {
 #[tokio::test]
 pub async fn test_visible_fn() {
     mod nested {
-        use async_graphql::Context;
+        use gqlrs::Context;
 
         pub struct IsAdmin(pub bool);
 

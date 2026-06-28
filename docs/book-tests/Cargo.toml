@@ -5,7 +5,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
-async-graphql = { path = "../..", features = [
+async-graphql = { package = "gqlrs", path = "../..", features = [
     "apollo_persisted_queries",
     "apollo_tracing",
     "chrono",
@@ -29,9 +29,9 @@ async-graphql = { path = "../..", features = [
 ] }
 
 # Integration crates
-async-graphql-warp = { path = "../../integrations/warp" }
-async-graphql-poem = { path = "../../integrations/poem" }
-async-graphql-actix-web = { path = "../../integrations/actix-web" }
+async-graphql-warp = { package = "gqlrs-warp", path = "../../integrations/warp" }
+async-graphql-poem = { package = "gqlrs-poem", path = "../../integrations/poem" }
+async-graphql-actix-web = { package = "gqlrs-actix-web", path = "../../integrations/actix-web" }
 
 # Crates referenced directly in book examples
 warp = { version = "0.4", features = ["server", "websocket"] }

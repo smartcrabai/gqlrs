@@ -1,9 +1,9 @@
-use async_graphql::{http::WebSocketProtocols, *};
 use futures_channel::mpsc;
 use futures_util::{
     SinkExt,
     stream::{Stream, StreamExt},
 };
+use gqlrs::{http::WebSocketProtocols, *};
 
 #[tokio::test]
 pub async fn test_subscription_ws_transport() {

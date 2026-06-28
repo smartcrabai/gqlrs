@@ -1,4 +1,4 @@
-use async_graphql::*;
+use gqlrs::*;
 
 #[tokio::test]
 pub async fn test_input_object_default_value() {

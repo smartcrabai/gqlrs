@@ -1,4 +1,4 @@
-use async_graphql::*;
+use gqlrs::*;
 
 #[tokio::test]
 pub async fn test_default_value_arg() {

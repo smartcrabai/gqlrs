@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use async_graphql::*;
+use gqlrs::*;
 
 #[tokio::test]
 pub async fn test_json_scalar() {

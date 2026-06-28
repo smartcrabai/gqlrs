@@ -15,35 +15,35 @@ jobs:
       max-parallel: 1
       matrix:
         package:
-          - name: async-graphql-value
-            registryName: async-graphql-value
+          - name: gqlrs-value
+            registryName: gqlrs-value
             path: value
-          - name: async-graphql-parser
-            registryName: async-graphql-parser
+          - name: gqlrs-parser
+            registryName: gqlrs-parser
             path: parser
-          - name: async-graphql-derive
-            registryName: async-graphql-derive
+          - name: gqlrs-derive
+            registryName: gqlrs-derive
             path: derive
-          - name: async-graphql
-            registryName: async-graphql
+          - name: gqlrs
+            registryName: gqlrs
             path: .
-          - name: async-graphql-extras
-            registryName: async-graphql-extras
+          - name: gqlrs-extras
+            registryName: gqlrs-extras
             path: extras
-          - name: async-graphql-actix-web
-            registryName: async-graphql-actix-web
+          - name: gqlrs-actix-web
+            registryName: gqlrs-actix-web
             path: integrations/actix-web
-          - name: async-graphql-warp
-            registryName: async-graphql-warp
+          - name: gqlrs-warp
+            registryName: gqlrs-warp
             path: integrations/warp
-          - name: async-graphql-poem
-            registryName: async-graphql-poem
+          - name: gqlrs-poem
+            registryName: gqlrs-poem
             path: integrations/poem
-          - name: async-graphql-axum
-            registryName: async-graphql-axum
+          - name: gqlrs-axum
+            registryName: gqlrs-axum
             path: integrations/axum
-          - name: async-graphql-rocket
-            registryName: async-graphql-rocket
+          - name: gqlrs-rocket
+            registryName: gqlrs-rocket
             path: integrations/rocket
     steps:
       - uses: dtolnay/rust-toolchain@stable

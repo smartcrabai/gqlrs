@@ -1,27 +1,33 @@
 <div align="center">
 <samp>
 
-# async-graphql
+# gqlrs
 
 **a high-performance graphql server library that's fully specification compliant**
 
 </samp>
 
-[Book](https://async-graphql.github.io/async-graphql/en/index.html) • [中文文档](https://async-graphql.github.io/async-graphql/zh-CN/index.html) • [Docs](https://docs.rs/async-graphql) • [GitHub repository](https://github.com/async-graphql/async-graphql) • [Cargo package](https://crates.io/crates/async-graphql)
+[Repository](https://github.com/smartcrabai/gqlrs) • [Upstream Book](https://async-graphql.github.io/async-graphql/en/index.html) • [Upstream 中文文档](https://async-graphql.github.io/async-graphql/zh-CN/index.html) • [Upstream Docs](https://docs.rs/async-graphql) • [Upstream Cargo package](https://crates.io/crates/async-graphql)
 
 ---
 
-![ci status](https://github.com/async-graphql/async-graphql/workflows/CI/badge.svg)
-[![code coverage](https://codecov.io/gh/async-graphql/async-graphql/branch/master/graph/badge.svg)](https://codecov.io/gh/async-graphql/async-graphql/)
 [![Unsafe Rust forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
-[![Crates.io version](https://img.shields.io/crates/v/async-graphql.svg)](https://crates.io/crates/async-graphql)
-[![docs.rs docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://docs.rs/async-graphql)
-[![downloads](https://img.shields.io/crates/d/async-graphql.svg)](https://crates.io/crates/async-graphql)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/async-graphql/async-graphql/compare)
 
 _This crate uses `#![forbid(unsafe_code)]` to ensure everything is implemented in 100% safe Rust._
 
 </div>
+
+## About this project
+
+`gqlrs` is a rebranded clone of the upstream [`async-graphql`](https://github.com/async-graphql/async-graphql) project.
+This repository keeps an explicit reference to the original project while using the `gqlrs` name for this codebase and package metadata.
+
+For compatibility with the existing Rust API and examples, many code snippets still import the crate under the `async_graphql` alias. When depending on the rebranded package directly, use Cargo's `package` key if you want to keep that alias:
+
+```toml
+[dependencies]
+async-graphql = { package = "gqlrs", version = "8.0.0-rc.5" }
+```
 
 ## Static schema
 
@@ -140,13 +146,13 @@ For more information, see the [sub-repository](https://github.com/async-graphql/
 
 ## Integrations
 
-Integrations are what glue `async-graphql` with your web server, here are provided ones, or you can build your own!
+Integrations are what glue `gqlrs` with your web server, here are provided ones, or you can build your own!
 
-- Poem [async-graphql-poem](https://crates.io/crates/async-graphql-poem)
-- Actix-web [async-graphql-actix-web](https://crates.io/crates/async-graphql-actix-web)
-- Warp [async-graphql-warp](https://crates.io/crates/async-graphql-warp)
-- Rocket [async-graphql-rocket](https://github.com/async-graphql/async-graphql/tree/master/integrations/rocket)
-- Axum [async-graphql-axum](https://github.com/async-graphql/async-graphql/tree/master/integrations/axum)
+- Poem `gqlrs-poem`
+- Actix-web `gqlrs-actix-web`
+- Warp `gqlrs-warp`
+- Rocket `gqlrs-rocket`
+- Axum `gqlrs-axum`
 
 ## Crate features
 
@@ -176,7 +182,7 @@ This crate offers the following features. Most are not activated by default, exc
 
 ### Extra Extensions
 
-Additional extensions are available in the [`async-graphql-extras`](./extras) crate. These extensions require additional dependencies and are maintained separately.
+Additional extensions are available in the [`gqlrs-extras`](./extras) crate. These extensions require additional dependencies and are maintained separately.
 
 See the [extras crate README](./extras/README.md) for more information.
 
@@ -185,7 +191,7 @@ See the [extras crate README](./extras/README.md) for more information.
 One of the tools used to monitor your graphql server in production is Apollo Studio. Apollo Studio is a cloud platform that helps you build, monitor, validate, and secure your organization's data graph.
 Add the extension crate [`async_graphql_apollo_studio_extension`](https://github.com/async-graphql/async_graphql_apollo_studio_extension) to make this available.
 
-## Who's using `async-graphql` in production?
+## Who's using upstream `async-graphql` in production?
 
 - [Vector](https://vector.dev/)
 - [DiveDB](https://divedb.net)

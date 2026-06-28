@@ -1,9 +1,9 @@
 #![cfg(feature = "chrono")]
 #![allow(clippy::diverging_sub_expression)]
 
-use async_graphql::*;
 use chrono::{DateTime, Utc};
 use futures_util::stream::Stream;
+use gqlrs::*;
 
 #[tokio::test]
 pub async fn test_object() {

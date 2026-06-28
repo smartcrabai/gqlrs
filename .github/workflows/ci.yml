@@ -3,10 +3,10 @@ name: CI
 on:
   push:
     branches:
-      - master
+      - main
   pull_request:
     branches:
-      - master
+      - main
 
 jobs:
   tests:
@@ -29,7 +29,7 @@ jobs:
       - name: Extract metadata
         id: meta
         run: |
-          FEATURES=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "async-graphql") | .features | keys | map(select(. != "boxed-trait")) | join(",")')
+          FEATURES=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "gqlrs") | .features | keys | map(select(. != "boxed-trait")) | join(",")')
           echo "features=$FEATURES" >> "$GITHUB_OUTPUT"
       - name: Build with all features
         run: cargo build --all-features
@@ -62,7 +62,7 @@ jobs:
       - name: Extract metadata
         id: meta
         run: |
-          FEATURES=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "async-graphql") | .features | keys | map(select(. != "boxed-trait")) | join(",")')
+          FEATURES=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "gqlrs") | .features | keys | map(select(. != "boxed-trait")) | join(",")')
           echo "features=$FEATURES" >> "$GITHUB_OUTPUT"
       - name: Build with all features
         run: cargo build --all-features
@@ -94,7 +94,17 @@ jobs:
           components: rustfmt
       - name: Check format
         run: cargo +${{ matrix.rust }} fmt --all -- --check
+      - name: Check examples availability
+        id: examples
+        run: |
+          if [ -f examples/Cargo.toml ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "examples/Cargo.toml is not present; skipping examples format check"
+          fi
       - name: Check examples format
+        if: steps.examples.outputs.available == 'true'
         working-directory: ./examples
         run: cargo +${{ matrix.rust }} fmt --all -- --check
 
@@ -155,13 +165,25 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
           components: clippy, rustfmt
+      - name: Check examples availability
+        id: examples
+        run: |
+          if [ -f examples/Cargo.toml ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "examples/Cargo.toml is not present; skipping examples job"
+          fi
       - name: Check examples with clippy
+        if: steps.examples.outputs.available == 'true'
         run: cargo clippy --all
         working-directory: ./examples
       - name: Build examples
+        if: steps.examples.outputs.available == 'true'
         run: cargo build --workspace --verbose
         working-directory: ./examples
       - name: Clean examples
+        if: steps.examples.outputs.available == 'true'
         run: cargo clean
         working-directory: ./examples
 

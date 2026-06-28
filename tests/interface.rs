@@ -1,4 +1,4 @@
-use async_graphql::*;
+use gqlrs::*;
 
 #[tokio::test]
 pub async fn test_interface_simple_object() {
@@ -611,7 +611,7 @@ pub async fn test_interface_generic_with_where_clause() {
 /// Module docs
 #[deny(missing_docs)]
 pub mod test_interface_docs {
-    use async_graphql::*;
+    use gqlrs::*;
 
     /// Some object
     #[derive(SimpleObject)]

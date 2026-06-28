@@ -1,5 +1,5 @@
-use async_graphql::*;
 use futures_util::stream::{Stream, StreamExt};
+use gqlrs::*;
 
 #[tokio::test]
 pub async fn test_generic_object() {

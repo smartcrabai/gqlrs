@@ -11,7 +11,7 @@ use crate::{
 /// # Examples
 ///
 /// ```
-/// use async_graphql::{dynamic::*, value, Value};
+/// use gqlrs::{dynamic::*, value, Value};
 ///
 /// let obj_a = Object::new("MyObjA")
 ///     .implement("MyInterface")

@@ -4,8 +4,8 @@
 
 use std::sync::Arc;
 
-use async_graphql::*;
 use futures_util::{Stream, StreamExt};
+use gqlrs::*;
 
 #[tokio::test]
 pub async fn test_all_validator() {

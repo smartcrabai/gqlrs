@@ -7,7 +7,7 @@ Define a GraphQL enum
 | Attribute    | description                                                                                                                                                                      | Type   | Optional |
 |--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------|----------|
 | name         | Enum name                                                                                                                                                                        | string | Y        |
-| name_type    | If `true`, the enum name will be specified from [`async_graphql::TypeName`](https://docs.rs/async-graphql/latest/async_graphql/trait.TypeName.html) trait                        | bool   | Y        |
+| name_type    | If `true`, the enum name will be specified from [`gqlrs::TypeName`](https://docs.rs/async-graphql/latest/gqlrs/trait.TypeName.html) trait                        | bool   | Y        |
 | display      | Implements `std::fmt::Display` for the enum type                                                                                                                                 | bool   | Y        |
 | rename_items | Rename all the fields according to the given case convention. The possible values are "lowercase", "UPPERCASE", "PascalCase", "camelCase", "snake_case", "SCREAMING_SNAKE_CASE". | string | Y        |
 | remote       | Derive a remote enum                                                                                                                                                             | string | Y        |
@@ -33,7 +33,7 @@ Define a GraphQL enum
 # Examples
 
 ```rust
-use async_graphql::*;
+use gqlrs::*;
 
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
 enum MyEnum {

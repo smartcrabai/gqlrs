@@ -23,7 +23,7 @@ use crate::{
 /// # Examples
 ///
 /// ```no_run
-/// use async_graphql::{extensions::Tracing, *};
+/// use gqlrs::{extensions::Tracing, *};
 ///
 /// #[derive(SimpleObject)]
 /// struct Query {
@@ -47,7 +47,7 @@ impl Tracing {
     /// # Example
     ///
     /// ```no_run
-    /// use async_graphql::{extensions::Tracing, *};
+    /// use gqlrs::{extensions::Tracing, *};
     ///
     /// #[derive(SimpleObject)]
     /// struct Query {
@@ -111,7 +111,7 @@ impl Extension for TracingExtension {
     async fn request(&self, ctx: &ExtensionContext<'_>, next: NextRequest<'_>) -> Response {
         next.run(ctx)
             .instrument(span!(
-                target: "async_graphql::graphql",
+                target: "gqlrs::graphql",
                 Level::INFO,
                 "request",
             ))
@@ -125,7 +125,7 @@ impl Extension for TracingExtension {
         next: NextSubscribe<'_>,
     ) -> BoxStream<'s, Response> {
         Box::pin(next.run(ctx, stream).instrument(span!(
-            target: "async_graphql::graphql",
+            target: "gqlrs::graphql",
             Level::INFO,
             "subscribe",
         )))
@@ -139,7 +139,7 @@ impl Extension for TracingExtension {
         next: NextParseQuery<'_>,
     ) -> ServerResult<ExecutableDocument> {
         let span = span!(
-            target: "async_graphql::graphql",
+            target: "gqlrs::graphql",
             Level::INFO,
             "parse",
             source = tracing::field::Empty
@@ -162,7 +162,7 @@ impl Extension for TracingExtension {
         next: NextValidation<'_>,
     ) -> Result<ValidationResult, Vec<ServerError>> {
         let span = span!(
-            target: "async_graphql::graphql",
+            target: "gqlrs::graphql",
             Level::INFO,
             "validation"
         );
@@ -176,7 +176,7 @@ impl Extension for TracingExtension {
         next: NextExecute<'_>,
     ) -> Response {
         let span = span!(
-            target: "async_graphql::graphql",
+            target: "gqlrs::graphql",
             Level::INFO,
             "execute"
         );
@@ -207,7 +207,7 @@ impl Extension for TracingExtension {
 
         let span = if should_trace {
             Some(span!(
-                target: "async_graphql::graphql",
+                target: "gqlrs::graphql",
                 Level::INFO,
                 "field",
                 path = %info.path_node,
@@ -220,7 +220,7 @@ impl Extension for TracingExtension {
 
         let fut = next.run(ctx, info).inspect_err(|err| {
             tracing::info!(
-                target: "async_graphql::graphql",
+                target: "gqlrs::graphql",
                 error = %err.message,
                 "error",
             );

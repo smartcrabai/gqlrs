@@ -1,6 +1,6 @@
-# async-graphql Architecture
+# gqlrs Architecture
 
-This document describes the internal architecture of `async-graphql`, and can be useful to
+This document describes the internal architecture of `gqlrs`, and can be useful to
 people wanting to contribute.
 
 ## Schema

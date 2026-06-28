@@ -5,8 +5,8 @@ use async_graphql::{
     Context, EmptyMutation, EmptySubscription, Object, ObjectType, Schema, SubscriptionType,
     http::GraphiQLSource,
 };
-use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
 use async_lock::Mutex;
+use gqlrs_actix_web::{GraphQLRequest, GraphQLResponse};
 
 pub async fn gql_playgound() -> HttpResponse {
     HttpResponse::Ok()

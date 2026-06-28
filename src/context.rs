@@ -415,7 +415,7 @@ impl<'a, T> ContextBase<'a, T> {
     ///
     /// ```no_run
     /// use ::http::header::ACCESS_CONTROL_ALLOW_ORIGIN;
-    /// use async_graphql::*;
+    /// use gqlrs::*;
     ///
     /// struct Query;
     ///
@@ -458,7 +458,7 @@ impl<'a, T> ContextBase<'a, T> {
     ///
     /// ```no_run
     /// use ::http::{HeaderValue, header::ACCESS_CONTROL_ALLOW_ORIGIN};
-    /// use async_graphql::*;
+    /// use gqlrs::*;
     ///
     /// struct Query;
     ///
@@ -516,7 +516,7 @@ impl<'a, T> ContextBase<'a, T> {
     ///
     /// ```no_run
     /// use ::http::header::SET_COOKIE;
-    /// use async_graphql::*;
+    /// use gqlrs::*;
     ///
     /// struct Query;
     ///
@@ -701,7 +701,7 @@ impl<'a> ContextBase<'a, &'a Positioned<Field>> {
     /// # Examples
     ///
     /// ```no_run
-    /// use async_graphql::*;
+    /// use gqlrs::*;
     ///
     /// #[derive(SimpleObject)]
     /// struct Detail {
@@ -741,7 +741,7 @@ impl<'a> ContextBase<'a, &'a Positioned<Field>> {
     /// # Examples
     ///
     /// ```rust
-    /// use async_graphql::*;
+    /// use gqlrs::*;
     ///
     /// #[derive(SimpleObject)]
     /// struct MyObj {
