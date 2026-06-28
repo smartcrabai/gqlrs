@@ -3,10 +3,10 @@ name: CI
 on:
   push:
     branches:
-      - master
+      - main
   pull_request:
     branches:
-      - master
+      - main
 
 jobs:
   tests:
@@ -29,7 +29,7 @@ jobs:
       - name: Extract metadata
         id: meta
         run: |
-          FEATURES=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "async-graphql") | .features | keys | map(select(. != "boxed-trait")) | join(",")')
+          FEATURES=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "gqlrs") | .features | keys | map(select(. != "boxed-trait")) | join(",")')
           echo "features=$FEATURES" >> "$GITHUB_OUTPUT"
       - name: Build with all features
         run: cargo build --all-features
@@ -62,7 +62,7 @@ jobs:
       - name: Extract metadata
         id: meta
         run: |
-          FEATURES=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "async-graphql") | .features | keys | map(select(. != "boxed-trait")) | join(",")')
+          FEATURES=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "gqlrs") | .features | keys | map(select(. != "boxed-trait")) | join(",")')
           echo "features=$FEATURES" >> "$GITHUB_OUTPUT"
       - name: Build with all features
         run: cargo build --all-features
