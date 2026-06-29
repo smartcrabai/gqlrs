@@ -1228,6 +1228,7 @@ pub async fn test_introspection_subscription() {
 
 #[tokio::test]
 pub async fn test_disable_introspection() {
+    #[allow(dead_code)]
     #[derive(SimpleObject)]
     struct Query {
         value: i32,
