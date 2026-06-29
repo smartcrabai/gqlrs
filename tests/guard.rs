@@ -661,6 +661,62 @@ pub async fn test_guard_on_nullable_fields_returns_null() {
 }
 
 #[tokio::test]
+pub async fn test_guard_on_nullable_result_field_returns_null() {
+    fn forbidden_error() -> ServerError {
+        ServerError {
+            message: "Forbidden".to_string(),
+            source: None,
+            locations: vec![Pos { line: 1, column: 3 }],
+            path: vec![PathSegment::Field("value".to_owned())],
+            extensions: None,
+        }
+    }
+
+    struct OptionResultQuery;
+
+    #[Object]
+    impl OptionResultQuery {
+        #[graphql(guard = "RoleGuard::new(Role::Admin)")]
+        async fn value(&self) -> Option<Result<i32>> {
+            Some(Ok(100))
+        }
+    }
+
+    let schema = Schema::new(OptionResultQuery, EmptyMutation, EmptySubscription);
+    let response = schema
+        .execute(Request::new("{ value }").data(Role::Guest))
+        .await;
+
+    assert_eq!(response.data, value!({ "value": null }));
+    assert_eq!(response.errors, vec![forbidden_error()]);
+
+    struct ResultOptionQuery;
+
+    #[Object]
+    impl ResultOptionQuery {
+        #[graphql(guard = "RoleGuard::new(Role::Admin)")]
+        async fn value(&self) -> Result<Option<i32>> {
+            Ok(Some(100))
+        }
+    }
+
+    let schema = Schema::new(ResultOptionQuery, EmptyMutation, EmptySubscription);
+    let response = schema
+        .execute(Request::new("{ value }").data(Role::Guest))
+        .await;
+
+    assert_eq!(response.data, value!({ "value": null }));
+    assert_eq!(response.errors, vec![forbidden_error()]);
+
+    let response = schema
+        .execute(Request::new("{ value }").data(Role::Admin))
+        .await;
+
+    assert_eq!(response.data, value!({ "value": 100 }));
+    assert!(response.errors.is_empty());
+}
+
+#[tokio::test]
 pub async fn test_guard_with_fn() {
     fn is_admin(ctx: &Context<'_>) -> Result<()> {
         if ctx.data_opt::<Role>() == Some(&Role::Admin) {
