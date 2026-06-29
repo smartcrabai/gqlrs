@@ -585,6 +585,82 @@ pub async fn test_guard_on_complex_object_field() {
 }
 
 #[tokio::test]
+pub async fn test_guard_on_nullable_fields_returns_null() {
+    fn forbidden_error() -> ServerError {
+        ServerError {
+            message: "Forbidden".to_string(),
+            source: None,
+            locations: vec![Pos { line: 1, column: 3 }],
+            path: vec![PathSegment::Field("value".to_owned())],
+            extensions: None,
+        }
+    }
+
+    #[derive(SimpleObject)]
+    struct SimpleQuery {
+        #[graphql(guard = "RoleGuard::new(Role::Admin)")]
+        value: Option<i32>,
+        other: i32,
+    }
+
+    let schema = Schema::new(
+        SimpleQuery {
+            value: Some(100),
+            other: 1,
+        },
+        EmptyMutation,
+        EmptySubscription,
+    );
+    let response = schema
+        .execute(Request::new("{ value other }").data(Role::Guest))
+        .await;
+    assert_eq!(response.data, value!({ "value": null, "other": 1 }));
+    assert_eq!(response.errors, vec![forbidden_error()]);
+
+    struct ObjectQuery;
+
+    #[Object]
+    impl ObjectQuery {
+        #[graphql(guard = "RoleGuard::new(Role::Admin)")]
+        async fn value(&self) -> Option<i32> {
+            Some(100)
+        }
+
+        async fn other(&self) -> i32 {
+            2
+        }
+    }
+
+    let schema = Schema::new(ObjectQuery, EmptyMutation, EmptySubscription);
+    let response = schema
+        .execute(Request::new("{ value other }").data(Role::Guest))
+        .await;
+    assert_eq!(response.data, value!({ "value": null, "other": 2 }));
+    assert_eq!(response.errors, vec![forbidden_error()]);
+
+    #[derive(SimpleObject)]
+    #[graphql(complex)]
+    struct ComplexQuery {
+        other: i32,
+    }
+
+    #[ComplexObject]
+    impl ComplexQuery {
+        #[graphql(guard = "RoleGuard::new(Role::Admin)")]
+        async fn value(&self) -> Option<i32> {
+            Some(100)
+        }
+    }
+
+    let schema = Schema::new(ComplexQuery { other: 3 }, EmptyMutation, EmptySubscription);
+    let response = schema
+        .execute(Request::new("{ value other }").data(Role::Guest))
+        .await;
+    assert_eq!(response.data, value!({ "value": null, "other": 3 }));
+    assert_eq!(response.errors, vec![forbidden_error()]);
+}
+
+#[tokio::test]
 pub async fn test_guard_with_fn() {
     fn is_admin(ctx: &Context<'_>) -> Result<()> {
         if ctx.data_opt::<Role>() == Some(&Role::Admin) {

@@ -14,8 +14,8 @@ use crate::{
     utils::{
         GeneratorResult, extract_input_args, gen_boxed_trait, gen_deprecation, gen_directive_calls,
         generate_default, generate_guards, get_cfg_attrs, get_crate_path, get_rustdoc,
-        get_type_path_and_name, parse_complexity_expr, parse_graphql_attrs, remove_graphql_attrs,
-        visible_fn,
+        get_type_path_and_name, nullable_type_check, parse_complexity_expr, parse_graphql_attrs,
+        remove_graphql_attrs, visible_fn,
     },
 };
 
@@ -542,7 +542,29 @@ pub fn generate(
                 .map_err(|err| err.into_server_error(ctx.item.pos))
             };
             let guard = match method_args.guard.as_ref().or(object_args.guard.as_ref()) {
-                Some(code) => Some(generate_guards(&crate_name, code, guard_map_err)?),
+                Some(code) => {
+                    let nullable = nullable_type_check(&crate_name, &schema_ty);
+                    let on_error = if is_async {
+                        quote! {
+                            if #nullable {
+                                ctx.add_error(ctx.set_error_path(err));
+                                return ::std::result::Result::Ok(::std::option::Option::None);
+                            }
+                            return ::std::result::Result::Err(err);
+                        }
+                    } else {
+                        quote! {
+                            if #nullable {
+                                ctx.add_error(ctx.set_error_path(err));
+                                return ::std::result::Result::Ok(
+                                    ::std::option::Option::Some(#crate_name::Value::Null),
+                                );
+                            }
+                            return ::std::result::Result::Err(ctx.set_error_path(err));
+                        }
+                    };
+                    Some(generate_guards(&crate_name, code, guard_map_err, on_error)?)
+                }
                 None => None,
             };
 
@@ -551,9 +573,16 @@ pub fn generate(
                     let f = async move {
                         #(#get_params)*
                         #guard
-                        #resolve_obj
+                        #resolve_obj.map(::std::option::Option::Some)
                     };
-                    let obj = f.await.map_err(|err| ctx.set_error_path(err))?;
+                    let obj = match f.await.map_err(|err| ctx.set_error_path(err))? {
+                        ::std::option::Option::Some(obj) => obj,
+                        ::std::option::Option::None => {
+                            return ::std::result::Result::Ok(
+                                ::std::option::Option::Some(#crate_name::Value::Null),
+                            );
+                        }
+                    };
                     let ctx_obj = ctx.with_selection_set(&ctx.item.node.selection_set);
                     return #crate_name::OutputType::resolve(&obj, &ctx_obj, ctx.item)
                         .await

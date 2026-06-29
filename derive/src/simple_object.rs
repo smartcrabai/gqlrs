@@ -11,7 +11,7 @@ use crate::{
     },
     utils::{
         GeneratorResult, gen_boxed_trait, gen_deprecation, gen_directive_calls, generate_guards,
-        get_crate_path, get_rustdoc, parse_complexity_expr, visible_fn,
+        get_crate_path, get_rustdoc, nullable_type_check, parse_complexity_expr, visible_fn,
     },
 };
 
@@ -325,7 +325,19 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
             .map_err(|err| ctx.set_error_path(err.into_server_error(ctx.item.pos)))
         };
         let guard = match field.guard.as_ref().or(object_args.guard.as_ref()) {
-            Some(code) => Some(generate_guards(&crate_name, code, guard_map_err)?),
+            Some(code) => {
+                let nullable = nullable_type_check(&crate_name, ty);
+                let on_error = quote! {
+                    if #nullable {
+                        ctx.add_error(err);
+                        return ::std::result::Result::Ok(
+                            ::std::option::Option::Some(#crate_name::Value::Null),
+                        );
+                    }
+                    return ::std::result::Result::Err(err);
+                };
+                Some(generate_guards(&crate_name, code, guard_map_err, on_error)?)
+            }
             None => None,
         };
 
