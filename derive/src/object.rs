@@ -143,8 +143,7 @@ pub fn generate(
                                 },
                                 FnArg::Receiver(_) => None,
                             })
-                            .collect::<Result<Vec<Ident>, Error>>()?
-                            .into_iter(),
+                            .collect::<Result<Vec<Ident>, Error>>()?,
                     );
 
                     let new_block = match with {

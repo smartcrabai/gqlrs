@@ -688,11 +688,12 @@ mod issue_1647 {
         #[Object]
         impl Query {
             async fn obj(&self) -> ManyMerged {
-                let mut m = ManyMerged::default();
-                m.0 = Obj001 { f001: 1 };
-                m.64 = Obj065 { f065: 65 };
-                m.129 = Obj130 { f130: 130 };
-                m
+                ManyMerged {
+                    0: Obj001 { f001: 1 },
+                    64: Obj065 { f065: 65 },
+                    129: Obj130 { f130: 130 },
+                    ..Default::default()
+                }
             }
         }
 
