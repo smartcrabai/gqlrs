@@ -5,8 +5,9 @@ use proc_macro_crate::{FoundCrate, crate_name};
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::{
-    Attribute, Error, Expr, ExprLit, ExprPath, FnArg, Ident, ImplItemFn, Lifetime, Lit, LitStr,
-    Meta, Pat, PatIdent, Type, TypeGroup, TypeParamBound, TypeReference, parse_quote,
+    Attribute, Error, Expr, ExprLit, ExprPath, FnArg, GenericArgument, Ident, ImplItemFn, Lifetime,
+    Lit, LitStr, Meta, Pat, PatIdent, PathArguments, Type, TypeGroup, TypeParamBound,
+    TypeReference, parse_quote,
     visit::Visit,
     visit_mut::{self, VisitMut},
 };
@@ -53,13 +54,56 @@ pub fn generate_guards(
     crate_name: &syn::Path,
     expr: &Expr,
     map_err: TokenStream,
+    on_error: TokenStream,
 ) -> GeneratorResult<TokenStream> {
     let code = quote! {{
         use #crate_name::GuardExt;
         #expr
     }};
     Ok(quote! {
-        #crate_name::Guard::check(&#code, &ctx).await #map_err ?;
+        if let ::std::result::Result::Err(err) = #crate_name::Guard::check(&#code, &ctx).await #map_err {
+            #on_error
+        }
+    })
+}
+
+pub fn nullable_type_check(crate_name: &syn::Path, ty: &Type) -> TokenStream {
+    if is_output_type_nullable(ty) {
+        quote!(true)
+    } else {
+        quote!(!<#ty as #crate_name::OutputType>::qualified_type_name().ends_with('!'))
+    }
+}
+
+fn is_output_type_nullable(ty: &Type) -> bool {
+    match ty {
+        Type::Group(ty) => is_output_type_nullable(&ty.elem),
+        Type::Paren(ty) => is_output_type_nullable(&ty.elem),
+        Type::Reference(TypeReference { elem, .. }) => is_output_type_nullable(elem),
+        Type::Path(ty) => {
+            let Some(segment) = ty.path.segments.last() else {
+                return false;
+            };
+            let ident = segment.ident.to_string();
+            if ident == "Option" || ident == "Weak" {
+                return true;
+            }
+            if matches!(ident.as_str(), "Arc" | "Box" | "Cow" | "Result") {
+                return first_generic_type(&segment.arguments).is_some_and(is_output_type_nullable);
+            }
+            false
+        }
+        _ => false,
+    }
+}
+
+fn first_generic_type(arguments: &PathArguments) -> Option<&Type> {
+    let PathArguments::AngleBracketed(arguments) = arguments else {
+        return None;
+    };
+    arguments.args.iter().find_map(|arg| match arg {
+        GenericArgument::Type(ty) => Some(ty),
+        _ => None,
     })
 }
 
