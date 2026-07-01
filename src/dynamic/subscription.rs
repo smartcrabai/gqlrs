@@ -164,6 +164,7 @@ impl Subscription {
                     compute_complexity: None,
                     directive_invocations: vec![],
                     requires_scopes: vec![],
+                    semantic_non_null: false,
                 },
             );
         }
