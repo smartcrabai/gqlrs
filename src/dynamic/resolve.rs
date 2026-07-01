@@ -1,4 +1,4 @@
-use std::{borrow::Cow, pin::Pin};
+use std::{borrow::Cow, collections::BTreeMap, pin::Pin};
 
 use async_graphql_derive::SimpleObject;
 use async_graphql_parser::{Positioned, types::Field};
@@ -295,6 +295,22 @@ fn collect_field<'a>(
     );
 }
 
+/// Checks if a fragment type condition applies to an object type.
+///
+/// This handles:
+/// - Direct object type matches
+/// - Interface type conditions (checks if object implements the interface)
+/// - Union type conditions (checks if object is a member of the union)
+fn does_fragment_type_apply(
+    types: &BTreeMap<String, crate::registry::MetaType>,
+    type_condition: &str,
+    object_name: &str,
+) -> bool {
+    types
+        .get(type_condition)
+        .is_some_and(|ty| ty.is_possible_type(object_name))
+}
+
 fn collect_fields<'a>(
     fields: &mut Vec<BoxFieldFuture<'a>>,
     schema: &'a Schema,
@@ -385,13 +401,14 @@ fn collect_fields<'a>(
 
                 let type_condition =
                     type_condition.map(|condition| condition.node.on.node.as_str());
-                let introspection_type_name = &object.name;
 
                 let type_condition_matched = match type_condition {
                     None => true,
-                    Some(type_condition) if type_condition == introspection_type_name => true,
-                    Some(type_condition) if object.implements.contains(type_condition) => true,
-                    _ => false,
+                    Some(type_condition) => does_fragment_type_apply(
+                        &schema.0.env.registry.types,
+                        type_condition,
+                        &object.name,
+                    ),
                 };
                 if type_condition_matched {
                     collect_fields(
