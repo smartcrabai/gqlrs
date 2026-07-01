@@ -308,7 +308,7 @@ fn does_fragment_type_apply(
 ) -> bool {
     types
         .get(type_condition)
-        .map_or(false, |ty| ty.is_possible_type(object_name))
+        .is_some_and(|ty| ty.is_possible_type(object_name))
 }
 
 fn collect_fields<'a>(
