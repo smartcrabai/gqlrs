@@ -741,6 +741,8 @@ pub struct Scalar {
     #[darling(multiple, rename = "tag")]
     pub tags: Vec<String>,
     pub specified_by_url: Option<String>,
+    #[darling(default, multiple, rename = "directive")]
+    pub directives: Vec<Expr>,
     #[darling(default, multiple)]
     pub requires_scopes: Vec<String>,
     #[darling(rename = "crate")]
@@ -1079,6 +1081,7 @@ pub enum TypeDirectiveLocation {
     Object,
     InputObject,
     Interface,
+    Scalar,
 }
 
 impl TypeDirectiveLocation {
