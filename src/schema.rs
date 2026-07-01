@@ -440,6 +440,7 @@ where
             Subscription::create_type_info(&mut registry);
         }
 
+        registry.add_semantic_non_null_directive_if_needed();
         registry.remove_unused_types();
         registry
     }

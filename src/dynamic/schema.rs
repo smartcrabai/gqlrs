@@ -211,6 +211,8 @@ impl SchemaBuilder {
                 .insert("_Entity".to_string(), Type::Union(entity));
         }
 
+        registry.add_semantic_non_null_directive_if_needed();
+
         let inner = SchemaInner {
             env: SchemaEnv(Arc::new(SchemaEnvInner {
                 registry,

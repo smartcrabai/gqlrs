@@ -1326,42 +1326,6 @@ impl Registry {
         });
 
         self.add_directive(MetaDirective {
-            name: "semanticNonNull".into(),
-            description: Some(
-                "Indicates that a field is semantically non-null. This means that the field will \
-                never be null in the successful case, but can still be null due to error propagation."
-                    .to_string(),
-            ),
-            locations: vec![__DirectiveLocation::FIELD_DEFINITION],
-            args: {
-                let mut args = IndexMap::new();
-                args.insert(
-                    "levels".into(),
-                    MetaInputValue {
-                        name: "levels".into(),
-                        description: Some(
-                            "The list levels at which the field is semantically non-null. \
-                            If not specified, the field itself is semantically non-null."
-                                .into(),
-                        ),
-                        ty: "[Int!]".into(),
-                        deprecation: Deprecation::NoDeprecated,
-                        default_value: None,
-                        visible: None,
-                        inaccessible: false,
-                        tags: Default::default(),
-                        is_secret: false,
-                        directive_invocations: vec![],
-                    },
-                );
-                args
-            },
-            is_repeatable: false,
-            visible: None,
-            composable: None,
-        });
-
-        self.add_directive(MetaDirective {
             name: "oneOf".into(),
             description: Some(
                 "Indicates that an Input Object is a OneOf Input Object (and thus requires \
@@ -1381,6 +1345,55 @@ impl Registry {
         <f32 as InputType>::create_type_info(self);
         <String as InputType>::create_type_info(self);
         <ID as InputType>::create_type_info(self);
+    }
+
+    /// Registers the `@semanticNonNull` directive only if any field uses `semantic_non_null`.
+    /// This ensures the directive does not appear in introspection when unused.
+    pub(crate) fn add_semantic_non_null_directive_if_needed(&mut self) {
+        let has_semantic_non_null = self.types.values().any(|ty| match ty {
+            MetaType::Object { fields, .. } | MetaType::Interface { fields, .. } => {
+                fields.values().any(|field| field.semantic_non_null)
+            }
+            _ => false,
+        });
+
+        if has_semantic_non_null {
+            self.add_directive(MetaDirective {
+                name: "semanticNonNull".into(),
+                description: Some(
+                    "Indicates that a field is semantically non-null. This means that the field will \
+                    never be null in the successful case, but can still be null due to error propagation."
+                        .to_string(),
+                ),
+                locations: vec![__DirectiveLocation::FIELD_DEFINITION],
+                args: {
+                    let mut args = IndexMap::new();
+                    args.insert(
+                        "levels".into(),
+                        MetaInputValue {
+                            name: "levels".into(),
+                            description: Some(
+                                "The list levels at which the field is semantically non-null. \
+                                If not specified, the field itself is semantically non-null."
+                                    .into(),
+                            ),
+                            ty: "[Int!]".into(),
+                            deprecation: Deprecation::NoDeprecated,
+                            default_value: None,
+                            visible: None,
+                            inaccessible: false,
+                            tags: Default::default(),
+                            is_secret: false,
+                            directive_invocations: vec![],
+                        },
+                    );
+                    args
+                },
+                is_repeatable: false,
+                visible: None,
+                composable: None,
+            });
+        }
     }
 
     pub fn create_input_type<T, F>(&mut self, type_id: MetaTypeId, mut f: F) -> String
