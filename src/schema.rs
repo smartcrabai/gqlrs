@@ -1019,11 +1019,30 @@ pub(crate) async fn prepare_request(
 
     let (operation_name, mut operation) = operation.map_err(|err| vec![err])?;
 
+    // Build variables with operation-level defaults for missing entries.
+    // This ensures @skip/@include evaluates correctly when a variable is
+    // omitted from the request but has a default value in the operation.
+    let mut variables_with_defaults = request.variables.clone();
+    for var_def in &operation.node.variable_definitions {
+        let name = &var_def.node.name.node;
+        if !variables_with_defaults.contains_key(name)
+            && let Some(default_value) = &var_def.node.default_value
+        {
+            variables_with_defaults.insert(name.clone(), default_value.node.clone());
+        }
+    }
+
     // remove skipped fields
     for fragment in document.fragments.values_mut() {
-        remove_skipped_selection(&mut fragment.node.selection_set.node, &request.variables);
+        remove_skipped_selection(
+            &mut fragment.node.selection_set.node,
+            &variables_with_defaults,
+        );
     }
-    remove_skipped_selection(&mut operation.node.selection_set.node, &request.variables);
+    remove_skipped_selection(
+        &mut operation.node.selection_set.node,
+        &variables_with_defaults,
+    );
 
     let env = QueryEnvInner {
         extensions,
