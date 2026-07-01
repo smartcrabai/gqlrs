@@ -69,3 +69,5 @@ pub use r#type::Type;
 pub use type_ref::TypeRef;
 pub use union::Union;
 pub use value_accessor::{ListAccessor, ObjectAccessor, ValueAccessor};
+
+pub use crate::registry::{__DirectiveLocation, MetaDirective};
