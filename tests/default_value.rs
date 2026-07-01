@@ -160,10 +160,30 @@ pub async fn test_default_value_inputobject_sdl_optional() {
     let sdl = schema.sdl();
 
     // Fields with defaults should be optional (nullable) in SDL
-    assert!(sdl.contains("value1: Int = 100"), "value1 should be optional with default, got: {}", sdl);
-    assert!(sdl.contains("value2: Int = 0"), "value2 should be optional with default, got: {}", sdl);
-    assert!(sdl.contains("value3: Int = 6"), "value3 should be optional with default, got: {}", sdl);
-    assert!(sdl.contains("value4: Float = 80"), "value4 should be optional with default, got: {}", sdl);
+    assert!(
+        sdl.contains("value1: Int = 100"),
+        "value1 should be optional with default, got: {}",
+        sdl
+    );
+    assert!(
+        sdl.contains("value2: Int = 0"),
+        "value2 should be optional with default, got: {}",
+        sdl
+    );
+    assert!(
+        sdl.contains("value3: Int = 6"),
+        "value3 should be optional with default, got: {}",
+        sdl
+    );
+    assert!(
+        sdl.contains("value4: Float = 80"),
+        "value4 should be optional with default, got: {}",
+        sdl
+    );
     // Field without default should remain required (non-null)
-    assert!(sdl.contains("noDefault: String!"), "no_default should be required, got: {}", sdl);
+    assert!(
+        sdl.contains("noDefault: String!"),
+        "no_default should be required, got: {}",
+        sdl
+    );
 }
