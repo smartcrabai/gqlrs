@@ -13,8 +13,8 @@ pub fn generate(desc_args: &args::Description) -> GeneratorResult<TokenStream> {
     let doc = get_rustdoc(&desc_args.attrs)?.unwrap_or_default();
     let expanded = quote! {
         impl #impl_generics #crate_name::Description for #ident #ty_generics #where_clause {
-            fn description() -> &'static str {
-                #doc
+            fn description() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
+                ::std::borrow::Cow::Borrowed(#doc)
             }
         }
     };

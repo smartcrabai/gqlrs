@@ -75,7 +75,7 @@ pub fn generate(
     let rustdoc = get_rustdoc(&item_impl.attrs)?;
     let has_desc = object_args.use_type_description || rustdoc.is_some();
     let desc = if object_args.use_type_description {
-        quote! { ::std::option::Option::Some(::std::string::ToString::to_string(<Self as #crate_name::Description>::description())) }
+        quote! { ::std::option::Option::Some(::std::borrow::Cow::into_owned(<Self as #crate_name::Description>::description())) }
     } else {
         rustdoc
             .map(|s| quote!(::std::option::Option::Some(::std::string::ToString::to_string(#s))))
