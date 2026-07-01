@@ -129,6 +129,11 @@ impl<T: OutputType + Sync, E: Into<Error> + Send + Sync + Clone> OutputType for 
         T::type_name()
     }
 
+    #[cfg(feature = "nullable-result")]
+    fn qualified_type_name() -> String {
+        T::type_name().to_string()
+    }
+
     fn create_type_info(registry: &mut Registry) -> String {
         T::create_type_info(registry)
     }
@@ -140,7 +145,19 @@ impl<T: OutputType + Sync, E: Into<Error> + Send + Sync + Clone> OutputType for 
     ) -> ServerResult<Value> {
         match self {
             Ok(value) => value.resolve(ctx, field).await,
-            Err(err) => Err(ctx.set_error_path(err.clone().into().into_server_error(field.pos))),
+            Err(err) => {
+                let server_error =
+                    ctx.set_error_path(err.clone().into().into_server_error(field.pos));
+                #[cfg(feature = "nullable-result")]
+                {
+                    ctx.add_error(server_error);
+                    Ok(Value::Null)
+                }
+                #[cfg(not(feature = "nullable-result"))]
+                {
+                    Err(server_error)
+                }
+            }
         }
     }
 }
