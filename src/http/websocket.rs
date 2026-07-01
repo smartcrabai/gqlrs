@@ -6,7 +6,6 @@ use std::{
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
-    time::{Duration, Instant},
 };
 
 use futures_util::{
@@ -16,6 +15,7 @@ use futures_util::{
 };
 use pin_project_lite::pin_project;
 use serde::{Deserialize, Serialize};
+use web_time::{Duration, Instant};
 
 use crate::{Data, Error, Executor, Request, Response, Result, runtime::Timer as RtTimer};
 
