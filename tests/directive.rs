@@ -208,6 +208,89 @@ pub async fn test_includes_specified_by_directive() {
 }
 
 #[tokio::test]
+pub async fn test_skip_include_with_default_variables() {
+    struct Query;
+
+    #[Object]
+    impl Query {
+        pub async fn value(&self) -> i32 {
+            10
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+
+    // Test @skip with default variable value (omitted variable)
+    let data = schema
+        .execute(
+            r#"
+            query ($skipField: Boolean = true) {
+                value1: value @skip(if: $skipField)
+                value2: value @skip(if: false)
+            }
+        "#,
+        )
+        .await
+        .into_result()
+        .unwrap()
+        .data;
+    assert_eq!(
+        data,
+        value!({
+            "value2": 10,
+        })
+    );
+
+    // Test @include with default variable value (omitted variable)
+    let data = schema
+        .execute(
+            r#"
+            query ($includeField: Boolean = false) {
+                value1: value @include(if: $includeField)
+                value2: value @include(if: true)
+            }
+        "#,
+        )
+        .await
+        .into_result()
+        .unwrap()
+        .data;
+    assert_eq!(
+        data,
+        value!({
+            "value2": 10,
+        })
+    );
+
+    // Test that explicit variable overrides default
+    let data = schema
+        .execute(
+            Request::new(
+                r#"
+            query ($skipField: Boolean = true) {
+                value1: value @skip(if: $skipField)
+                value2: value @skip(if: false)
+            }
+        "#,
+            )
+            .variables(Variables::from_value(value!({
+                "skipField": false
+            }))),
+        )
+        .await
+        .into_result()
+        .unwrap()
+        .data;
+    assert_eq!(
+        data,
+        value!({
+            "value1": 10,
+            "value2": 10,
+        })
+    );
+}
+
+#[tokio::test]
 pub async fn test_includes_one_of_directive() {
     #[derive(OneofObject)]
     enum AB {
