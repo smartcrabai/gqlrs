@@ -1150,8 +1150,9 @@ mod tests {
 
     #[tokio::test]
     async fn custom_directive() {
-        use crate::registry::{__DirectiveLocation, MetaDirective, MetaInputValue};
         use indexmap::IndexMap;
+
+        use crate::registry::{__DirectiveLocation, MetaDirective, MetaInputValue};
 
         let query =
             Object::new("Query").field(Field::new("value", TypeRef::named(TypeRef::INT), |_| {
