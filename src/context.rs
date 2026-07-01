@@ -797,6 +797,130 @@ impl<'a> ContextBase<'a, &'a Positioned<Directive>> {
     }
 }
 
+/// An item in a GraphQL selection set.
+///
+/// This enum represents the three kinds of selections defined by the GraphQL
+/// specification: fields, fragment spreads, and inline fragments.  Unlike
+/// [`SelectionField`], which only yields plain fields and silently flattens
+/// fragments, `SelectionItem` preserves fragment boundaries and type
+/// conditions so that callers can observe the original query structure.
+///
+/// # Examples
+///
+/// ```rust
+/// use gqlrs::*;
+///
+/// #[derive(SimpleObject)]
+/// struct MyObj {
+///     a: i32,
+///     b: i32,
+///     c: i32,
+/// }
+///
+/// struct Query;
+///
+/// #[Object]
+/// impl Query {
+///     async fn obj(&self, ctx: &Context<'_>) -> MyObj {
+///         for item in ctx.field().selection_set_items() {
+///             match item {
+///                 SelectionItem::Field(field) => {
+///                     // A plain field
+///                     let _name = field.name();
+///                 }
+///                 SelectionItem::FragmentSpread(spread) => {
+///                     // A named fragment spread (e.g. `... MyFragment`)
+///                     let _fragment_name = spread.fragment_name();
+///                     let _sub_items = spread.selection_set_items();
+///                 }
+///                 SelectionItem::InlineFragment(fragment) => {
+///                     // An inline fragment (e.g. `... on MyType { ... }`)
+///                     let _type_condition = fragment.type_condition();
+///                     let _sub_items = fragment.selection_set_items();
+///                 }
+///             }
+///         }
+///         MyObj { a: 1, b: 2, c: 3 }
+///     }
+/// }
+///
+/// # tokio::runtime::Runtime::new().unwrap().block_on(async move {
+/// let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+/// assert!(schema.execute("{ obj { a b c }}").await.is_ok());
+/// assert!(schema.execute("{ obj { a ... { b c } }}").await.is_ok());
+/// assert!(
+///     schema
+///         .execute("{ obj { a ... on MyObj { b c } }}")
+///         .await
+///         .is_ok()
+/// );
+/// # });
+/// ```
+#[derive(Debug)]
+pub enum SelectionItem<'a> {
+    /// A plain field selection.
+    Field(SelectionField<'a>),
+    /// A named fragment spread (e.g. `... MyFragment`).
+    FragmentSpread(FragmentSpreadItem<'a>),
+    /// An inline fragment (e.g. `... on MyType { ... }`).
+    InlineFragment(InlineFragmentItem<'a>),
+}
+
+/// A fragment spread item within a selection set.
+///
+/// Wraps a named fragment spread (`... FragmentName`) and provides access to
+/// the fragment name and its nested selection set.
+#[derive(Debug)]
+pub struct FragmentSpreadItem<'a> {
+    /// The name of the spread fragment.
+    name: &'a str,
+    /// The resolved items from the fragment's selection set.
+    items: Vec<SelectionItem<'a>>,
+}
+
+impl<'a> FragmentSpreadItem<'a> {
+    /// Returns the name of the spread fragment.
+    #[inline]
+    pub fn fragment_name(&self) -> &'a str {
+        self.name
+    }
+
+    /// Returns the selection set items within the fragment.
+    #[inline]
+    pub fn selection_set_items(&self) -> &[SelectionItem<'a>] {
+        &self.items
+    }
+}
+
+/// An inline fragment item within a selection set.
+///
+/// Wraps an inline fragment (`... on TypeCondition { ... }`) and provides
+/// access to its optional type condition and nested selection set.
+#[derive(Debug)]
+pub struct InlineFragmentItem<'a> {
+    /// The optional type condition (the `on TypeName` part).
+    type_condition: Option<&'a str>,
+    /// The resolved items from the inline fragment's selection set.
+    items: Vec<SelectionItem<'a>>,
+}
+
+impl<'a> InlineFragmentItem<'a> {
+    /// Returns the type condition of the inline fragment, if any.
+    ///
+    /// For `... on MyType { ... }`, this returns `Some("MyType")`.
+    /// For `... { ... }`, this returns `None`.
+    #[inline]
+    pub fn type_condition(&self) -> Option<&'a str> {
+        self.type_condition
+    }
+
+    /// Returns the selection set items within the inline fragment.
+    #[inline]
+    pub fn selection_set_items(&self) -> &[SelectionItem<'a>] {
+        &self.items
+    }
+}
+
 /// Selection field.
 #[derive(Clone, Copy)]
 pub struct SelectionField<'a> {
@@ -862,6 +986,73 @@ impl<'a> SelectionField<'a> {
             context: self.context,
         }
     }
+
+    /// Get all selection items of the current selection set, preserving
+    /// fragment boundaries.
+    ///
+    /// Unlike [`selection_set`](Self::selection_set), which silently flattens
+    /// fragment spreads and inline fragments into plain fields, this method
+    /// returns [`SelectionItem`] values that let callers distinguish between
+    /// fields, fragment spreads, and inline fragments.  This is useful when
+    /// the original query structure matters — for example, when building a
+    /// response that must mirror the requested selection shape.
+    pub fn selection_set_items(&self) -> Vec<SelectionItem<'a>> {
+        collect_selection_items(
+            self.fragments,
+            &self.field.selection_set.node.items,
+            self.context,
+        )
+    }
+}
+
+/// Recursively collect [`SelectionItem`]s from a selection set.
+fn collect_selection_items<'a>(
+    fragments: &'a HashMap<Name, Positioned<FragmentDefinition>>,
+    items: &'a [Positioned<Selection>],
+    context: &'a Context<'a>,
+) -> Vec<SelectionItem<'a>> {
+    let mut result = Vec::new();
+    for selection in items {
+        match &selection.node {
+            Selection::Field(field) => {
+                result.push(SelectionItem::Field(SelectionField {
+                    fragments,
+                    field: &field.node,
+                    context,
+                }));
+            }
+            Selection::FragmentSpread(fragment_spread) => {
+                if let Some(fragment) = fragments.get(&fragment_spread.node.fragment_name.node) {
+                    let items = collect_selection_items(
+                        fragments,
+                        &fragment.node.selection_set.node.items,
+                        context,
+                    );
+                    result.push(SelectionItem::FragmentSpread(FragmentSpreadItem {
+                        name: fragment_spread.node.fragment_name.node.as_str(),
+                        items,
+                    }));
+                }
+            }
+            Selection::InlineFragment(inline_fragment) => {
+                let items = collect_selection_items(
+                    fragments,
+                    &inline_fragment.node.selection_set.node.items,
+                    context,
+                );
+                let type_condition = inline_fragment
+                    .node
+                    .type_condition
+                    .as_ref()
+                    .map(|tc| tc.node.on.node.as_str());
+                result.push(SelectionItem::InlineFragment(InlineFragmentItem {
+                    type_condition,
+                    items,
+                }));
+            }
+        }
+    }
+    result
 }
 
 impl Debug for SelectionField<'_> {
