@@ -220,7 +220,7 @@ pub fn generate(object_args: &args::InputObject) -> GeneratorResult<TokenStream>
                 input_value.description = ::std::option::Option::Some(::std::string::ToString::to_string(#desc));
             });
         }
-        if let Some(schema_default) = schema_default {
+        if let Some(ref schema_default) = schema_default {
             input_sets.push(quote!(input_value.default_value = #schema_default;));
         }
         if has_deprecation {
@@ -244,14 +244,36 @@ pub fn generate(object_args: &args::InputObject) -> GeneratorResult<TokenStream>
             );
         }
 
-        schema_fields.push(quote! {
-            {
-                let mut input_value = #crate_name::registry::MetaInputValue::new(
-                    ::std::string::ToString::to_string(#name),
-                    <#ty as #crate_name::InputType>::create_type_info(registry),
-                );
-                #(#input_sets)*
-                fields.insert(::std::borrow::ToOwned::to_owned(#name), input_value);
+        schema_fields.push(if schema_default.is_some() {
+            // When a field has a default value, it should be optional in SDL
+            // (nullable). Strip the trailing '!' from the type string so that,
+            // e.g., `Int!` becomes `Int`, `[[Int!]!]!` becomes `[[Int!]!]`.
+            quote! {
+                {
+                    let mut input_value = #crate_name::registry::MetaInputValue::new(
+                        ::std::string::ToString::to_string(#name),
+                        ::std::string::String::new(),
+                    );
+                    let __raw_ty = <#ty as #crate_name::InputType>::create_type_info(registry);
+                    input_value.ty = if __raw_ty.ends_with('!') {
+                        ::std::string::ToString::to_string(&__raw_ty[..__raw_ty.len() - 1])
+                    } else {
+                        __raw_ty
+                    };
+                    #(#input_sets)*
+                    fields.insert(::std::borrow::ToOwned::to_owned(#name), input_value);
+                }
+            }
+        } else {
+            quote! {
+                {
+                    let mut input_value = #crate_name::registry::MetaInputValue::new(
+                        ::std::string::ToString::to_string(#name),
+                        <#ty as #crate_name::InputType>::create_type_info(registry),
+                    );
+                    #(#input_sets)*
+                    fields.insert(::std::borrow::ToOwned::to_owned(#name), input_value);
+                }
             }
         })
     }
