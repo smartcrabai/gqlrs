@@ -428,6 +428,7 @@ pub fn generate(
                 let has_complexity = method_args.complexity.is_some();
                 let has_directives = !method_args.directives.is_empty();
                 let has_requires_scopes = !method_args.requires_scopes.is_empty();
+                let has_semantic_non_null = method_args.semantic_non_null;
 
                 let args = extract_input_args::<args::Argument>(&crate_name, method)?;
                 let mut schema_args = Vec::new();
@@ -639,6 +640,9 @@ pub fn generate(
                     field_sets.push(
                         quote!(field.requires_scopes = ::std::vec![ #(#requires_scopes),* ];),
                     );
+                }
+                if has_semantic_non_null {
+                    field_sets.push(quote!(field.semantic_non_null = true;));
                 }
 
                 schema_fields.push(quote! {

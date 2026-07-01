@@ -186,6 +186,21 @@ impl Registry {
                 return;
             }
 
+            // Filter out semanticNonNull directive from SDL if it is not used
+            if directive.name == "semanticNonNull"
+                && !self.types.values().any(|ty| match ty {
+                    MetaType::Object { fields, .. } => {
+                        fields.values().any(|field| field.semantic_non_null)
+                    }
+                    MetaType::Interface { fields, .. } => {
+                        fields.values().any(|field| field.semantic_non_null)
+                    }
+                    _ => false,
+                })
+            {
+                return;
+            }
+
             writeln!(sdl, "{}", directive.sdl(&options)).ok();
         });
 
@@ -316,6 +331,10 @@ impl Registry {
 
             for directive in &field.directive_invocations {
                 write!(sdl, " {}", directive.sdl()).ok();
+            }
+
+            if field.semantic_non_null {
+                write!(sdl, " @semanticNonNull").ok();
             }
 
             if options.federation {
