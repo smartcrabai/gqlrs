@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fmt::Write};
 
+use super::SemanticNullability;
 use crate::registry::{Deprecation, MetaField, MetaInputValue, MetaType, Registry};
 
 const SYSTEM_SCALARS: &[&str] = &["Int", "Float", "String", "Boolean", "ID"];
@@ -189,12 +190,12 @@ impl Registry {
             // Filter out semanticNonNull directive from SDL if it is not used
             if directive.name == "semanticNonNull"
                 && !self.types.values().any(|ty| match ty {
-                    MetaType::Object { fields, .. } => {
-                        fields.values().any(|field| field.semantic_non_null)
-                    }
-                    MetaType::Interface { fields, .. } => {
-                        fields.values().any(|field| field.semantic_non_null)
-                    }
+                    MetaType::Object { fields, .. } => fields.values().any(|field| {
+                        field.semantic_nullability != crate::registry::SemanticNullability::None
+                    }),
+                    MetaType::Interface { fields, .. } => fields.values().any(|field| {
+                        field.semantic_nullability != crate::registry::SemanticNullability::None
+                    }),
                     _ => false,
                 })
             {
@@ -329,12 +330,21 @@ impl Registry {
 
             write_deprecated(sdl, &field.deprecation);
 
-            for directive in &field.directive_invocations {
-                write!(sdl, " {}", directive.sdl()).ok();
+            match field.semantic_nullability {
+                SemanticNullability::OutNonNull => {
+                    write!(sdl, " @semanticNonNull").ok();
+                }
+                SemanticNullability::InNonNull => {
+                    write!(sdl, " @semanticNonNull(levels: [1])").ok();
+                }
+                SemanticNullability::BothNonNull => {
+                    write!(sdl, " @semanticNonNull(levels: [0, 1])").ok();
+                }
+                SemanticNullability::None => {}
             }
 
-            if field.semantic_non_null {
-                write!(sdl, " @semanticNonNull").ok();
+            for directive in &field.directive_invocations {
+                write!(sdl, " {}", directive.sdl()).ok();
             }
 
             if options.federation {

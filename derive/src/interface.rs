@@ -406,7 +406,7 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
         let has_tags = !tags.is_empty();
         let has_directives = !directives.is_empty();
         let has_requires_scopes = !requires_scopes.is_empty();
-        let has_semantic_non_null = *semantic_non_null;
+        let has_semantic_non_null = semantic_non_null.unwrap_or(interface_args.semantic_non_null);
 
         let directives = gen_directive_calls(
             &crate_name,
@@ -452,7 +452,12 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
             field_sets.push(quote!(field.requires_scopes = ::std::vec![ #(#requires_scopes),* ];));
         }
         if has_semantic_non_null {
-            field_sets.push(quote!(field.semantic_non_null = true;));
+            field_sets.push(quote! {
+                field.semantic_nullability = match <#schema_ty as #crate_name::OutputType>::semantic_nullability() {
+                    #crate_name::registry::SemanticNullability::None => #crate_name::registry::SemanticNullability::OutNonNull,
+                    v => v,
+                };
+            });
         }
 
         schema_fields.push(quote! {
