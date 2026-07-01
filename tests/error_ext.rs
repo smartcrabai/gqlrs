@@ -175,6 +175,12 @@ pub async fn test_failure2() {
         Error1,
     }
 
+    impl From<MyError> for Error {
+        fn from(e: MyError) -> Self {
+            Error::new_with_source(e)
+        }
+    }
+
     struct Query;
 
     #[Object]
