@@ -1448,22 +1448,16 @@ pub async fn test_introspection_default() {
                 "name": "str",
                 "defaultValue": "\"\"",
                 "type": {
-                  "kind": "NON_NULL",
-                  "ofType": {
-                      "kind": "SCALAR",
-                      "name": "String"
-                  },
+                  "kind": "SCALAR",
+                  "ofType": null,
                 },
               },
               {
                 "name": "date",
                 "defaultValue": "\"2016-07-08T09:10:11\"",
                 "type": {
-                  "kind": "NON_NULL",
-                  "ofType": {
-                      "kind": "SCALAR",
-                      "name": "NaiveDateTime"
-                  },
+                  "kind": "SCALAR",
+                  "ofType": null,
                 },
               },
               {
@@ -1481,33 +1475,24 @@ pub async fn test_introspection_default() {
                 "name": "jsonDef",
                 "defaultValue": "\"null\"",
                 "type": {
-                  "kind": "NON_NULL",
-                  "ofType": {
-                      "kind": "SCALAR",
-                      "name": "JSON"
-                  },
+                  "kind": "SCALAR",
+                  "ofType": null,
                 },
               },
               {
                 "name": "jsonDefObj",
                 "defaultValue": "\"{}\"",
                 "type": {
-                  "kind": "NON_NULL",
-                  "ofType": {
-                      "kind": "SCALAR",
-                      "name": "JSON"
-                  },
+                  "kind": "SCALAR",
+                  "ofType": null,
                 },
               },
               {
                 "name": "jsonDefStruct",
                 "defaultValue": "\"{\\\"a\\\":0,\\\"b\\\":0}\"",
                 "type": {
-                  "kind": "NON_NULL",
-                  "ofType": {
-                      "kind": "SCALAR",
-                      "name": "JSON"
-                  },
+                  "kind": "SCALAR",
+                  "ofType": null,
                 },
               },
             ]
