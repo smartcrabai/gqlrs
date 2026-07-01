@@ -3,10 +3,10 @@ use quote::quote;
 use syn::ItemImpl;
 
 use crate::{
-    args::{self, RenameTarget},
+    args::{self, RenameTarget, TypeDirectiveLocation},
     utils::{
-        GeneratorResult, gen_boxed_trait, get_crate_path, get_rustdoc, get_type_path_and_name,
-        visible_fn,
+        GeneratorResult, gen_boxed_trait, gen_directive_calls, get_crate_path, get_rustdoc,
+        get_type_path_and_name, visible_fn,
     },
 };
 
@@ -66,6 +66,12 @@ pub fn generate(
         None => quote! { ::std::option::Option::None },
     };
 
+    let directives = gen_directive_calls(
+        &crate_name,
+        &scalar_args.directives,
+        TypeDirectiveLocation::Scalar,
+    );
+
     let expanded = quote! {
         #item_impl
 
@@ -86,7 +92,7 @@ pub fn generate(
                     inaccessible: #inaccessible,
                     tags: ::std::vec![ #(#tags),* ],
                     specified_by_url: #specified_by_url,
-                    directive_invocations: ::std::vec::Vec::new(),
+                    directive_invocations: ::std::vec![ #(#directives),* ],
                     requires_scopes: ::std::vec![ #(#requires_scopes),* ],
                 })
             }
@@ -120,7 +126,7 @@ pub fn generate(
                     inaccessible: #inaccessible,
                     tags: ::std::vec![ #(#tags),* ],
                     specified_by_url: #specified_by_url,
-                    directive_invocations: ::std::vec::Vec::new(),
+                    directive_invocations: ::std::vec![ #(#directives),* ],
                     requires_scopes: ::std::vec![ #(#requires_scopes),* ],
                 })
             }
