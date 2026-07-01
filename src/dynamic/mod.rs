@@ -52,6 +52,7 @@ mod type_ref;
 mod union;
 mod value_accessor;
 
+pub use crate::registry::{__DirectiveLocation, MetaDirective};
 pub use directive::Directive;
 pub use r#enum::{Enum, EnumItem};
 pub use error::SchemaError;

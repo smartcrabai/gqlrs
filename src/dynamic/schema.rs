@@ -13,7 +13,7 @@ use crate::{
         r#type::Type,
     },
     extensions::{ExtensionFactory, Extensions},
-    registry::{MetaType, Registry},
+    registry::{MetaDirective, MetaType, Registry},
     schema::{SchemaEnvInner, prepare_request},
 };
 
@@ -35,6 +35,7 @@ pub struct SchemaBuilder {
     introspection_mode: IntrospectionMode,
     enable_federation: bool,
     entity_resolver: Option<BoxResolverFn>,
+    custom_directives: Vec<MetaDirective>,
 }
 
 impl SchemaBuilder {
@@ -154,6 +155,16 @@ impl SchemaBuilder {
         }
     }
 
+    /// Register a custom directive definition.
+    ///
+    /// The directive will be available for validation, introspection, and SDL
+    /// export.
+    #[must_use]
+    pub fn directive(mut self, directive: MetaDirective) -> Self {
+        self.custom_directives.push(directive);
+        self
+    }
+
     /// Consumes this builder and returns a schema.
     pub fn finish(mut self) -> Result<Schema, SchemaError> {
         let mut registry = Registry {
@@ -170,6 +181,10 @@ impl SchemaBuilder {
             enable_suggestions: self.enable_suggestions,
         };
         registry.add_system_types();
+
+        for directive in self.custom_directives {
+            registry.add_directive(directive);
+        }
 
         for ty in self.types.values() {
             ty.register(&mut registry)?;
@@ -277,6 +292,7 @@ impl Schema {
             introspection_mode: IntrospectionMode::Enabled,
             entity_resolver: None,
             enable_federation: false,
+            custom_directives: Default::default(),
         }
     }
 
@@ -1129,6 +1145,70 @@ mod tests {
                     "name": "test",
                 }],
             })
+        );
+    }
+
+    #[tokio::test]
+    async fn custom_directive() {
+        use crate::registry::{__DirectiveLocation, MetaDirective, MetaInputValue};
+        use indexmap::IndexMap;
+
+        let query =
+            Object::new("Query").field(Field::new("value", TypeRef::named(TypeRef::INT), |_| {
+                FieldFuture::new(async { Ok(Some(Value::from(100))) })
+            }));
+
+        let schema = Schema::build("Query", None, None)
+            .register(query)
+            .directive(MetaDirective {
+                name: "customDirective".to_string(),
+                description: Some("A custom directive".to_string()),
+                locations: vec![
+                    __DirectiveLocation::OBJECT,
+                    __DirectiveLocation::FIELD_DEFINITION,
+                ],
+                args: {
+                    let mut args = IndexMap::new();
+                    args.insert(
+                        "reason".to_string(),
+                        MetaInputValue {
+                            name: "reason".to_string(),
+                            description: None,
+                            ty: "String".to_string(),
+                            deprecation: Default::default(),
+                            default_value: None,
+                            visible: None,
+                            inaccessible: false,
+                            tags: Default::default(),
+                            is_secret: false,
+                            directive_invocations: vec![],
+                        },
+                    );
+                    args
+                },
+                is_repeatable: false,
+                visible: None,
+                composable: None,
+            })
+            .finish()
+            .unwrap();
+
+        let sdl = schema.sdl();
+        assert!(
+            sdl.contains("directive @customDirective(reason: String) on OBJECT | FIELD_DEFINITION"),
+            "SDL should contain custom directive definition, got: {}",
+            sdl
+        );
+
+        // Verify the directive is registered in the registry
+        let registry = schema.registry();
+        assert!(
+            registry.directives.contains_key("customDirective"),
+            "Registry should contain custom directive"
+        );
+        assert_eq!(
+            registry.directives["customDirective"].name,
+            "customDirective"
         );
     }
 }
