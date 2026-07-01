@@ -115,7 +115,7 @@ pub fn generate(
                     let should_create_context = new_impl.sig.inputs.iter().nth(1).is_none_or(|x| {
                         if let FnArg::Typed(pat) = x
                             && let Type::Reference(TypeReference { elem, .. }) =
-                                unwrap_type(&*pat.ty)
+                                unwrap_type(&pat.ty)
                             && let Type::Path(path) = elem.as_ref()
                         {
                             return path.path.segments.last().unwrap().ident != "Context";
