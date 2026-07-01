@@ -1025,10 +1025,10 @@ pub(crate) async fn prepare_request(
     let mut variables_with_defaults = request.variables.clone();
     for var_def in &operation.node.variable_definitions {
         let name = &var_def.node.name.node;
-        if !variables_with_defaults.contains_key(name) {
-            if let Some(default_value) = &var_def.node.default_value {
-                variables_with_defaults.insert(name.clone(), default_value.node.clone());
-            }
+        if !variables_with_defaults.contains_key(name)
+            && let Some(default_value) = &var_def.node.default_value
+        {
+            variables_with_defaults.insert(name.clone(), default_value.node.clone());
         }
     }
 
