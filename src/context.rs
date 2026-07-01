@@ -994,7 +994,7 @@ impl<'a> SelectionField<'a> {
     /// fragment spreads and inline fragments into plain fields, this method
     /// returns [`SelectionItem`] values that let callers distinguish between
     /// fields, fragment spreads, and inline fragments.  This is useful when
-    /// the original query structure matters \u2014 for example, when building a
+    /// the original query structure matters — for example, when building a
     /// response that must mirror the requested selection shape.
     pub fn selection_set_items(&self) -> Vec<SelectionItem<'a>> {
         collect_selection_items(
