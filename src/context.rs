@@ -848,7 +848,12 @@ impl<'a> ContextBase<'a, &'a Positioned<Directive>> {
 /// let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
 /// assert!(schema.execute("{ obj { a b c }}").await.is_ok());
 /// assert!(schema.execute("{ obj { a ... { b c } }}").await.is_ok());
-/// assert!(schema.execute("{ obj { a ... on MyObj { b c } }}").await.is_ok());
+/// assert!(
+///     schema
+///         .execute("{ obj { a ... on MyObj { b c } }}")
+///         .await
+///         .is_ok()
+/// );
 /// # });
 /// ```
 #[derive(Debug)]
