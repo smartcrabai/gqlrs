@@ -6,7 +6,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::{
     Attribute, Error, Expr, ExprLit, ExprPath, FnArg, GenericArgument, Ident, ImplItemFn, Lifetime,
-    Lit, LitStr, Meta, Pat, PatIdent, PathArguments, Type, TypeGroup, TypeParamBound,
+    Lit, LitStr, Meta, Pat, PatIdent, PathArguments, Type, TypeGroup, TypeParamBound, TypeParen,
     TypeReference, parse_quote,
     visit::Visit,
     visit_mut::{self, VisitMut},
@@ -94,6 +94,17 @@ fn is_output_type_nullable(ty: &Type) -> bool {
             false
         }
         _ => false,
+    }
+}
+
+/// Strip transparent wrappers (`Type::Group`, `Type::Paren`) that macros may emit.
+/// This is needed because declarative macros can wrap types in invisible groups
+/// that would otherwise prevent proper detection of `&Context<'_>` patterns.
+pub fn unwrap_type(ty: &Type) -> &Type {
+    match ty {
+        Type::Group(TypeGroup { elem, .. }) => unwrap_type(elem),
+        Type::Paren(TypeParen { elem, .. }) => unwrap_type(elem),
+        _ => ty,
     }
 }
 
@@ -336,7 +347,7 @@ pub fn extract_input_args<T: FromMeta + Default>(
                 .into());
             }
 
-            match (&*pat.pat, &*pat.ty) {
+            match (&*pat.pat, unwrap_type(&*pat.ty)) {
                 (Pat::Ident(arg_ident), Type::Reference(TypeReference { elem, .. })) => {
                     if let Type::Path(path) = elem.as_ref() {
                         if idx != 1 || path.path.segments.last().unwrap().ident != "Context" {
