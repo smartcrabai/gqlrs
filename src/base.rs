@@ -16,7 +16,7 @@ use crate::{
 
 #[doc(hidden)]
 pub trait Description {
-    fn description() -> &'static str;
+    fn description() -> Cow<'static, str>;
 }
 
 /// Used to specify the GraphQL Type name.
