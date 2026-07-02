@@ -40,11 +40,12 @@ where
     }
 }
 
-/// Represents a custom input value validator that has access to the request context.
+/// Represents a custom input value validator that has access to the request
+/// context.
 ///
-/// This allows validators to access data stored in the context, such as database
-/// connections or other request-scoped resources, enabling context-dependent validation
-/// like checking uniqueness against a database.
+/// This allows validators to access data stored in the context, such as
+/// database connections or other request-scoped resources, enabling
+/// context-dependent validation like checking uniqueness against a database.
 ///
 /// # Example
 ///
