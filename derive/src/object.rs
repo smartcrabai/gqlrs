@@ -270,6 +270,20 @@ pub fn generate(
                         syn::parse2::<ReturnType>(quote! { -> #crate_name::Result<#inner_ty> })
                             .expect("invalid result type");
                 }
+
+                let guard_map_err = quote! {
+                    .map_err(|err| ctx.set_error_path(err.into_server_error(ctx.item.pos)))
+                };
+                let guard = match method_args.guard.as_ref().or(object_args.guard.as_ref()) {
+                    Some(code) => {
+                        let on_error = quote! {
+                            return ::std::result::Result::Err(err);
+                        };
+                        generate_guards(&crate_name, code, guard_map_err, on_error)?
+                    }
+                    None => Default::default(),
+                };
+
                 let do_find = quote! {
                     self.#field_ident(ctx, #(#use_keys),*)
                         .await.map_err(|err| ::std::convert::Into::<#crate_name::Error>::into(err)
@@ -284,6 +298,7 @@ pub fn generate(
                             if let (#(#key_pat),*) = (#(#key_getter),*) {
                                 let f = async move {
                                     #(#requires_getter)*
+                                    #guard
                                     #do_find
                                 };
                                 let obj = f.await.map_err(|err| ctx.set_error_path(err))?;

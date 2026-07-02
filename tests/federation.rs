@@ -1189,3 +1189,94 @@ pub async fn test_unresolvable_entity() {
         })
     );
 }
+
+#[tokio::test]
+pub async fn test_entity_guard() {
+    #[derive(Eq, PartialEq, Copy, Clone)]
+    enum Role {
+        Admin,
+        Guest,
+    }
+
+    struct RoleGuard {
+        role: Role,
+    }
+
+    impl RoleGuard {
+        fn new(role: Role) -> Self {
+            Self { role }
+        }
+    }
+
+    #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+    impl Guard for RoleGuard {
+        async fn check(&self, ctx: &Context<'_>) -> Result<()> {
+            if ctx.data_opt::<Role>() == Some(&self.role) {
+                Ok(())
+            } else {
+                Err("Forbidden".into())
+            }
+        }
+    }
+
+    #[derive(SimpleObject)]
+    struct MyObj {
+        id: ID,
+        value: i32,
+    }
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        #[graphql(entity, guard = "RoleGuard::new(Role::Admin)")]
+        async fn find_obj_by_id(&self, id: ID) -> MyObj {
+            MyObj { id, value: 42 }
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+
+    // Test that guard allows access when role matches
+    let query = r#"{
+            _entities(representations: [{__typename: "MyObj", id: "1"}]) {
+                __typename
+                ... on MyObj {
+                    id
+                    value
+                }
+            }
+        }"#;
+    assert_eq!(
+        schema
+            .execute(Request::new(query).data(Role::Admin))
+            .await
+            .into_result()
+            .unwrap()
+            .data,
+        value!({
+            "_entities": [
+                {"__typename": "MyObj", "id": "1", "value": 42},
+            ]
+        })
+    );
+
+    // Test that guard denies access when role does not match
+    assert_eq!(
+        schema
+            .execute(Request::new(query).data(Role::Guest))
+            .await
+            .into_result()
+            .unwrap_err(),
+        vec![ServerError {
+            message: "Forbidden".to_string(),
+            source: None,
+            locations: vec![Pos {
+                line: 2,
+                column: 13,
+            }],
+            path: vec![PathSegment::Field("_entities".to_owned())],
+            extensions: None,
+        }]
+    );
+}
