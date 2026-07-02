@@ -183,7 +183,8 @@ impl<Query, Mutation, Subscription> SchemaBuilder<Query, Mutation, Subscription>
     ///
     /// let schema = Schema::build(Query, EmptyMutation, EmptySubscription)
     ///     .error_formatter(|mut error| {
-    ///         error.extensions
+    ///         error
+    ///             .extensions
     ///             .get_or_insert_with(ErrorExtensionValues::default)
     ///             .set("code", "INTERNAL_ERROR");
     ///         error

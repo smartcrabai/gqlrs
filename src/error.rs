@@ -419,8 +419,8 @@ impl From<mime::FromStrError> for ParseRequestError {
 /// A type alias for a function that formats server errors.
 ///
 /// This is used to centrally rewrite all errors emitted by the schema.
-/// The formatter receives each [`ServerError`] and returns a (possibly modified)
-/// [`ServerError`] that will be included in the response.
+/// The formatter receives each [`ServerError`] and returns a (possibly
+/// modified) [`ServerError`] that will be included in the response.
 pub type ErrorFormatter = Box<dyn Fn(ServerError) -> ServerError + Send + Sync>;
 
 /// An error which can be extended into a `Error`.
