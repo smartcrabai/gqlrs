@@ -91,7 +91,8 @@ impl SchemaInner {
                             std::iter::once(field.ty.type_name())
                                 .chain(field.arguments.values().map(|arg| arg.ty.type_name()))
                         })
-                        .flatten(),
+                        .flatten()
+                        .chain(interface.implements.iter().map(AsRef::as_ref)),
                 )?,
                 Type::Union(union) => check(&self.types, &union.possible_types)?,
                 Type::Subscription(subscription) => check(
@@ -319,26 +320,25 @@ impl SchemaInner {
                             .into());
                         }
                     }
+                }
 
-                    // An interface type may declare that it implements one or more unique
-                    // interfaces, but may not implement itself.
-                    if interface.implements.contains(&interface.name) {
-                        return Err(format!(
-                            "Interface \"{}\" may not implement itself",
-                            interface.name
-                        )
-                        .into());
-                    }
+                // An interface type may declare that it implements one or more unique
+                // interfaces, but may not implement itself.
+                if interface.implements.contains(&interface.name) {
+                    return Err(format!(
+                        "Interface \"{}\" may not implement itself",
+                        interface.name
+                    )
+                    .into());
+                }
 
-                    // An interface type must be a super-set of all interfaces
-                    // it implements
-                    for interface_name in &interface.implements {
-                        if let Some(ty) = self.types.get(interface_name) {
-                            let implemenented_type = ty.as_interface().ok_or_else(|| {
-                                format!("Type \"{}\" is not interface", interface_name)
-                            })?;
-                            check_is_valid_implementation(interface, implemenented_type)?;
-                        }
+                // An interface type must be a super-set of all interfaces it implements.
+                for interface_name in &interface.implements {
+                    if let Some(ty) = self.types.get(interface_name) {
+                        let implemented_type = ty.as_interface().ok_or_else(|| {
+                            format!("Type \"{}\" is not interface", interface_name)
+                        })?;
+                        check_is_valid_implementation(interface, implemented_type)?;
                     }
                 }
             }

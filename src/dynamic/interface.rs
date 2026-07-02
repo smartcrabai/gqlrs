@@ -283,6 +283,10 @@ impl Interface {
             },
         );
 
+        for interface in &self.implements {
+            registry.add_implements(&self.name, interface);
+        }
+
         Ok(())
     }
 }
@@ -455,5 +459,73 @@ mod tests {
                 }
             })
         );
+    }
+
+    #[tokio::test]
+    async fn interface_implements_interface_sdl() {
+        let node =
+            Interface::new("Node").field(InterfaceField::new("id", TypeRef::named_nn(TypeRef::ID)));
+
+        let named_node = Interface::new("NamedNode")
+            .implement("Node")
+            .directive(Directive::new("interfaceDirective"))
+            .field(InterfaceField::new("id", TypeRef::named_nn(TypeRef::ID)))
+            .field(InterfaceField::new(
+                "name",
+                TypeRef::named_nn(TypeRef::STRING),
+            ));
+
+        let obj = Object::new("MyObj")
+            .implement("NamedNode")
+            .implement("Node")
+            .field(Field::new("id", TypeRef::named_nn(TypeRef::ID), |_| {
+                FieldFuture::new(async { Ok(Some(Value::from("1"))) })
+            }))
+            .field(Field::new(
+                "name",
+                TypeRef::named_nn(TypeRef::STRING),
+                |_| FieldFuture::new(async { Ok(Some(Value::from("test"))) }),
+            ));
+
+        let query =
+            Object::new("Query").field(Field::new("node", TypeRef::named_nn("NamedNode"), |_| {
+                FieldFuture::new(async { Ok(Some(FieldValue::NULL.with_type("MyObj"))) })
+            }));
+
+        let schema = Schema::build(query.type_name(), None, None)
+            .register(node)
+            .register(named_node)
+            .register(obj)
+            .register(query)
+            .finish()
+            .unwrap();
+
+        let sdl = schema.sdl();
+        assert!(
+            sdl.lines()
+                .any(|line| line == "interface NamedNode implements Node @interfaceDirective {"),
+            "Expected 'interface NamedNode implements Node @interfaceDirective {{' in SDL, got:\n{}",
+            sdl
+        );
+    }
+
+    #[tokio::test]
+    async fn interface_implements_missing_interface_errors() {
+        let named_node = Interface::new("NamedNode")
+            .implement("Node")
+            .field(InterfaceField::new("id", TypeRef::named_nn(TypeRef::ID)));
+
+        let query =
+            Object::new("Query").field(Field::new("node", TypeRef::named_nn("NamedNode"), |_| {
+                FieldFuture::Value(None)
+            }));
+
+        let err = Schema::build(query.type_name(), None, None)
+            .register(named_node)
+            .register(query)
+            .finish()
+            .unwrap_err();
+
+        assert_eq!(err, SchemaError("Type \"Node\" not found".to_owned()));
     }
 }
