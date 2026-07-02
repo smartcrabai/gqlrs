@@ -34,6 +34,7 @@ tempfile = ["dep:blocking", "dep:tempfile"]
 time = ["dep:time"]
 tokio = ["dep:tokio"]
 tracing = ["dep:tracing", "dep:tracing-futures"]
+tracing-otel = ["tracing"]
 url = ["dep:url"]
 uuid = ["dep:uuid"]
 
