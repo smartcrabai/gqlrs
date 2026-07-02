@@ -192,6 +192,56 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn input_object_rejects_non_object_value() {
+        let myinput = InputObject::new("MyInput")
+            .field(InputValue::new("a", TypeRef::named_nn(TypeRef::INT)))
+            .field(InputValue::new("b", TypeRef::named_nn(TypeRef::STRING)));
+        let query = Object::new("Query").field(
+            Field::new("value", TypeRef::named_nn(TypeRef::INT), |_| {
+                FieldFuture::new(async move { Ok(Some(Value::from(1))) })
+            })
+            .argument(InputValue::new(
+                "input",
+                TypeRef::named(myinput.type_name()),
+            )),
+        );
+
+        let schema = Schema::build(query.type_name(), None, None)
+            .register(query)
+            .register(myinput)
+            .finish()
+            .unwrap();
+
+        assert_eq!(
+            schema
+                .execute("{ value(input: null) }")
+                .await
+                .into_result()
+                .unwrap()
+                .data,
+            value!({
+                "value": 1
+            })
+        );
+
+        assert_eq!(
+            schema
+                .execute(r#"{ value(input: "hello") }"#)
+                .await
+                .into_result()
+                .unwrap_err(),
+            vec![ServerError {
+                message: "Invalid value for argument \"input\", expected type \"MyInput\""
+                    .to_owned(),
+                source: None,
+                locations: vec![Pos { column: 9, line: 1 }],
+                path: vec![],
+                extensions: None,
+            }]
+        );
+    }
+
+    #[tokio::test]
     async fn oneof_input_object() {
         let myinput = InputObject::new("MyInput")
             .oneof()
