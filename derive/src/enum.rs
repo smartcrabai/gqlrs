@@ -288,6 +288,7 @@ pub fn generate(enum_args: &args::Enum) -> GeneratorResult<TokenStream> {
             }
         }
 
+        #[allow(clippy::unused_async)]
         impl #crate_name::OutputTypeMarker for #ident {
             fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
                 Self::__type_name()
