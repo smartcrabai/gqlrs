@@ -163,11 +163,11 @@ pub fn generate(union_args: &args::Union) -> GeneratorResult<TokenStream> {
             let enum_name = &lazy.enum_name;
             if !lazy.flatten {
                 quote! {
-                    #ident::#enum_name(obj) => <#ty as #crate_name::OutputType>::type_name()
+                    #ident::#enum_name(obj) => <#ty as #crate_name::OutputTypeMarker>::type_name()
                 }
             } else {
                 quote! {
-                    #ident::#enum_name(obj) => <#ty as #crate_name::OutputType>::introspection_type_name(obj)
+                    #ident::#enum_name(obj) => <#ty as #crate_name::OutputTypeMarker>::introspection_type_name(obj)
                 }
             }
         })
@@ -178,7 +178,7 @@ pub fn generate(union_args: &args::Union) -> GeneratorResult<TokenStream> {
             let ty = lazy.ty;
             if !lazy.flatten {
                 Some(quote! {
-                    <#ty as #crate_name::OutputType>::create_type_info(registry);
+                    <#ty as #crate_name::OutputTypeMarker>::create_type_info(registry);
                 })
             } else {
                 None
@@ -191,7 +191,7 @@ pub fn generate(union_args: &args::Union) -> GeneratorResult<TokenStream> {
         let ty = lazy.ty;
         if !lazy.flatten {
             quote! {
-                possible_types.insert(<#ty as #crate_name::OutputType>::type_name().into_owned());
+                possible_types.insert(<#ty as #crate_name::OutputTypeMarker>::type_name().into_owned());
             }
         } else {
             quote! {
@@ -227,8 +227,7 @@ pub fn generate(union_args: &args::Union) -> GeneratorResult<TokenStream> {
             }
 
             #[allow(clippy::all, clippy::pedantic)]
-            #boxed_trait
-            impl #impl_generics #crate_name::OutputType for #ident #ty_generics #where_clause {
+            impl #impl_generics #crate_name::OutputTypeMarker for #ident #ty_generics #where_clause {
                 fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
                     #gql_typename
                 }
@@ -259,7 +258,11 @@ pub fn generate(union_args: &args::Union) -> GeneratorResult<TokenStream> {
                         }
                     })
                 }
+            }
 
+            #[allow(clippy::all, clippy::pedantic)]
+            #boxed_trait
+            impl #impl_generics #crate_name::OutputType for #ident #ty_generics #where_clause {
                 async fn resolve(&self, ctx: &#crate_name::ContextSelectionSet<'_>, _field: &#crate_name::Positioned<#crate_name::parser::types::Field>) -> #crate_name::ServerResult<#crate_name::Value> {
                     #crate_name::resolver_utils::resolve_container(ctx, self).await
                 }
@@ -377,8 +380,7 @@ pub fn generate(union_args: &args::Union) -> GeneratorResult<TokenStream> {
                 }
 
                 #[allow(clippy::all, clippy::pedantic)]
-                #boxed_trait
-                impl #def_bounds #crate_name::OutputType for #concrete_type {
+                impl #def_bounds #crate_name::OutputTypeMarker for #concrete_type {
                     fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
                         ::std::borrow::Cow::Borrowed(#gql_typename)
                     }
@@ -409,7 +411,11 @@ pub fn generate(union_args: &args::Union) -> GeneratorResult<TokenStream> {
                             }
                         })
                     }
+                }
 
+                #[allow(clippy::all, clippy::pedantic)]
+                #boxed_trait
+                impl #def_bounds #crate_name::OutputType for #concrete_type {
                     async fn resolve(&self, ctx: &#crate_name::ContextSelectionSet<'_>, _field: &#crate_name::Positioned<#crate_name::parser::types::Field>) -> #crate_name::ServerResult<#crate_name::Value> {
                         #crate_name::resolver_utils::resolve_container(ctx, self).await
                     }

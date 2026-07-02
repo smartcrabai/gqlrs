@@ -520,7 +520,7 @@ pub async fn test_both_input_output() {
     );
 
     assert_eq!(<MyObject as InputType>::type_name(), "MyObjectInput");
-    assert_eq!(<MyObject as OutputType>::type_name(), "MyObject");
+    assert_eq!(<MyObject as OutputTypeMarker>::type_name(), "MyObject");
 }
 
 #[tokio::test]
@@ -560,13 +560,16 @@ pub async fn test_both_input_output_generic() {
     );
 
     assert_eq!(<MyObject<u32> as InputType>::type_name(), "MyObjectU32");
-    assert_eq!(<MyObject<u32> as OutputType>::type_name(), "MyObjectU32");
+    assert_eq!(
+        <MyObject<u32> as OutputTypeMarker>::type_name(),
+        "MyObjectU32"
+    );
     assert_eq!(
         <MyObject<String> as InputType>::type_name(),
         "MyObjectString"
     );
     assert_eq!(
-        <MyObject<String> as OutputType>::type_name(),
+        <MyObject<String> as OutputTypeMarker>::type_name(),
         "MyObjectString"
     );
 }
@@ -616,13 +619,16 @@ pub async fn test_both_input_output_generic_with_nesting() {
     );
 
     assert_eq!(<MyObject<u32> as InputType>::type_name(), "MyObjectU32");
-    assert_eq!(<MyObject<u32> as OutputType>::type_name(), "MyObjectU32");
+    assert_eq!(
+        <MyObject<u32> as OutputTypeMarker>::type_name(),
+        "MyObjectU32"
+    );
     assert_eq!(
         <MyObject<MyEnum> as InputType>::type_name(),
         "MyObjectMyEnumInput"
     );
     assert_eq!(
-        <MyObject<MyEnum> as OutputType>::type_name(),
+        <MyObject<MyEnum> as OutputTypeMarker>::type_name(),
         "MyObjectMyEnum"
     );
 }
@@ -641,7 +647,7 @@ pub async fn test_both_input_output_2() {
     }
 
     assert_eq!(<MyObject as InputType>::type_name(), "MyObjectInput");
-    assert_eq!(<MyObject as OutputType>::type_name(), "MyObj");
+    assert_eq!(<MyObject as OutputTypeMarker>::type_name(), "MyObj");
 }
 
 #[test]

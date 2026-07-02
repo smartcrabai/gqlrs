@@ -311,7 +311,7 @@ pub fn generate(
                 {
                     let mut field = #crate_name::registry::MetaField::new(
                         ::std::string::ToString::to_string(#field_name),
-                        <<#stream_ty as #crate_name::futures_util::stream::Stream>::Item as #crate_name::OutputType>::create_type_info(registry),
+                        <<#stream_ty as #crate_name::futures_util::stream::Stream>::Item as #crate_name::OutputTypeMarker>::create_type_info(registry),
                     );
                     #(#schema_args)*
                     #(#field_sets)*
@@ -386,7 +386,7 @@ pub fn generate(
                                     let ri = #crate_name::extensions::ResolveInfo {
                                         path_node: ctx_selection_set.path_node.as_ref().unwrap(),
                                         parent_type: &parent_type,
-                                        return_type: &<<#stream_ty as #crate_name::futures_util::stream::Stream>::Item as #crate_name::OutputType>::qualified_type_name(),
+                                        return_type: &<<#stream_ty as #crate_name::futures_util::stream::Stream>::Item as #crate_name::OutputTypeMarker>::qualified_type_name(),
                                         name: field.node.name.node.as_str(),
                                         alias: field.node.alias.as_ref().map(|alias| alias.node.as_str()),
                                         is_for_introspection: false,

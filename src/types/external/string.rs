@@ -1,8 +1,9 @@
 use std::borrow::Cow;
 
 use crate::{
-    ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType, Positioned,
-    Scalar, ScalarType, ServerResult, Value, parser::types::Field, registry, registry::Registry,
+    ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType,
+    OutputTypeMarker, Positioned, Scalar, ScalarType, ServerResult, Value, parser::types::Field,
+    registry, registry::Registry,
 };
 
 /// The `String` scalar type represents textual data, represented as UTF-8
@@ -36,7 +37,7 @@ macro_rules! impl_input_string_for_smart_ptr {
             }
 
             fn create_type_info(registry: &mut Registry) -> String {
-                <String as OutputType>::create_type_info(registry)
+                <String as OutputTypeMarker>::create_type_info(registry)
             }
 
             fn parse(value: Option<Value>) -> InputValueResult<Self> {
@@ -61,16 +62,18 @@ macro_rules! impl_input_string_for_smart_ptr {
 impl_input_string_for_smart_ptr!(Box<str>);
 impl_input_string_for_smart_ptr!(std::sync::Arc<str>);
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-impl OutputType for str {
+impl OutputTypeMarker for str {
     fn type_name() -> Cow<'static, str> {
         Cow::Borrowed("String")
     }
 
     fn create_type_info(registry: &mut registry::Registry) -> String {
-        <String as OutputType>::create_type_info(registry)
+        <String as OutputTypeMarker>::create_type_info(registry)
     }
+}
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+impl OutputType for str {
     async fn resolve(
         &self,
         _: &ContextSelectionSet<'_>,

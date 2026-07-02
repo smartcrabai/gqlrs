@@ -166,16 +166,16 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
             enum_names.push(enum_name);
 
             registry_types.push(quote! {
-                <#p as #crate_name::OutputType>::create_type_info(registry);
-                registry.add_implements(&<#p as #crate_name::OutputType>::type_name(), ::std::convert::AsRef::as_ref(&#gql_typename));
+                <#p as #crate_name::OutputTypeMarker>::create_type_info(registry);
+                registry.add_implements(&<#p as #crate_name::OutputTypeMarker>::type_name(), ::std::convert::AsRef::as_ref(&#gql_typename));
             });
 
             possible_types.push(quote! {
-                possible_types.insert(<#p as #crate_name::OutputType>::type_name().into_owned());
+                possible_types.insert(<#p as #crate_name::OutputTypeMarker>::type_name().into_owned());
             });
 
             get_introspection_typename.push(quote! {
-                #ident::#enum_name(obj) => <#p as #crate_name::OutputType>::type_name()
+                #ident::#enum_name(obj) => <#p as #crate_name::OutputTypeMarker>::type_name()
             });
 
             collect_all_fields.push(quote! {
@@ -453,7 +453,7 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
         schema_fields.push(quote! {
             let mut field = #crate_name::registry::MetaField::new(
                 ::std::string::ToString::to_string(#name),
-                <#schema_ty as #crate_name::OutputType>::create_type_info(registry),
+                <#schema_ty as #crate_name::OutputTypeMarker>::create_type_info(registry),
             );
             #(#schema_args)*
             #(#field_sets)*
@@ -511,8 +511,7 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
         }
 
         #[allow(clippy::all, clippy::pedantic)]
-        #boxed_trait
-        impl #impl_generics #crate_name::OutputType for #ident #ty_generics #where_clause {
+        impl #impl_generics #crate_name::OutputTypeMarker for #ident #ty_generics #where_clause {
             fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
                 #gql_typename
             }
@@ -549,7 +548,11 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
                     }
                 })
             }
+        }
 
+        #[allow(clippy::all, clippy::pedantic)]
+        #boxed_trait
+        impl #impl_generics #crate_name::OutputType for #ident #ty_generics #where_clause {
             async fn resolve(
                 &self,
                 ctx: &#crate_name::ContextSelectionSet<'_>,

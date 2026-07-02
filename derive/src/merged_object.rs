@@ -157,8 +157,7 @@ pub fn generate(object_args: &args::MergedObject) -> GeneratorResult<TokenStream
         }
 
         #[allow(clippy::all, clippy::pedantic)]
-        #boxed_trait
-        impl #impl_generics #crate_name::OutputType for #ident #ty_generics #where_clause {
+        impl #impl_generics #crate_name::OutputTypeMarker for #ident #ty_generics #where_clause {
             fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
                 #gql_typename
             }
@@ -197,7 +196,11 @@ pub fn generate(object_args: &args::MergedObject) -> GeneratorResult<TokenStream
                     }
                 })
             }
+        }
 
+        #[allow(clippy::all, clippy::pedantic)]
+        #boxed_trait
+        impl #impl_generics #crate_name::OutputType for #ident #ty_generics #where_clause {
             async fn resolve(&self, ctx: &#crate_name::ContextSelectionSet<'_>, _field: &#crate_name::Positioned<#crate_name::parser::types::Field>) -> #crate_name::ServerResult<#crate_name::Value> {
                 #resolve_container
             }

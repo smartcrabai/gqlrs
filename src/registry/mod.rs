@@ -14,8 +14,8 @@ use indexmap::{map::IndexMap, set::IndexSet};
 
 pub use crate::model::{__DirectiveLocation, location_traits};
 use crate::{
-    Any, Context, ID, InputType, OutputType, Positioned, ServerResult, SubscriptionType, Value,
-    VisitorContext,
+    Any, Context, ID, InputType, OutputTypeMarker, Positioned, ServerResult, SubscriptionType,
+    Value, VisitorContext,
     model::__Schema,
     parser::types::{BaseType as ParsedBaseType, Field, Type as ParsedType, VariableDefinition},
     schema::IntrospectionMode,
@@ -1351,7 +1351,7 @@ impl Registry {
 
     pub fn create_output_type<T, F>(&mut self, type_id: MetaTypeId, mut f: F) -> String
     where
-        T: OutputType + ?Sized,
+        T: OutputTypeMarker + ?Sized,
         F: FnMut(&mut Registry) -> MetaType,
     {
         self.create_type(&mut f, &T::type_name(), std::any::type_name::<T>(), type_id);
@@ -1415,7 +1415,7 @@ impl Registry {
         }
     }
 
-    pub fn create_fake_output_type<T: OutputType>(&mut self) -> MetaType {
+    pub fn create_fake_output_type<T: OutputTypeMarker>(&mut self) -> MetaType {
         T::create_type_info(self);
         self.types
             .get(&*T::type_name())

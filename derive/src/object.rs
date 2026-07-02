@@ -248,11 +248,11 @@ pub fn generate(
                     {
                         let mut key_str = Vec::new();
                         #(#get_federation_key)*
-                        registry.add_keys(&<#entity_type as #crate_name::OutputType>::type_name(), &key_str.join(" "));
+                        registry.add_keys(&<#entity_type as #crate_name::OutputTypeMarker>::type_name(), &key_str.join(" "));
                     }
                 });
                 create_entity_types.push(
-                    quote! { <#entity_type as #crate_name::OutputType>::create_type_info(registry); },
+                    quote! { <#entity_type as #crate_name::OutputTypeMarker>::create_type_info(registry); },
                 );
 
                 let field_ident = &method.sig.ident;
@@ -279,7 +279,7 @@ pub fn generate(
                     args.len(),
                     quote! {
                         #(#cfg_attrs)*
-                        if typename == &<#entity_type as #crate_name::OutputType>::type_name() {
+                        if typename == &<#entity_type as #crate_name::OutputTypeMarker>::type_name() {
                             if let (#(#key_pat),*) = (#(#key_getter),*) {
                                 let f = async move {
                                     #(#requires_getter)*
@@ -645,7 +645,7 @@ pub fn generate(
                     {
                         let mut field = #crate_name::registry::MetaField::new(
                             ::std::string::ToString::to_string(#field_name),
-                            <#schema_ty as #crate_name::OutputType>::create_type_info(registry),
+                            <#schema_ty as #crate_name::OutputTypeMarker>::create_type_info(registry),
                         );
                         #(#schema_args)*
                         #(#field_sets)*
@@ -874,8 +874,7 @@ pub fn generate(
                 }
 
                 #[allow(clippy::all, clippy::pedantic)]
-                #boxed_trait
-                impl #impl_generics #crate_name::OutputType for #self_ty #where_clause {
+                impl #impl_generics #crate_name::OutputTypeMarker for #self_ty #where_clause {
                     fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
                         #gql_typename
                     }
@@ -897,7 +896,11 @@ pub fn generate(
                         #(#add_keys)*
                         ty
                     }
+                }
 
+                #[allow(clippy::all, clippy::pedantic)]
+                #boxed_trait
+                impl #impl_generics #crate_name::OutputType for #self_ty #where_clause {
                     async fn resolve(
                         &self,
                         ctx: &#crate_name::ContextSelectionSet<'_>,
@@ -987,8 +990,7 @@ pub fn generate(
                     }
                 }
 
-                #boxed_trait
-                impl #def_bounds #crate_name::OutputType for #concrete_type {
+                impl #def_bounds #crate_name::OutputTypeMarker for #concrete_type {
                     fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
                         ::std::borrow::Cow::Borrowed(#gql_typename)
                     }
@@ -996,7 +998,10 @@ pub fn generate(
                     fn create_type_info(registry: &mut #crate_name::registry::Registry) -> ::std::string::String {
                         Self::__internal_create_type_info(registry, #gql_typename)
                     }
+                }
 
+                #boxed_trait
+                impl #def_bounds #crate_name::OutputType for #concrete_type {
                     async fn resolve(
                         &self,
                         ctx: &#crate_name::ContextSelectionSet<'_>,
