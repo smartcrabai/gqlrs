@@ -16,13 +16,14 @@ use crate::{
     OutputTypeMarker, ServerResult, Value,
     registry::{MetaType, MetaTypeId, Registry},
 };
+use crate::{MaybeSend, MaybeSync};
 
 impl<K, V, S> InputType for HashMap<K, V, S>
 where
-    K: ToString + FromStr + Eq + Hash + Send + Sync,
+    K: ToString + FromStr + Eq + Hash + MaybeSend + MaybeSync,
     K::Err: Display,
-    V: Serialize + DeserializeOwned + Send + Sync,
-    S: Default + BuildHasher + Send + Sync,
+    V: Serialize + DeserializeOwned + MaybeSend + MaybeSync,
+    S: Default + BuildHasher + MaybeSend + MaybeSync,
 {
     type RawValueType = Self;
 
@@ -81,9 +82,9 @@ where
 
 impl<K, V, S> OutputTypeMarker for HashMap<K, V, S>
 where
-    K: ToString + Eq + Hash + Send + Sync,
-    V: Serialize + Send + Sync,
-    S: Send + Sync,
+    K: ToString + Eq + Hash + MaybeSend + MaybeSync,
+    V: Serialize + MaybeSend + MaybeSync,
+    S: MaybeSend + MaybeSync,
 {
     fn type_name() -> Cow<'static, str> {
         Cow::Borrowed("JSONObject")
@@ -104,12 +105,16 @@ where
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl<K, V, S> OutputType for HashMap<K, V, S>
 where
-    K: ToString + Eq + Hash + Send + Sync,
-    V: Serialize + Send + Sync,
-    S: Send + Sync,
+    K: ToString + Eq + Hash + MaybeSend + MaybeSync,
+    V: Serialize + MaybeSend + MaybeSync,
+    S: MaybeSend + MaybeSync,
 {
     async fn resolve(
         &self,

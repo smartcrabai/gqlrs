@@ -66,6 +66,7 @@
 //! | **`apollo_persisted_queries`** | Enable the [Apollo persisted queries extension](https://docs.rs/async-graphql/latest/gqlrs/extensions/apollo_persisted_queries/struct.ApolloPersistedQueries.html).                   |
 //! | **`relay_persisted_queries`**  | Enable the [Relay persisted queries extension](https://docs.rs/async-graphql/latest/gqlrs/extensions/relay_persisted_queries/struct.RelayPersistedQueries.html).                     |
 //! | **`boxed-trait`**              | Enables [`async-trait`](https://crates.io/crates/async-trait) for all traits.                                                                                                                 |
+//! | **`no_send`**                  | Removes `Send + Sync` bounds from traits and futures. Enables the crate for use in single-threaded runtimes such as Cloudflare Workers.                                                        |
 //! | **`chrono`**                   | Integrate with the [`chrono` crate](https://crates.io/crates/chrono).                                                                                                                         |
 //! | **`chrono-tz`**                | Integrate with the [`chrono-tz` crate](https://crates.io/crates/chrono-tz).                                                                                                                   |
 //! | **`dataloader`**               | Support [DataLoader](dataloader/struct.DataLoader.html).                                                                                                                                      |
@@ -185,6 +186,7 @@ mod model;
 mod request;
 mod response;
 mod schema;
+pub mod sendable;
 mod subscription;
 mod validation;
 
@@ -242,6 +244,7 @@ pub use request::{BatchRequest, Request};
 pub use resolver_utils::{ContainerType, EnumType, ScalarType};
 pub use response::{BatchResponse, Response};
 pub use schema::{IntrospectionMode, Schema, SchemaBuilder, SchemaEnv};
+pub use sendable::{MaybeSend, MaybeSync};
 #[doc(hidden)]
 pub use static_assertions_next;
 pub use subscription::SubscriptionType;

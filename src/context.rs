@@ -18,8 +18,8 @@ use serde::{
 };
 
 use crate::{
-    Error, InputType, Lookahead, Name, OneofObjectType, PathSegment, Pos, Positioned, Result,
-    ServerError, ServerResult, UploadValue, Value,
+    Error, InputType, Lookahead, MaybeSend, MaybeSync, Name, OneofObjectType, PathSegment, Pos,
+    Positioned, Result, ServerError, ServerResult, UploadValue, Value,
     extensions::Extensions,
     parser::types::{
         Directive, Field, FragmentDefinition, OperationDefinition, Selection, SelectionSet,
@@ -37,7 +37,7 @@ pub trait DataContext<'a> {
     /// # Errors
     ///
     /// Returns a `Error` if the specified type data does not exist.
-    fn data<D: Any + Send + Sync>(&self) -> Result<&'a D>;
+    fn data<D: Any + MaybeSend + MaybeSync>(&self) -> Result<&'a D>;
 
     /// Gets the global data defined in the `Context` or `Schema`.
     ///
@@ -45,22 +45,28 @@ pub trait DataContext<'a> {
     ///
     /// It will panic if the specified data type does not exist.
     #[deprecated(since = "7.0.12", note = "Use `data::<D>().unwrap()` instead.")]
-    fn data_unchecked<D: Any + Send + Sync>(&self) -> &'a D;
+    fn data_unchecked<D: Any + MaybeSend + MaybeSync>(&self) -> &'a D;
 
     /// Gets the global data defined in the `Context` or `Schema` or `None` if
     /// the specified type data does not exist.
     #[deprecated(since = "7.0.12", note = "Use `data::<D>().ok()` instead.")]
-    fn data_opt<D: Any + Send + Sync>(&self) -> Option<&'a D>;
+    fn data_opt<D: Any + MaybeSend + MaybeSync>(&self) -> Option<&'a D>;
 }
+
+#[cfg(not(feature = "no_send"))]
+type BoxedAny = Box<dyn Any + Send + Sync>;
+
+#[cfg(feature = "no_send")]
+type BoxedAny = Box<dyn Any>;
 
 /// Schema/Context data.
 ///
 /// This is a type map, allowing you to store anything inside it.
 #[derive(Default)]
-pub struct Data(FxHashMap<TypeId, Box<dyn Any + Sync + Send>>);
+pub struct Data(FxHashMap<TypeId, BoxedAny>);
 
 impl Deref for Data {
-    type Target = FxHashMap<TypeId, Box<dyn Any + Sync + Send>>;
+    type Target = FxHashMap<TypeId, BoxedAny>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -69,7 +75,7 @@ impl Deref for Data {
 
 impl Data {
     /// Insert data.
-    pub fn insert<D: Any + Send + Sync>(&mut self, data: D) {
+    pub fn insert<D: Any + MaybeSend + MaybeSync>(&mut self, data: D) {
         self.0.insert(TypeId::of::<D>(), Box::new(data));
     }
 
@@ -301,15 +307,15 @@ impl QueryEnv {
 }
 
 impl<'a, T> DataContext<'a> for ContextBase<'a, T> {
-    fn data<D: Any + Send + Sync>(&self) -> Result<&'a D> {
+    fn data<D: Any + MaybeSend + MaybeSync>(&self) -> Result<&'a D> {
         ContextBase::data::<D>(self)
     }
 
-    fn data_unchecked<D: Any + Send + Sync>(&self) -> &'a D {
+    fn data_unchecked<D: Any + MaybeSend + MaybeSync>(&self) -> &'a D {
         ContextBase::data::<D>(self).unwrap()
     }
 
-    fn data_opt<D: Any + Send + Sync>(&self) -> Option<&'a D> {
+    fn data_opt<D: Any + MaybeSend + MaybeSync>(&self) -> Option<&'a D> {
         ContextBase::data::<D>(self).ok()
     }
 }
@@ -380,7 +386,7 @@ impl<'a, T> ContextBase<'a, T> {
     /// # Errors
     ///
     /// Returns a `Error` if the specified type data does not exist.
-    pub fn data<D: Any + Send + Sync>(&self) -> Result<&'a D> {
+    pub fn data<D: Any + MaybeSend + MaybeSync>(&self) -> Result<&'a D> {
         self.execute_data
             .as_ref()
             .and_then(|execute_data| execute_data.get(&TypeId::of::<D>()))
@@ -402,14 +408,14 @@ impl<'a, T> ContextBase<'a, T> {
     ///
     /// It will panic if the specified data type does not exist.
     #[deprecated(since = "7.0.12", note = "Use `data::<D>().unwrap()` instead.")]
-    pub fn data_unchecked<D: Any + Send + Sync>(&self) -> &'a D {
+    pub fn data_unchecked<D: Any + MaybeSend + MaybeSync>(&self) -> &'a D {
         self.data::<D>().unwrap()
     }
 
     /// Gets the global data defined in the `Context` or `Schema` or `None` if
     /// the specified type data does not exist.
     #[deprecated(since = "7.0.12", note = "Use `data::<D>().ok()` instead.")]
-    pub fn data_opt<D: Any + Send + Sync>(&self) -> Option<&'a D> {
+    pub fn data_opt<D: Any + MaybeSend + MaybeSync>(&self) -> Option<&'a D> {
         self.data::<D>().ok()
     }
 

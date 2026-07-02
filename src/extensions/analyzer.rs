@@ -25,7 +25,8 @@ struct AnalyzerExtension {
     validation_result: Mutex<Option<ValidationResult>>,
 }
 
-#[async_trait::async_trait]
+#[cfg_attr(not(feature = "no_send"), async_trait::async_trait)]
+#[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
 impl Extension for AnalyzerExtension {
     async fn request(&self, ctx: &ExtensionContext<'_>, next: NextRequest<'_>) -> Response {
         let mut resp = next.run(ctx).await;

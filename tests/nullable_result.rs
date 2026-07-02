@@ -183,7 +183,11 @@ pub async fn test_nullable_result_with_guard() {
         }
     }
 
-    #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+    #[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
     impl Guard for RoleGuard {
         async fn check(&self, ctx: &Context<'_>) -> Result<()> {
             if ctx.data_opt::<Role>() == Some(&self.role) {

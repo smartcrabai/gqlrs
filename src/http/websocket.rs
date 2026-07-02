@@ -8,16 +8,16 @@ use std::{
     task::{Context, Poll},
 };
 
-use futures_util::{
-    FutureExt, StreamExt,
-    future::{BoxFuture, Ready},
-    stream::Stream,
-};
+use futures_util::{FutureExt, StreamExt, future::Ready, stream::Stream};
 use pin_project_lite::pin_project;
 use serde::{Deserialize, Serialize};
 use web_time::{Duration, Instant};
 
-use crate::{Data, Error, Executor, Request, Response, Result, runtime::Timer as RtTimer};
+use crate::{
+    Data, Error, Executor, MaybeSend, Request, Response, Result,
+    runtime::Timer as RtTimer,
+    sendable::{FutureMaybeSendExt, MaybeBoxFuture, MaybeBoxStream},
+};
 
 /// All known protocols based on WebSocket.
 pub const ALL_WEBSOCKET_PROTOCOLS: [&str; 2] = ["graphql-transport-ws", "graphql-ws"];
@@ -67,7 +67,7 @@ impl WsMessage {
 struct Timer {
     interval: Duration,
     rt_timer: Box<dyn RtTimer>,
-    future: BoxFuture<'static, ()>,
+    future: MaybeBoxFuture<'static, ()>,
 }
 
 impl Timer {
@@ -114,12 +114,12 @@ pin_project! {
     pub struct WebSocket<S, E, OnInit, OnPing> {
         on_connection_init: Option<OnInit>,
         on_ping: OnPing,
-        init_fut: Option<BoxFuture<'static, Result<Data>>>,
-        ping_fut: Option<BoxFuture<'static, Result<Option<serde_json::Value>>>>,
+        init_fut: Option<MaybeBoxFuture<'static, Result<Data>>>,
+        ping_fut: Option<MaybeBoxFuture<'static, Result<Option<serde_json::Value>>>>,
         connection_data: Option<Data>,
         data: Option<Arc<Data>>,
         executor: E,
-        streams: HashMap<String, Pin<Box<dyn Stream<Item = Response> + Send>>>,
+        streams: HashMap<String, MaybeBoxStream<'static, Response>>,
         #[pin]
         stream: S,
         protocol: Protocols,
@@ -220,8 +220,8 @@ where
     #[must_use]
     pub fn on_connection_init<F, R>(self, callback: F) -> WebSocket<S, E, F, OnPing>
     where
-        F: FnOnce(serde_json::Value) -> R + Send + 'static,
-        R: Future<Output = Result<Data>> + Send + 'static,
+        F: FnOnce(serde_json::Value) -> R + MaybeSend + 'static,
+        R: Future<Output = Result<Data>> + MaybeSend + 'static,
     {
         WebSocket {
             on_connection_init: Some(callback),
@@ -253,8 +253,8 @@ where
     #[must_use]
     pub fn on_ping<F, R>(self, callback: F) -> WebSocket<S, E, OnInit, F>
     where
-        F: FnOnce(Option<&Data>, Option<serde_json::Value>) -> R + Send + Clone + 'static,
-        R: Future<Output = Result<Option<serde_json::Value>>> + Send + 'static,
+        F: FnOnce(Option<&Data>, Option<serde_json::Value>) -> R + MaybeSend + Clone + 'static,
+        R: Future<Output = Result<Option<serde_json::Value>>> + MaybeSend + 'static,
     {
         WebSocket {
             on_connection_init: self.on_connection_init,
@@ -325,10 +325,11 @@ impl<S, E, OnInit, InitFut, OnPing, PingFut> Stream for WebSocket<S, E, OnInit, 
 where
     E: Executor,
     S: Stream<Item = serde_json::Result<ClientMessage>>,
-    OnInit: FnOnce(serde_json::Value) -> InitFut + Send + 'static,
-    InitFut: Future<Output = Result<Data>> + Send + 'static,
-    OnPing: FnOnce(Option<&Data>, Option<serde_json::Value>) -> PingFut + Clone + Send + 'static,
-    PingFut: Future<Output = Result<Option<serde_json::Value>>> + Send + 'static,
+    OnInit: FnOnce(serde_json::Value) -> InitFut + MaybeSend + 'static,
+    InitFut: Future<Output = Result<Data>> + MaybeSend + 'static,
+    OnPing:
+        FnOnce(Option<&Data>, Option<serde_json::Value>) -> PingFut + Clone + MaybeSend + 'static,
+    PingFut: Future<Output = Result<Option<serde_json::Value>>> + MaybeSend + 'static,
 {
     type Item = WsMessage;
 
@@ -409,9 +410,10 @@ where
                 match message {
                     ClientMessage::ConnectionInit { payload } => {
                         if let Some(on_connection_init) = this.on_connection_init.take() {
-                            *this.init_fut = Some(Box::pin(async move {
-                                on_connection_init(payload.unwrap_or_default()).await
-                            }));
+                            *this.init_fut = Some(
+                                async move { on_connection_init(payload.unwrap_or_default()).await }
+                                    .boxed_maybe_send(),
+                            );
                             break;
                         } else {
                             *this.close = true;
@@ -440,10 +442,8 @@ where
                         payload: request,
                     } => {
                         if let Some(data) = this.data.clone() {
-                            this.streams.insert(
-                                id,
-                                Box::pin(this.executor.execute_stream(request, Some(data))),
-                            );
+                            this.streams
+                                .insert(id, this.executor.execute_stream(request, Some(data)));
                         } else {
                             *this.close = true;
                             return Poll::Ready(Some(WsMessage::Close(
@@ -471,10 +471,10 @@ where
                     ClientMessage::Ping { payload } => {
                         let on_ping = this.on_ping.clone();
                         let data = this.data.clone();
-                        *this.ping_fut =
-                            Some(Box::pin(
-                                async move { on_ping(data.as_deref(), payload).await },
-                            ));
+                        *this.ping_fut = Some(
+                            async move { on_ping(data.as_deref(), payload).await }
+                                .boxed_maybe_send(),
+                        );
                         break;
                     }
                     ClientMessage::Pong { .. } => {

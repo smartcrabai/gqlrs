@@ -21,7 +21,11 @@ pub(crate) struct QueryRoot<T> {
     pub(crate) inner: T,
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl<T: ObjectType> ContainerType for QueryRoot<T> {
     async fn resolve_field(&self, ctx: &Context<'_>) -> ServerResult<Option<Value>> {
         if matches!(
@@ -123,7 +127,11 @@ impl<T: ObjectType> OutputTypeMarker for QueryRoot<T> {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl<T: ObjectType> OutputType for QueryRoot<T> {
     async fn resolve(
         &self,

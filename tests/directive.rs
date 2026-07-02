@@ -85,7 +85,8 @@ pub async fn test_custom_directive() {
         suffix: String,
     }
 
-    #[async_trait::async_trait]
+    #[cfg_attr(not(feature = "no_send"), async_trait::async_trait)]
+    #[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
     impl CustomDirective for Concat {
         async fn resolve_field(
             &self,

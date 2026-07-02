@@ -2,7 +2,7 @@ use std::{borrow::Cow, marker::PhantomData};
 
 use super::{DisableNodesField, EnableNodesField, NodesFieldSwitcherSealed};
 use crate::{
-    Object, ObjectType, OutputType, TypeName,
+    MaybeSend, MaybeSync, Object, ObjectType, OutputType, TypeName,
     connection::{
         ConnectionNameType, DefaultConnectionName, DefaultEdgeName, EdgeNameType, PageInfo,
         edge::Edge,
@@ -22,7 +22,7 @@ pub struct Connection<
     EdgeName = DefaultEdgeName,
     NodesField = EnableNodesField,
 > where
-    Cursor: CursorType + Send + Sync,
+    Cursor: CursorType + MaybeSend + MaybeSync,
     Node: OutputType,
     ConnectionFields: ObjectType,
     EdgeFields: ObjectType,
@@ -46,7 +46,7 @@ pub struct Connection<
 impl<Cursor, Node, NodesField, EdgeFields, Name, EdgeName>
     Connection<Cursor, Node, EmptyFields, EdgeFields, Name, EdgeName, NodesField>
 where
-    Cursor: CursorType + Send + Sync,
+    Cursor: CursorType + MaybeSend + MaybeSync,
     Node: OutputType,
     EdgeFields: ObjectType,
     Name: ConnectionNameType,
@@ -71,7 +71,7 @@ where
 impl<Cursor, Node, NodesField, ConnectionFields, EdgeFields, Name, EdgeName>
     Connection<Cursor, Node, ConnectionFields, EdgeFields, Name, EdgeName, NodesField>
 where
-    Cursor: CursorType + Send + Sync,
+    Cursor: CursorType + MaybeSend + MaybeSync,
     Node: OutputType,
     ConnectionFields: ObjectType,
     EdgeFields: ObjectType,
@@ -102,7 +102,7 @@ where
 impl<Cursor, Node, ConnectionFields, EdgeFields, Name, EdgeName>
     Connection<Cursor, Node, ConnectionFields, EdgeFields, Name, EdgeName, DisableNodesField>
 where
-    Cursor: CursorType + Send + Sync,
+    Cursor: CursorType + MaybeSend + MaybeSync,
     Node: OutputType,
     ConnectionFields: ObjectType,
     EdgeFields: ObjectType,
@@ -136,7 +136,7 @@ where
 impl<Cursor, Node, ConnectionFields, EdgeFields, Name, EdgeName>
     Connection<Cursor, Node, ConnectionFields, EdgeFields, Name, EdgeName, EnableNodesField>
 where
-    Cursor: CursorType + Send + Sync,
+    Cursor: CursorType + MaybeSend + MaybeSync,
     Node: OutputType,
     ConnectionFields: ObjectType,
     EdgeFields: ObjectType,
@@ -174,7 +174,7 @@ where
 impl<Cursor, Node, ConnectionFields, EdgeFields, Name, EdgeName, NodesField> TypeName
     for Connection<Cursor, Node, ConnectionFields, EdgeFields, Name, EdgeName, NodesField>
 where
-    Cursor: CursorType + Send + Sync,
+    Cursor: CursorType + MaybeSend + MaybeSync,
     Node: OutputType,
     ConnectionFields: ObjectType,
     EdgeFields: ObjectType,

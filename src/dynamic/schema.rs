@@ -1,12 +1,13 @@
 use std::{any::Any, collections::HashMap, fmt::Debug, sync::Arc};
 
 use async_graphql_parser::types::OperationType;
-use futures_util::{StreamExt, TryFutureExt, stream::BoxStream};
+use futures_util::{StreamExt, TryFutureExt};
 use indexmap::IndexMap;
 
 use crate::{
-    Data, ErrorFormatter, Executor, IntrospectionMode, QueryEnv, Request, Response,
-    SDLExportOptions, SchemaEnv, ServerError, ServerResult, ValidationMode, Value,
+    Data, ErrorFormatter, Executor, IntrospectionMode, MaybeSend, MaybeSync, QueryEnv, Request,
+    Response, SDLExportOptions, SchemaEnv, ServerError, ServerResult, ValidationMode, Value,
+    sendable::{MaybeBoxStream as BoxStream, StreamMaybeSendExt},
     dynamic::{
         DynamicRequest, FieldFuture, FieldValue, Object, ResolverContext, Scalar, SchemaError,
         Subscription, TypeRef, Union, field::BoxResolverFn, resolve::resolve_container,
@@ -57,7 +58,7 @@ impl SchemaBuilder {
     /// Add a global data that can be accessed in the `Schema`. You access it
     /// with `Context::data`.
     #[must_use]
-    pub fn data<D: Any + Send + Sync>(mut self, data: D) -> Self {
+    pub fn data<D: Any + MaybeSend + MaybeSync>(mut self, data: D) -> Self {
         self.data.insert(data);
         self
     }
@@ -76,7 +77,7 @@ impl SchemaBuilder {
     #[must_use]
     pub fn error_formatter<F>(mut self, formatter: F) -> Self
     where
-        F: Fn(ServerError) -> ServerError + Send + Sync + 'static,
+        F: Fn(ServerError) -> ServerError + MaybeSend + MaybeSync + 'static,
     {
         self.error_formatter = Some(Box::new(formatter));
         self
@@ -161,7 +162,7 @@ impl SchemaBuilder {
     /// Set the entity resolver for federation
     pub fn entity_resolver<F>(self, resolver_fn: F) -> Self
     where
-        F: for<'a> Fn(ResolverContext<'a>) -> FieldFuture<'a> + Send + Sync + 'static,
+        F: for<'a> Fn(ResolverContext<'a>) -> FieldFuture<'a> + MaybeSend + MaybeSync + 'static,
     {
         Self {
             entity_resolver: Some(Box::new(resolver_fn)),
@@ -539,7 +540,7 @@ impl Schema {
                 }
             })
         };
-        extensions.subscribe(stream.boxed())
+        extensions.subscribe(stream.boxed_maybe_send())
     }
 
     /// Execute a GraphQL subscription.
@@ -556,7 +557,11 @@ impl Schema {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl Executor for Schema {
     async fn execute(&self, request: Request) -> Response {
         Schema::execute(self, request).await
@@ -605,13 +610,22 @@ mod tests {
 
     use async_graphql_parser::{Pos, types::ExecutableDocument};
     use async_graphql_value::Variables;
-    use futures_util::{StreamExt, stream::BoxStream};
+    use futures_util::StreamExt;
     use tokio::sync::Mutex;
+    use crate::sendable::MaybeBoxStream as BoxStream;
 
-    use crate::{
-        PathSegment, Request, Response, ServerError, ServerResult, ValidationResult, Value,
-        dynamic::*, extensions::*, value,
-    };
+    use crate::{dynamic::*,
+    extensions::*,
+    MaybeSend,
+    MaybeSync,
+    PathSegment,
+    Request,
+    Response,
+    ServerError,
+    ServerResult,
+    ValidationResult,
+    Value,
+    value,};
 
     #[tokio::test]
     async fn basic_query() {
@@ -907,7 +921,8 @@ mod tests {
             calls: Arc<Mutex<Vec<&'static str>>>,
         }
 
-        #[async_trait::async_trait]
+        #[cfg_attr(not(feature = "no_send"), async_trait::async_trait)]
+#[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
         #[allow(unused_variables)]
         impl Extension for MyExtensionImpl {
             async fn request(&self, ctx: &ExtensionContext<'_>, next: NextRequest<'_>) -> Response {

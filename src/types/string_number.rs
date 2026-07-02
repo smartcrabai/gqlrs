@@ -3,7 +3,7 @@ use std::fmt::Display;
 use num_traits::Num;
 use serde::{Deserialize, Serialize};
 
-use crate::{InputValueError, InputValueResult, Scalar, ScalarType, Value};
+use crate::{InputValueError, InputValueResult, MaybeSend, MaybeSync, Scalar, ScalarType, Value};
 
 /// A numeric value represented by a string.
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Serialize, Deserialize)]
@@ -19,7 +19,7 @@ impl<T: Num + Display + Default> Default for StringNumber<T> {
 }
 
 #[Scalar(internal)]
-impl<T: Num + Display + Send + Sync> ScalarType for StringNumber<T>
+impl<T: Num + Display + MaybeSend + MaybeSync> ScalarType for StringNumber<T>
 where
     <T as Num>::FromStrRadixErr: Display,
 {

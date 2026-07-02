@@ -77,22 +77,39 @@ use futures_channel::{mpsc, oneshot};
 #[cfg(not(feature = "boxed-trait"))]
 use futures_util::stream::Stream;
 use futures_util::{
-    stream::{self, BoxStream, StreamExt, TryStreamExt},
-    task::{Spawn, SpawnExt},
+    stream::{self, StreamExt, TryStreamExt},
+};
+#[cfg(feature = "no_send")]
+use futures_util::task::{LocalSpawn, LocalSpawnExt};
+#[cfg(not(feature = "no_send"))]
+use futures_util::task::{Spawn, SpawnExt};
+use crate::{
+    MaybeSend, MaybeSync, runtime::Timer,
+    sendable::MaybeBoxStream,
 };
 use rustc_hash::FxBuildHasher;
 #[cfg(feature = "tracing")]
 use tracing::{Instrument, info_span, instrument};
 
-use crate::runtime::Timer;
-
 type FxHashMap<K, V> = scc::HashMap<K, V, FxBuildHasher>;
+
+#[cfg(not(feature = "no_send"))]
+type BoxSpawner = Box<dyn Spawn + Send + Sync>;
+
+#[cfg(feature = "no_send")]
+type BoxSpawner = Box<dyn LocalSpawn>;
+
+#[cfg(not(feature = "no_send"))]
+type BoxedAny = Box<dyn Any + Send + Sync>;
+
+#[cfg(feature = "no_send")]
+type BoxedAny = Box<dyn Any>;
 
 #[allow(clippy::type_complexity)]
 struct ResSender<K, V, T>
 where
-    K: Send + Sync + Hash + Eq + Clone + 'static,
-    V: Send + Sync + Clone + 'static,
+    K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static,
+    V: MaybeSend + MaybeSync + Clone + 'static,
     T: Loader<K, V>,
 {
     use_cache_values: HashMap<K, V>,
@@ -101,8 +118,8 @@ where
 
 struct StreamSender<K, V, T>
 where
-    K: Send + Sync + Hash + Eq + Clone + 'static,
-    V: Send + Sync + Clone + 'static,
+    K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static,
+    V: MaybeSend + MaybeSync + Clone + 'static,
     T: Loader<K, V>,
 {
     tx: mpsc::UnboundedSender<StreamResult<K, V, T::Error>>,
@@ -110,8 +127,8 @@ where
 
 struct Requests<K, V, T>
 where
-    K: Send + Sync + Hash + Eq + Clone + 'static,
-    V: Send + Sync + Clone + 'static,
+    K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static,
+    V: MaybeSend + MaybeSync + Clone + 'static,
     T: Loader<K, V>,
 {
     keys: HashSet<K>,
@@ -123,14 +140,14 @@ where
 }
 
 type StreamResult<K, V, E> = Result<(K, V), E>;
-type LoaderStream<'a, K, V, E> = BoxStream<'a, StreamResult<K, V, E>>;
+type LoaderStream<'a, K, V, E> = MaybeBoxStream<'a, StreamResult<K, V, E>>;
 type KeysAndSender<K, V, T> = (HashSet<K>, Vec<(HashSet<K>, ResSender<K, V, T>)>);
 type StreamKeysAndSender<K, V, T> = (HashSet<K>, Vec<(HashSet<K>, StreamSender<K, V, T>)>);
 
 impl<K, V, T> Requests<K, V, T>
 where
-    K: Send + Sync + Hash + Eq + Clone + 'static,
-    V: Send + Sync + Clone + 'static,
+    K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static,
+    V: MaybeSend + MaybeSync + Clone + 'static,
     T: Loader<K, V>,
 {
     fn new<C: CacheFactory>(cache_factory: &C) -> Self {
@@ -165,14 +182,18 @@ where
 /// type `V`. This allows multiple loaders on the same type to use the same key
 /// type but different return types without colliding in the internal request
 /// map.
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-pub trait Loader<K, V>: Send + Sync + 'static
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
+pub trait Loader<K, V>: MaybeSend + MaybeSync + 'static
 where
-    K: Send + Sync + Hash + Eq + Clone + 'static,
-    V: Send + Sync + Clone + 'static,
+    K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static,
+    V: MaybeSend + MaybeSync + Clone + 'static,
 {
     /// Type of error.
-    type Error: Send + Clone + 'static;
+    type Error: MaybeSend + Clone + 'static;
 
     /// Load the data set specified by the `keys`.
     #[cfg(feature = "boxed-trait")]
@@ -180,7 +201,7 @@ where
 
     /// Load the data set specified by the `keys`.
     #[cfg(not(feature = "boxed-trait"))]
-    fn load(&self, keys: &[K]) -> impl Future<Output = Result<HashMap<K, V>, Self::Error>> + Send;
+    fn load(&self, keys: &[K]) -> impl Future<Output = Result<HashMap<K, V>, Self::Error>> + MaybeSend;
 
     /// Load the data set specified by the `keys` as a stream.
     ///
@@ -212,7 +233,7 @@ where
     fn load_stream<'a>(
         &'a self,
         keys: &'a [K],
-    ) -> impl Stream<Item = Result<(K, V), Self::Error>> + Send + 'a {
+    ) -> impl Stream<Item = Result<(K, V), Self::Error>> + MaybeSend + 'a {
         stream::once(async move {
             self.load(keys)
                 .await
@@ -223,7 +244,7 @@ where
 }
 
 struct DataLoaderInner<T> {
-    requests: FxHashMap<TypeId, Box<dyn Any + Sync + Send>>,
+    requests: FxHashMap<TypeId, BoxedAny>,
     loader: T,
 }
 
@@ -231,8 +252,8 @@ impl<T> DataLoaderInner<T> {
     #[cfg_attr(feature = "tracing", instrument(skip_all))]
     async fn do_load<K, V>(&self, disable_cache: bool, (keys, senders): KeysAndSender<K, V, T>)
     where
-        K: Send + Sync + Hash + Eq + Clone + 'static,
-        V: Send + Sync + Clone + 'static,
+        K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static,
+        V: MaybeSend + MaybeSync + Clone + 'static,
         T: Loader<K, V>,
     {
         let tid = TypeId::of::<(K, V)>();
@@ -278,8 +299,8 @@ impl<T> DataLoaderInner<T> {
         disable_cache: bool,
         (keys, senders): StreamKeysAndSender<K, V, T>,
     ) where
-        K: Send + Sync + Hash + Eq + Clone + 'static,
-        V: Send + Sync + Clone + 'static,
+        K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static,
+        V: MaybeSend + MaybeSync + Clone + 'static,
         T: Loader<K, V>,
     {
         let tid = TypeId::of::<K>();
@@ -329,13 +350,36 @@ pub struct DataLoader<T, C = NoCache> {
     delay: Duration,
     max_batch_size: usize,
     disable_cache: AtomicBool,
-    spawner: Box<dyn Spawn + Send + Sync>,
+    spawner: BoxSpawner,
     timer: Arc<dyn Timer>,
 }
 
 impl<T> DataLoader<T, NoCache> {
     /// Use `Loader` to create a [DataLoader] that does not cache records.
+    #[cfg(not(feature = "no_send"))]
     pub fn new<S, TR>(loader: T, spawner: S, timer: TR) -> Self
+    where
+        S: Spawn + Send + Sync + 'static,
+        TR: Timer,
+    {
+        Self::with_cache(loader, spawner, timer, NoCache)
+    }
+
+    /// Use `Loader` to create a [DataLoader] that does not cache records.
+    #[cfg(feature = "no_send")]
+    pub fn new<S, TR>(loader: T, spawner: S, timer: TR) -> Self
+    where
+        S: LocalSpawn + 'static,
+        TR: Timer,
+    {
+        Self::with_cache(loader, spawner, timer, NoCache)
+    }
+}
+
+impl<T, C: CacheFactory> DataLoader<T, C> {
+    /// Use `Loader` to create a [DataLoader] with a cache factory.
+    #[cfg(not(feature = "no_send"))]
+    pub fn with_cache<S, TR>(loader: T, spawner: S, timer: TR, cache_factory: C) -> Self
     where
         S: Spawn + Send + Sync + 'static,
         TR: Timer,
@@ -345,7 +389,7 @@ impl<T> DataLoader<T, NoCache> {
                 requests: Default::default(),
                 loader,
             }),
-            cache_factory: NoCache,
+            cache_factory,
             delay: Duration::ZERO,
             max_batch_size: 1000,
             disable_cache: false.into(),
@@ -353,13 +397,12 @@ impl<T> DataLoader<T, NoCache> {
             timer: Arc::new(timer),
         }
     }
-}
 
-impl<T, C: CacheFactory> DataLoader<T, C> {
     /// Use `Loader` to create a [DataLoader] with a cache factory.
+    #[cfg(feature = "no_send")]
     pub fn with_cache<S, TR>(loader: T, spawner: S, timer: TR, cache_factory: C) -> Self
     where
-        S: Spawn + Send + Sync + 'static,
+        S: LocalSpawn + 'static,
         TR: Timer,
     {
         Self {
@@ -410,8 +453,8 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
     /// Enable/Disable cache of specified loader.
     pub async fn enable_cache<K, V>(&self, enable: bool)
     where
-        K: Send + Sync + Hash + Eq + Clone + 'static,
-        V: Send + Sync + Clone + 'static,
+        K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static,
+        V: MaybeSend + MaybeSync + Clone + 'static,
         T: Loader<K, V>,
     {
         let tid = TypeId::of::<(K, V)>();
@@ -424,8 +467,8 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
     #[cfg_attr(feature = "tracing", instrument(skip_all))]
     pub async fn load_one<K, V>(&self, key: K) -> Result<Option<V>, <T as Loader<K, V>>::Error>
     where
-        K: Send + Sync + Hash + Eq + Clone + 'static,
-        V: Send + Sync + Clone + 'static,
+        K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static,
+        V: MaybeSend + MaybeSync + Clone + 'static,
         T: Loader<K, V>,
     {
         let mut values = self.load_many(std::iter::once(key.clone())).await?;
@@ -439,14 +482,14 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
         keys: impl IntoIterator<Item = K>,
     ) -> Result<HashMap<K, V>, <T as Loader<K, V>>::Error>
     where
-        K: Send + Sync + Hash + Eq + Clone + 'static,
-        V: Send + Sync + Clone + 'static,
+        K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static,
+        V: MaybeSend + MaybeSync + Clone + 'static,
         T: Loader<K, V>,
     {
         enum Action<K, V, T>
         where
-            K: Send + Sync + Hash + Eq + Clone + 'static,
-            V: Send + Sync + Clone + 'static,
+            K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static,
+            V: MaybeSend + MaybeSync + Clone + 'static,
             T: Loader<K, V>,
         {
             ImmediateLoad(KeysAndSender<K, V, T>),
@@ -523,7 +566,10 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
                     .instrument(info_span!("immediate_load"))
                     .in_current_span();
 
+                #[cfg(not(feature = "no_send"))]
                 let _ = self.spawner.spawn(task);
+                #[cfg(feature = "no_send")]
+                let _ = self.spawner.spawn_local(task);
             }
             Action::StartFetch => {
                 let inner = self.inner.clone();
@@ -546,7 +592,10 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
                 };
                 #[cfg(feature = "tracing")]
                 let task = task.instrument(info_span!("start_fetch")).in_current_span();
+                #[cfg(not(feature = "no_send"))]
                 let _ = self.spawner.spawn(task);
+                #[cfg(feature = "no_send")]
+                let _ = self.spawner.spawn_local(task);
             }
             Action::Delay => {}
         }
@@ -564,12 +613,12 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
         keys: I,
     ) -> LoaderStream<'static, K, V, T::Error>
     where
-        K: Send + Sync + Hash + Eq + Clone + 'static,
-        V: Send + Sync + Clone + 'static,
+        K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static,
+        V: MaybeSend + MaybeSync + Clone + 'static,
         I: IntoIterator<Item = K>,
         T: Loader<K, V>,
     {
-        enum Action<K: Send + Sync + Hash + Eq + Clone + 'static, V: Send + Sync + Clone + 'static, T: Loader<K, V>> {
+        enum Action<K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static, V: MaybeSend + MaybeSync + Clone + 'static, T: Loader<K, V>> {
             ImmediateLoad(StreamKeysAndSender<K, V, T>),
             StartFetch,
             Delay,
@@ -640,7 +689,10 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
                     .instrument(info_span!("immediate_load_stream"))
                     .in_current_span();
 
+                #[cfg(not(feature = "no_send"))]
                 let _ = self.spawner.spawn(task);
+                #[cfg(feature = "no_send")]
+                let _ = self.spawner.spawn_local(task);
             }
             Action::StartFetch => {
                 let inner = self.inner.clone();
@@ -665,7 +717,10 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
                 let task = task
                     .instrument(info_span!("start_fetch_stream"))
                     .in_current_span();
+                #[cfg(not(feature = "no_send"))]
                 let _ = self.spawner.spawn(task);
+                #[cfg(feature = "no_send")]
+                let _ = self.spawner.spawn_local(task);
             }
             Action::Delay => {}
         }
@@ -680,8 +735,8 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
     #[cfg_attr(feature = "tracing", instrument(skip_all))]
     pub async fn feed_many<K, V>(&self, values: impl IntoIterator<Item = (K, V)>)
     where
-        K: Send + Sync + Hash + Eq + Clone + 'static,
-        V: Send + Sync + Clone + 'static,
+        K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static,
+        V: MaybeSend + MaybeSync + Clone + 'static,
         T: Loader<K, V>,
     {
         let tid = TypeId::of::<(K, V)>();
@@ -708,8 +763,8 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
     #[cfg_attr(feature = "tracing", instrument(skip_all))]
     pub async fn feed_one<K, V>(&self, key: K, value: V)
     where
-        K: Send + Sync + Hash + Eq + Clone + 'static,
-        V: Send + Sync + Clone + 'static,
+        K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static,
+        V: MaybeSend + MaybeSync + Clone + 'static,
         T: Loader<K, V>,
     {
         self.feed_many(std::iter::once((key, value))).await;
@@ -722,8 +777,8 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
     #[cfg_attr(feature = "tracing", instrument(skip_all))]
     pub fn clear_one<K, V>(&self, key: &K)
     where
-        K: Send + Sync + Hash + Eq + Clone + 'static,
-        V: Send + Sync + Clone + 'static,
+        K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static,
+        V: MaybeSend + MaybeSync + Clone + 'static,
         T: Loader<K, V>,
     {
         let tid = TypeId::of::<(K, V)>();
@@ -744,8 +799,8 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
     #[cfg_attr(feature = "tracing", instrument(skip_all))]
     pub fn clear<K, V>(&self)
     where
-        K: Send + Sync + Hash + Eq + Clone + 'static,
-        V: Send + Sync + Clone + 'static,
+        K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static,
+        V: MaybeSend + MaybeSync + Clone + 'static,
         T: Loader<K, V>,
     {
         let tid = TypeId::of::<(K, V)>();
@@ -762,8 +817,8 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
     /// Gets all values in the cache.
     pub async fn get_cached_values<K, V>(&self) -> HashMap<K, V>
     where
-        K: Send + Sync + Hash + Eq + Clone + 'static,
-        V: Send + Sync + Clone + 'static,
+        K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static,
+        V: MaybeSend + MaybeSync + Clone + 'static,
         T: Loader<K, V>,
     {
         let tid = TypeId::of::<(K, V)>();
@@ -793,7 +848,11 @@ mod tests {
 
     struct MyLoader;
 
-    #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+    #[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
     impl Loader<i32, i32> for MyLoader {
         type Error = ();
 
@@ -803,7 +862,11 @@ mod tests {
         }
     }
 
-    #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+    #[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
     impl Loader<i64, i64> for MyLoader {
         type Error = ();
 
@@ -1025,7 +1088,11 @@ mod tests {
 
     struct StreamingLoader;
 
-    #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+    #[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
     impl Loader<i32, String> for StreamingLoader {
         type Error = ();
 
@@ -1051,7 +1118,7 @@ mod tests {
         fn load_stream<'a>(
             &'a self,
             keys: &'a [i32],
-        ) -> impl Stream<Item = Result<(i32, String), Self::Error>> + Send + 'a {
+        ) -> impl Stream<Item = Result<(i32, String), Self::Error>> + MaybeSend + 'a {
             stream::iter(keys.iter().copied().map(|k| Ok((k, format!("stream-{k}")))))
         }
     }
@@ -1144,7 +1211,11 @@ mod tests {
         // are kept separate even within the same DataLoader type.
         struct MultiLoader;
 
-        #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+        #[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
         impl Loader<i32, i32> for MultiLoader {
             type Error = ();
 
@@ -1153,7 +1224,11 @@ mod tests {
             }
         }
 
-        #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+        #[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
         impl Loader<i32, String> for MultiLoader {
             type Error = ();
 
@@ -1179,7 +1254,11 @@ mod tests {
     async fn test_dataloader_dead_lock() {
         struct MyDelayLoader;
 
-        #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+        #[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
         impl Loader<i32, i32> for MyDelayLoader {
             type Error = ();
 
@@ -1216,7 +1295,11 @@ mod tests {
             calls: Arc<AtomicUsize>,
         }
 
-        #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+        #[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
         impl Loader<i32, i32> for CountingLoader {
             type Error = ();
 

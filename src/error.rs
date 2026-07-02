@@ -9,7 +9,13 @@ use std::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{InputType, Pos, Value, parser};
+use crate::{InputType, MaybeSend, MaybeSync, parser, Pos, Value};
+
+#[cfg(not(feature = "no_send"))]
+pub type ErrorSource = Arc<dyn Any + Send + Sync>;
+
+#[cfg(feature = "no_send")]
+pub type ErrorSource = Arc<dyn Any>;
 
 /// Extensions to the error.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -63,7 +69,7 @@ pub struct ServerError {
     pub message: String,
     /// The source of the error.
     #[serde(skip)]
-    pub source: Option<Arc<dyn Any + Send + Sync>>,
+    pub source: Option<ErrorSource>,
     /// Where the error occurred.
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub locations: Vec<Pos>,
@@ -141,7 +147,7 @@ impl ServerError {
     /// assert!(err.source::<std::io::Error>().is_some());
     /// # });
     /// ```
-    pub fn source<T: Any + Send + Sync>(&self) -> Option<&T> {
+    pub fn source<T: Any + MaybeSend + MaybeSync>(&self) -> Option<&T> {
         self.source.as_ref().map(|err| err.downcast_ref()).flatten()
     }
 
@@ -285,7 +291,7 @@ pub struct Error {
     pub message: String,
     /// The source of the error.
     #[serde(skip)]
-    pub source: Option<Arc<dyn Any + Send + Sync>>,
+    pub source: Option<ErrorSource>,
     /// Extensions to the error.
     #[serde(skip_serializing_if = "error_extensions_is_empty")]
     pub extensions: Option<ErrorExtensionValues>,
@@ -308,7 +314,7 @@ impl Display for Error {
 
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        // Note: source is stored as Arc<dyn Any + Send + Sync>,
+        // Note: source is stored as Arc<dyn Any + MaybeSend + MaybeSync>,
         // which does not implement std::error::Error.
         None
     }
@@ -332,7 +338,7 @@ impl Error {
 
     /// Create an error with a type that implements `Display`, and it will also
     /// set the `source` of the error to this value.
-    pub fn new_with_source(source: impl Display + Send + Sync + 'static) -> Self {
+    pub fn new_with_source(source: impl Display + MaybeSend + MaybeSync + 'static) -> Self {
         Self {
             message: source.to_string(),
             source: Some(Arc::new(source)),
@@ -353,7 +359,7 @@ impl Error {
     }
 }
 
-impl<T: IntoError + Send + Sync + 'static> From<T> for Error {
+impl<T: IntoError + MaybeSend + MaybeSync + 'static> From<T> for Error {
     fn from(e: T) -> Self {
         e.into_error()
     }
@@ -413,8 +419,8 @@ pub trait IntoError {
     fn into_error(self) -> Error;
 }
 
-/// Macro to implement `IntoError` for types that implement `Display + Send +
-/// Sync + 'static`.
+/// Macro to implement `IntoError` for types that implement `Display + MaybeSend +
+/// MaybeSync + 'static`.
 ///
 /// This provides backward compatibility for common error types while allowing
 /// custom types to implement `IntoError` directly with custom extensions.
@@ -518,7 +524,11 @@ impl From<mime::FromStrError> for ParseRequestError {
 /// This is used to centrally rewrite all errors emitted by the schema.
 /// The formatter receives each [`ServerError`] and returns a (possibly
 /// modified) [`ServerError`] that will be included in the response.
+#[cfg(not(feature = "no_send"))]
 pub type ErrorFormatter = Box<dyn Fn(ServerError) -> ServerError + Send + Sync>;
+
+#[cfg(feature = "no_send")]
+pub type ErrorFormatter = Box<dyn Fn(ServerError) -> ServerError>;
 
 /// An error which can be extended into a `Error`.
 pub trait ErrorExtensions: Sized {
@@ -584,7 +594,7 @@ pub trait ResultExt<T, E>: Sized {
 // types. (see example).
 impl<T, E> ResultExt<T, E> for std::result::Result<T, E>
 where
-    E: ErrorExtensions + Send + Sync + 'static,
+    E: ErrorExtensions + MaybeSend + MaybeSync + 'static,
 {
     fn extend_err<C>(self, cb: C) -> Result<T>
     where

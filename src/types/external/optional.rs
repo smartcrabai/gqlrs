@@ -1,9 +1,20 @@
 use std::borrow::Cow;
 
-use crate::{
-    Context, ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType,
-    OutputTypeMarker, Positioned, Result, ServerResult, Value, parser::types::Field, registry,
-};
+use crate::{Context,
+    ContextSelectionSet,
+    InputType,
+    InputValueError,
+    InputValueResult,
+    MaybeSend,
+    MaybeSync,
+    OutputType,
+    OutputTypeMarker,
+    parser::types::Field,
+    Positioned,
+    registry,
+    Result,
+    ServerResult,
+    Value,};
 
 impl<T: InputType> InputType for Option<T> {
     type RawValueType = T::RawValueType;
@@ -50,7 +61,7 @@ impl<T: InputType> InputType for Option<T> {
         &'a self,
         ctx: &'a Context<'_>,
         input_value: Option<&'a Value>,
-    ) -> impl std::future::Future<Output = Result<()>> + Send + 'a {
+    ) -> impl std::future::Future<Output = Result<()>> + MaybeSend + 'a {
         Box::pin(async move {
             if let Some(value) = self {
                 value.validate_input_guards(ctx, input_value).await?;
@@ -60,7 +71,7 @@ impl<T: InputType> InputType for Option<T> {
     }
 }
 
-impl<T: OutputTypeMarker + Sync> OutputTypeMarker for Option<T> {
+impl<T: OutputTypeMarker + MaybeSync> OutputTypeMarker for Option<T> {
     fn type_name() -> Cow<'static, str> {
         T::type_name()
     }
@@ -77,8 +88,12 @@ impl<T: OutputTypeMarker + Sync> OutputTypeMarker for Option<T> {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-impl<T: OutputType + Sync> OutputType for Option<T> {
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
+impl<T: OutputType + MaybeSync> OutputType for Option<T> {
     async fn resolve(
         &self,
         ctx: &ContextSelectionSet<'_>,

@@ -15,7 +15,8 @@ use crate::{
 /// This trait has the same API as Apollo's persisted-query cache storage, so a
 /// custom backend can implement both traits when serving both Apollo and Relay
 /// persisted queries.
-#[async_trait::async_trait]
+#[cfg_attr(not(feature = "no_send"), async_trait::async_trait)]
+#[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
 pub trait CacheStorage: Send + Sync + Clone + 'static {
     /// Load the query by `key`.
     async fn get(&self, key: String) -> Option<ExecutableDocument>;
@@ -35,7 +36,8 @@ impl LruCacheStorage {
     }
 }
 
-#[async_trait::async_trait]
+#[cfg_attr(not(feature = "no_send"), async_trait::async_trait)]
+#[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
 impl CacheStorage for LruCacheStorage {
     async fn get(&self, key: String) -> Option<ExecutableDocument> {
         self.0
@@ -74,7 +76,8 @@ struct RelayPersistedQueriesExtension<T> {
     storage: T,
 }
 
-#[async_trait::async_trait]
+#[cfg_attr(not(feature = "no_send"), async_trait::async_trait)]
+#[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
 impl<T: CacheStorage> Extension for RelayPersistedQueriesExtension<T> {
     async fn prepare_request(
         &self,

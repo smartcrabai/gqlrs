@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use futures_util::{TryFutureExt, stream::BoxStream};
+use futures_util::TryFutureExt;
 use tracing::{Level, span};
 use tracing_futures::Instrument;
 
@@ -12,6 +12,7 @@ use crate::{
     },
     parser::types::ExecutableDocument,
     registry::MetaTypeName,
+    sendable::MaybeBoxStream as BoxStream,
 };
 
 /// Tracing extension
@@ -169,7 +170,8 @@ struct TracingExtension {
     error_level: Level,
 }
 
-#[async_trait::async_trait]
+#[cfg_attr(not(feature = "no_send"), async_trait::async_trait)]
+#[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
 impl Extension for TracingExtension {
     async fn request(&self, ctx: &ExtensionContext<'_>, next: NextRequest<'_>) -> Response {
         next.run(ctx)

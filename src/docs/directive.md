@@ -39,7 +39,8 @@ struct ConcatDirective {
     value: String,
 }
 
-#[async_trait::async_trait]
+#[cfg_attr(not(feature = "no_send"), async_trait::async_trait)]
+#[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
 impl CustomDirective for ConcatDirective {
     async fn resolve_field(&self, _ctx: &Context<'_>, resolve: ResolveFut<'_>) -> ServerResult<Option<Value>> {
         resolve.await.map(|value| {

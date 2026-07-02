@@ -1,12 +1,12 @@
 use std::borrow::Cow;
 
 use crate::{
-    Context, ContextDirective, ServerResult, Value, extensions::ResolveFut,
+    Context, ContextDirective, MaybeSend, MaybeSync, ServerResult, Value, extensions::ResolveFut,
     parser::types::Directive, registry::Registry,
 };
 
 #[doc(hidden)]
-pub trait CustomDirectiveFactory: Send + Sync + 'static {
+pub trait CustomDirectiveFactory: MaybeSend + MaybeSync + 'static {
     fn name(&self) -> Cow<'static, str>;
 
     fn register(&self, registry: &mut Registry);
@@ -27,9 +27,10 @@ pub trait TypeDirective {
 }
 
 /// Represents a custom directive.
-#[async_trait::async_trait]
+#[cfg_attr(not(feature = "no_send"), async_trait::async_trait)]
+#[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
 #[allow(unused_variables)]
-pub trait CustomDirective: Sync + Send + 'static {
+pub trait CustomDirective: MaybeSync + MaybeSend + 'static {
     /// Called at resolve field.
     async fn resolve_field(
         &self,

@@ -3,12 +3,12 @@ use std::{borrow::Cow, pin::Pin};
 use futures_util::stream::{Stream, StreamExt};
 
 use crate::{
-    Context, ContextSelectionSet, PathSegment, Response, ServerError, ServerResult,
-    parser::types::Selection, registry, registry::Registry,
+    Context, ContextSelectionSet, MaybeSend, MaybeSync, PathSegment, Response, ServerError,
+    ServerResult, parser::types::Selection, registry, registry::Registry,
 };
 
 /// A GraphQL subscription object
-pub trait SubscriptionType: Send + Sync {
+pub trait SubscriptionType: MaybeSend + MaybeSync {
     /// Type the name.
     fn type_name() -> Cow<'static, str>;
 
@@ -27,13 +27,25 @@ pub trait SubscriptionType: Send + Sync {
     }
 
     #[doc(hidden)]
+    #[cfg(not(feature = "no_send"))]
     fn create_field_stream<'a>(
         &'a self,
         ctx: &'a Context<'_>,
     ) -> Option<Pin<Box<dyn Stream<Item = Response> + Send + 'a>>>;
+
+    #[doc(hidden)]
+    #[cfg(feature = "no_send")]
+    fn create_field_stream<'a>(
+        &'a self,
+        ctx: &'a Context<'_>,
+    ) -> Option<Pin<Box<dyn Stream<Item = Response> + 'a>>>;
 }
 
+#[cfg(not(feature = "no_send"))]
 pub(crate) type BoxFieldStream<'a> = Pin<Box<dyn Stream<Item = Response> + 'a + Send>>;
+
+#[cfg(feature = "no_send")]
+pub(crate) type BoxFieldStream<'a> = Pin<Box<dyn Stream<Item = Response> + 'a>>;
 
 pub(crate) fn collect_subscription_streams<'a, T: SubscriptionType + 'static>(
     ctx: &ContextSelectionSet<'a>,
@@ -80,10 +92,19 @@ impl<T: SubscriptionType> SubscriptionType for &T {
         T::create_type_info(registry)
     }
 
+    #[cfg(not(feature = "no_send"))]
     fn create_field_stream<'a>(
         &'a self,
         ctx: &'a Context<'_>,
     ) -> Option<Pin<Box<dyn Stream<Item = Response> + Send + 'a>>> {
+        T::create_field_stream(*self, ctx)
+    }
+
+    #[cfg(feature = "no_send")]
+    fn create_field_stream<'a>(
+        &'a self,
+        ctx: &'a Context<'_>,
+    ) -> Option<Pin<Box<dyn Stream<Item = Response> + 'a>>> {
         T::create_field_stream(*self, ctx)
     }
 }

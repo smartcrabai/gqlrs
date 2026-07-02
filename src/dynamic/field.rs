@@ -6,14 +6,15 @@ use std::{
     ops::Deref,
 };
 
-use futures_util::{Future, FutureExt, future::BoxFuture};
+use futures_util::Future;
 use indexmap::IndexMap;
 
 use super::Directive;
 use crate::{
-    Context, Error, Result, Value,
+    Context, Error, MaybeSend, MaybeSync, Result, Value,
     dynamic::{InputValue, ObjectAccessor, TypeRef},
     registry::{Deprecation, SemanticNullability},
+    sendable::{FutureMaybeSendExt, MaybeBoxFuture as BoxFuture},
 };
 
 /// A value returned from the resolver function
@@ -25,11 +26,11 @@ pub(crate) enum FieldValueInner<'a> {
     /// Borrowed any value
     /// The first item is the [`std::any::type_name`] of the value used for
     /// debugging.
-    BorrowedAny(Cow<'static, str>, &'a (dyn Any + Send + Sync)),
+    BorrowedAny(Cow<'static, str>, &'a AnyFieldValue),
     /// Owned any value
     /// The first item is the [`std::any::type_name`] of the value used for
     /// debugging.
-    OwnedAny(Cow<'static, str>, Box<dyn Any + Send + Sync>),
+    OwnedAny(Cow<'static, str>, Box<AnyFieldValue>),
     /// A list
     List(Vec<FieldValue<'a>>),
     /// A typed Field value
@@ -40,6 +41,12 @@ pub(crate) enum FieldValueInner<'a> {
         ty: Cow<'static, str>,
     },
 }
+
+#[cfg(not(feature = "no_send"))]
+type AnyFieldValue = dyn Any + Send + Sync;
+
+#[cfg(feature = "no_send")]
+type AnyFieldValue = dyn Any;
 
 impl Debug for FieldValue<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -115,7 +122,7 @@ impl<'a> FieldValue<'a> {
 
     /// Create a FieldValue from owned any value
     #[inline]
-    pub fn owned_any<T: Any + Send + Sync>(obj: T) -> Self {
+    pub fn owned_any<T: Any + MaybeSend + MaybeSync>(obj: T) -> Self {
         Self(FieldValueInner::OwnedAny(
             std::any::type_name::<T>().into(),
             Box::new(obj),
@@ -124,13 +131,13 @@ impl<'a> FieldValue<'a> {
 
     /// Create a FieldValue from unsized any value
     #[inline]
-    pub fn boxed_any(obj: Box<dyn Any + Send + Sync>) -> Self {
+    pub fn boxed_any(obj: Box<AnyFieldValue>) -> Self {
         Self(FieldValueInner::OwnedAny("Any".into(), obj))
     }
 
     /// Create a FieldValue from owned any value
     #[inline]
-    pub fn borrowed_any(obj: &'a (dyn Any + Send + Sync)) -> Self {
+    pub fn borrowed_any(obj: &'a AnyFieldValue) -> Self {
         Self(FieldValueInner::BorrowedAny("Any".into(), obj))
     }
 
@@ -299,15 +306,15 @@ impl<'a> FieldFuture<'a> {
     /// Create a `FieldFuture` from a `Future`
     pub fn new<Fut, R>(future: Fut) -> Self
     where
-        Fut: Future<Output = Result<Option<R>>> + Send + 'a,
-        R: Into<FieldValue<'a>> + Send,
+        Fut: Future<Output = Result<Option<R>>> + MaybeSend + 'a,
+        R: Into<FieldValue<'a>> + MaybeSend,
     {
         FieldFuture::Future(
             async move {
                 let res = future.await?;
                 Ok(res.map(Into::into))
             }
-            .boxed(),
+            .boxed_maybe_send(),
         )
     }
 
@@ -344,8 +351,12 @@ impl<'a> IntoFuture for FieldFuture<'a> {
     }
 }
 
+#[cfg(not(feature = "no_send"))]
 pub(crate) type BoxResolverFn =
     Box<dyn for<'a> Fn(ResolverContext<'a>) -> FieldFuture<'a> + Send + Sync>;
+
+#[cfg(feature = "no_send")]
+pub(crate) type BoxResolverFn = Box<dyn for<'a> Fn(ResolverContext<'a>) -> FieldFuture<'a>>;
 
 /// A GraphQL field
 pub struct Field {
@@ -387,7 +398,7 @@ impl Field {
     where
         N: Into<String>,
         T: Into<TypeRef>,
-        F: for<'a> Fn(ResolverContext<'a>) -> FieldFuture<'a> + Send + Sync + 'static,
+        F: for<'a> Fn(ResolverContext<'a>) -> FieldFuture<'a> + MaybeSend + MaybeSync + 'static,
     {
         let ty = ty.into();
         Self {

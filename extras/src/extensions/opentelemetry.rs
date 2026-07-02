@@ -103,7 +103,8 @@ struct OpenTelemetryExtension<T> {
     trace_scalars: bool,
 }
 
-#[async_trait::async_trait]
+#[cfg_attr(not(feature = "no_send"), async_trait::async_trait)]
+#[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
 impl<T> Extension for OpenTelemetryExtension<T>
 where
     T: Tracer + Send + Sync + 'static,
