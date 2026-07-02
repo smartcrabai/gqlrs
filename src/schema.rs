@@ -534,7 +534,7 @@ where
     /// Apply the error formatter to all errors in the response.
     fn format_errors(&self, mut response: Response) -> Response {
         if let Some(formatter) = &self.0.error_formatter {
-            response.errors = response.errors.drain(..).map(|e| formatter(e)).collect();
+            response.errors = response.errors.drain(..).map(formatter).collect();
         }
         response
     }
