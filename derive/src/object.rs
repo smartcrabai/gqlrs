@@ -646,7 +646,7 @@ pub fn generate(
                     match &ty {
                         OutputType::Value(_) => {
                             field_sets.push(
-                                quote!(field.semantic_nullability = #crate_name::registry::SemanticNullability::InNonNull;),
+                                quote!(field.semantic_nullability = <#schema_ty as #crate_name::OutputType>::semantic_nullability();),
                             );
                         }
                         OutputType::Result(_) => {
