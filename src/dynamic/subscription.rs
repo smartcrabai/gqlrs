@@ -409,9 +409,7 @@ mod tests {
                         for i in 0..10 {
                             tokio::time::sleep(Duration::from_millis(100)).await;
                             yielder
-                                .yield_ok(FieldValue::value(
-                                    ctx.data_unchecked::<State>().value + i,
-                                ))
+                                .yield_ok(FieldValue::value(ctx.data::<State>().unwrap().value + i))
                                 .await;
                         }
 
