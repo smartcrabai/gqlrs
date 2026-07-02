@@ -10,8 +10,9 @@ use tokio_util::compat::TokioAsyncReadCompatExt;
 
 /// Extractor for GraphQL request.
 ///
-/// Supports configuring [`MultipartOptions`](async_graphql::http::MultipartOptions)
-/// by inserting them into request extensions (e.g. via axum middleware).
+/// Supports configuring
+/// [`MultipartOptions`](async_graphql::http::MultipartOptions) by inserting
+/// them into request extensions (e.g. via axum middleware).
 pub struct GraphQLRequest<R = rejection::GraphQLRejection>(
     pub async_graphql::Request,
     PhantomData<R>,
@@ -80,8 +81,9 @@ where
 
 /// Extractor for GraphQL batch request.
 ///
-/// Supports configuring [`MultipartOptions`](async_graphql::http::MultipartOptions)
-/// by inserting them into request extensions (e.g. via axum middleware).
+/// Supports configuring
+/// [`MultipartOptions`](async_graphql::http::MultipartOptions) by inserting
+/// them into request extensions (e.g. via axum middleware).
 /// When not configured, uses `MultipartOptions::default()`.
 pub struct GraphQLBatchRequest<R = rejection::GraphQLRejection>(
     pub async_graphql::BatchRequest,
