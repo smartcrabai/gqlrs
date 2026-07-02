@@ -104,7 +104,7 @@ pub fn generate(
             }
         }
 
-        #[allow(clippy::all, clippy::pedantic)]
+        #[allow(clippy::all, clippy::pedantic, clippy::unused_async)]
         #boxed_trait
         impl #generic #crate_name::OutputType for #self_ty #where_clause {
             fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
