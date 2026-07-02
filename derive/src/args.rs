@@ -221,6 +221,10 @@ pub struct SimpleObjectField {
     pub derived: Vec<DerivedField>,
     #[darling(default)]
     pub process_with: Option<Expr>,
+    #[darling(default)]
+    pub output_using: Option<Expr>,
+    #[darling(default)]
+    pub input_using: Option<Expr>,
     // for InputObject
     #[darling(default)]
     pub default: Option<DefaultValue>,
@@ -519,6 +523,10 @@ pub struct InputObjectField {
     pub skip_input: bool,
     #[darling(default)]
     pub process_with: Option<Expr>,
+    #[darling(default)]
+    pub output_using: Option<Expr>,
+    #[darling(default)]
+    pub input_using: Option<Expr>,
     // for SimpleObject
     #[darling(default)]
     pub skip_output: bool,

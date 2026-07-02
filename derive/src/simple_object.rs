@@ -373,10 +373,24 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
             (_, _) => block,
         };
 
+        // Apply output_using conversion if specified. Keep the existing `owned`
+        // semantics for the converter argument: borrowed fields pass `&T`, and
+        // `owned` fields pass an owned `T`.
+        let block = if let Some(output_using) = &field.output_using {
+            quote! { #output_using(#block) }
+        } else {
+            block
+        };
+
         let vis = &field.vis;
-        let ty = match !owned {
-            true => quote! { &#ty },
-            false => quote! { #ty },
+        // When output_using is specified, the return type should be owned (not a reference)
+        let ty = if field.output_using.is_some() {
+            quote! { #ty }
+        } else {
+            match !owned {
+                true => quote! { &#ty },
+                false => quote! { #ty },
+            }
         };
 
         if !field.flatten {

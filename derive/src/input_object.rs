@@ -106,6 +106,13 @@ pub fn generate(object_args: &args::InputObject) -> GeneratorResult<TokenStream>
             None => Default::default(),
         };
 
+        let input_using = match field.input_using.as_ref() {
+            Some(fn_path) => quote! {
+                let #ident: #ty = #fn_path(#ident);
+            },
+            None => Default::default(),
+        };
+
         let validators = field
             .validator
             .clone()
@@ -139,6 +146,7 @@ pub fn generate(object_args: &args::InputObject) -> GeneratorResult<TokenStream>
                     ::std::option::Option::Some(#crate_name::Value::Object(::std::clone::Clone::clone(&obj)))
                 ).map_err(#crate_name::InputValueError::propagate)?;
                 #process_with
+                #input_using
                 #validators
             });
 
@@ -174,6 +182,7 @@ pub fn generate(object_args: &args::InputObject) -> GeneratorResult<TokenStream>
                             let mut #ident = #crate_name::InputType::parse(::std::option::Option::Some(::std::clone::Clone::clone(&value)))
                                 .map_err(#crate_name::InputValueError::propagate)?;
                             #process_with
+                            #input_using
                             #ident
 
                         },
@@ -188,6 +197,7 @@ pub fn generate(object_args: &args::InputObject) -> GeneratorResult<TokenStream>
                 let mut #ident: #ty = #crate_name::InputType::parse(obj.get(#name).cloned())
                     .map_err(#crate_name::InputValueError::propagate)?;
                 #process_with
+                #input_using
                 #validators
             });
         }
