@@ -242,7 +242,7 @@ pub use static_assertions_next;
 pub use subscription::SubscriptionType;
 pub use types::*;
 pub use validation::{ValidationMode, ValidationResult, VisitorContext};
-pub use validators::CustomValidator;
+pub use validators::{CustomValidator, CustomValidatorWithContext};
 
 /// An alias of [gqlrs::Error](struct.Error.html). Present for backward
 /// compatibility reasons.

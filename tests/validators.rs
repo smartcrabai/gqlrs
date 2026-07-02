@@ -1005,3 +1005,259 @@ pub async fn test_issue_1164() {
         }]
     );
 }
+
+#[tokio::test]
+pub async fn test_custom_validator_with_context() {
+    // A set of forbidden names stored in context (simulating a database or config)
+    struct ForbiddenNames(Vec<String>);
+
+    impl ForbiddenNames {
+        fn contains(&self, name: &str) -> bool {
+            self.0.iter().any(|n| n == name)
+        }
+    }
+
+    struct MinNameLength(usize);
+
+    struct UniqueNameValidator;
+
+    fn min_name_length(value: &String, ctx: &Context<'_>) -> Result<(), InputValueError<String>> {
+        let min_length = ctx
+            .data::<MinNameLength>()
+            .map_err(|e| InputValueError::custom(&e.message))?
+            .0;
+        if value.len() < min_length {
+            Err(InputValueError::custom(format!(
+                "name must be at least {} characters",
+                min_length
+            )))
+        } else {
+            Ok(())
+        }
+    }
+
+    impl CustomValidatorWithContext<String> for UniqueNameValidator {
+        fn check(&self, value: &String, ctx: &Context<'_>) -> Result<(), InputValueError<String>> {
+            let forbidden = ctx
+                .data::<ForbiddenNames>()
+                .map_err(|e| InputValueError::custom(&e.message))?;
+            if forbidden.contains(value) {
+                Err(InputValueError::custom(format!(
+                    "name '{}' is already taken",
+                    value
+                )))
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    struct Query;
+    struct Subscription;
+
+    #[Object]
+    impl Query {
+        async fn create_user(
+            &self,
+            #[graphql(validator(custom_with_ctx = "UniqueNameValidator"))] name: String,
+        ) -> String {
+            format!("Created user: {}", name)
+        }
+
+        async fn create_user_with_fn(
+            &self,
+            #[graphql(validator(custom_with_ctx = "min_name_length"))] name: String,
+        ) -> String {
+            format!("Created user: {}", name)
+        }
+    }
+
+    #[Subscription]
+    impl Subscription {
+        async fn user_events(
+            &self,
+            #[graphql(validator(custom_with_ctx = "UniqueNameValidator"))] name: String,
+        ) -> impl Stream<Item = String> {
+            futures_util::stream::iter(vec![format!("Event for: {}", name)])
+        }
+    }
+
+    let schema = Schema::build(Query, EmptyMutation, Subscription)
+        .data(ForbiddenNames(vec![
+            "admin".to_string(),
+            "root".to_string(),
+        ]))
+        .data(MinNameLength(3))
+        .finish();
+
+    // Valid name should succeed
+    assert_eq!(
+        schema
+            .execute(r#"{ createUser(name: "alice") }"#)
+            .await
+            .into_result()
+            .unwrap()
+            .data,
+        value!({ "createUser": "Created user: alice" })
+    );
+
+    assert_eq!(
+        schema
+            .execute_stream(r#"subscription { userEvents(name: "alice") }"#)
+            .next()
+            .await
+            .unwrap()
+            .into_result()
+            .unwrap()
+            .data,
+        value!({ "userEvents": "Event for: alice" })
+    );
+
+    // Forbidden name should fail
+    assert_eq!(
+        schema
+            .execute(r#"{ createUser(name: "admin") }"#)
+            .await
+            .into_result()
+            .unwrap_err(),
+        vec![ServerError {
+            message: r#"Failed to parse "String": name 'admin' is already taken"#.to_string(),
+            source: None,
+            locations: vec![Pos {
+                column: 20,
+                line: 1
+            }],
+            path: vec![PathSegment::Field("createUser".to_string())],
+            extensions: None
+        }]
+    );
+
+    assert_eq!(
+        schema
+            .execute_stream(r#"subscription { userEvents(name: "admin") }"#)
+            .next()
+            .await
+            .unwrap()
+            .into_result()
+            .unwrap_err(),
+        vec![ServerError {
+            message: r#"Failed to parse "String": name 'admin' is already taken"#.to_string(),
+            source: None,
+            locations: vec![Pos {
+                column: 33,
+                line: 1
+            }],
+            path: vec![PathSegment::Field("userEvents".to_string())],
+            extensions: None
+        }]
+    );
+
+    // Function validators with context should also work.
+    assert_eq!(
+        schema
+            .execute(r#"{ createUserWithFn(name: "al") }"#)
+            .await
+            .into_result()
+            .unwrap_err(),
+        vec![ServerError {
+            message: r#"Failed to parse "String": name must be at least 3 characters"#.to_string(),
+            source: None,
+            locations: vec![Pos {
+                column: 26,
+                line: 1
+            }],
+            path: vec![PathSegment::Field("createUserWithFn".to_string())],
+            extensions: None
+        }]
+    );
+
+    // Another forbidden name
+    assert_eq!(
+        schema
+            .execute(r#"{ createUser(name: "root") }"#)
+            .await
+            .into_result()
+            .unwrap_err(),
+        vec![ServerError {
+            message: r#"Failed to parse "String": name 'root' is already taken"#.to_string(),
+            source: None,
+            locations: vec![Pos {
+                column: 20,
+                line: 1
+            }],
+            path: vec![PathSegment::Field("createUser".to_string())],
+            extensions: None
+        }]
+    );
+}
+
+#[tokio::test]
+pub async fn test_custom_validator_with_context_on_complex_object() {
+    struct ForbiddenNames(Vec<String>);
+
+    struct UniqueNameValidator;
+
+    impl CustomValidatorWithContext<String> for UniqueNameValidator {
+        fn check(&self, value: &String, ctx: &Context<'_>) -> Result<(), InputValueError<String>> {
+            let forbidden = ctx
+                .data::<ForbiddenNames>()
+                .map_err(|e| InputValueError::custom(&e.message))?;
+            if forbidden.0.iter().any(|n| n == value) {
+                Err(InputValueError::custom(format!(
+                    "name '{}' is forbidden",
+                    value
+                )))
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    #[derive(SimpleObject)]
+    #[graphql(complex)]
+    struct Query {
+        a: i32,
+    }
+
+    #[ComplexObject]
+    impl Query {
+        async fn create_item(
+            &self,
+            #[graphql(validator(custom_with_ctx = "UniqueNameValidator"))] name: String,
+        ) -> String {
+            format!("Created: {}", name)
+        }
+    }
+
+    let schema = Schema::build(Query { a: 1 }, EmptyMutation, EmptySubscription)
+        .data(ForbiddenNames(vec!["banned".to_string()]))
+        .finish();
+
+    assert_eq!(
+        schema
+            .execute(r#"{ createItem(name: "ok") }"#)
+            .await
+            .into_result()
+            .unwrap()
+            .data,
+        value!({ "createItem": "Created: ok" })
+    );
+
+    assert_eq!(
+        schema
+            .execute(r#"{ createItem(name: "banned") }"#)
+            .await
+            .into_result()
+            .unwrap_err(),
+        vec![ServerError {
+            message: r#"Failed to parse "String": name 'banned' is forbidden"#.to_string(),
+            source: None,
+            locations: vec![Pos {
+                column: 20,
+                line: 1
+            }],
+            path: vec![PathSegment::Field("createItem".to_string())],
+            extensions: None
+        }]
+    );
+}
