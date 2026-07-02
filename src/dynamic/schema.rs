@@ -5,8 +5,8 @@ use futures_util::{StreamExt, TryFutureExt, stream::BoxStream};
 use indexmap::IndexMap;
 
 use crate::{
-    Data, Executor, IntrospectionMode, QueryEnv, Request, Response, SDLExportOptions, SchemaEnv,
-    ServerError, ServerResult, ValidationMode,
+    Data, ErrorFormatter, Executor, IntrospectionMode, QueryEnv, Request, Response,
+    SDLExportOptions, SchemaEnv, ServerError, ServerResult, ValidationMode,
     dynamic::{
         DynamicRequest, FieldFuture, FieldValue, Object, ResolverContext, Scalar, SchemaError,
         Subscription, TypeRef, Union, field::BoxResolverFn, resolve::resolve_container,
@@ -36,6 +36,7 @@ pub struct SchemaBuilder {
     enable_federation: bool,
     entity_resolver: Option<BoxResolverFn>,
     custom_directives: Vec<MetaDirective>,
+    error_formatter: Option<ErrorFormatter>,
 }
 
 impl SchemaBuilder {
@@ -65,6 +66,19 @@ impl SchemaBuilder {
     #[must_use]
     pub fn extension(mut self, extension: impl ExtensionFactory) -> Self {
         self.extensions.push(Box::new(extension));
+        self
+    }
+
+    /// Set a global error formatter for the schema.
+    ///
+    /// This formatter will be called for every [`ServerError`] produced by the
+    /// schema before the error is included in the response.
+    #[must_use]
+    pub fn error_formatter<F>(mut self, formatter: F) -> Self
+    where
+        F: Fn(ServerError) -> ServerError + Send + Sync + 'static,
+    {
+        self.error_formatter = Some(Box::new(formatter));
         self
     }
 
@@ -233,6 +247,7 @@ impl SchemaBuilder {
                 custom_directives: Default::default(),
             })),
             extensions: self.extensions,
+            error_formatter: self.error_formatter,
             types: self.types,
             recursive_depth: self.recursive_depth,
             max_directives: self.max_directives,
@@ -263,6 +278,7 @@ pub struct SchemaInner {
     pub(crate) env: SchemaEnv,
     pub(crate) types: IndexMap<String, Type>,
     extensions: Vec<Box<dyn ExtensionFactory>>,
+    error_formatter: Option<ErrorFormatter>,
     recursive_depth: usize,
     max_directives: Option<usize>,
     max_aliases: Option<usize>,
@@ -293,6 +309,7 @@ impl Schema {
             entity_resolver: None,
             enable_federation: false,
             custom_directives: Default::default(),
+            error_formatter: None,
         }
     }
 
@@ -302,6 +319,14 @@ impl Schema {
             self.0.env.clone(),
             session_data,
         )
+    }
+
+    /// Apply the error formatter to all errors in the response.
+    fn format_errors(&self, mut response: Response) -> Response {
+        if let Some(formatter) = &self.0.error_formatter {
+            response.errors = response.errors.drain(..).map(|e| formatter(e)).collect();
+        }
+        response
     }
 
     fn query_root(&self) -> ServerResult<&Object> {
@@ -386,7 +411,7 @@ impl Schema {
 
         resp.errors
             .extend(std::mem::take(&mut *env.errors.lock().unwrap()));
-        resp
+        self.format_errors(resp)
     }
 
     /// Execute a GraphQL query.
@@ -425,7 +450,10 @@ impl Schema {
                             .execute(env.operation_name.as_deref(), f)
                             .await
                     }
-                    Err(errors) => Response::from_errors(errors),
+                    Err(errors) => {
+                        let resp = Response::from_errors(errors);
+                        self.format_errors(resp)
+                    }
                 }
             }
         };
@@ -450,7 +478,8 @@ impl Schema {
                 let subscription = match schema.subscription_root() {
                     Ok(subscription) => subscription,
                     Err(err) => {
-                        yielder.yield_item(Response::from_errors(vec![err])).await;
+                        let resp = Response::from_errors(vec![err]);
+                        yielder.yield_item(schema.format_errors(resp)).await;
                         return;
                     }
                 };
@@ -471,7 +500,8 @@ impl Schema {
                 {
                     Ok(res) => res,
                     Err(errors) => {
-                        yielder.yield_item(Response::from_errors(errors)).await;
+                        let resp = Response::from_errors(errors);
+                        yielder.yield_item(schema.format_errors(resp)).await;
                         return;
                     }
                 };

@@ -11,8 +11,8 @@ use futures_util::stream::{self, BoxStream, FuturesOrdered, StreamExt};
 
 use crate::{
     BatchRequest, BatchResponse, CacheControl, ContextBase, EmptyMutation, EmptySubscription,
-    Executor, InputType, ObjectType, OutputType, QueryEnv, Request, Response, ServerError,
-    ServerResult, SubscriptionType, Variables,
+    ErrorFormatter, Executor, InputType, ObjectType, OutputType, QueryEnv, Request, Response,
+    ServerError, ServerResult, SubscriptionType, Variables,
     context::{Data, QueryEnvInner},
     custom_directive::CustomDirectiveFactory,
     extensions::{ExtensionFactory, Extensions},
@@ -54,6 +54,7 @@ pub struct SchemaBuilder<Query, Mutation, Subscription> {
     max_aliases: Option<usize>,
     extensions: Vec<Box<dyn ExtensionFactory>>,
     custom_directives: HashMap<String, Box<dyn CustomDirectiveFactory>>,
+    error_formatter: Option<ErrorFormatter>,
 }
 
 impl<Query, Mutation, Subscription> SchemaBuilder<Query, Mutation, Subscription> {
@@ -155,6 +156,46 @@ impl<Query, Mutation, Subscription> SchemaBuilder<Query, Mutation, Subscription>
     #[must_use]
     pub fn extension(mut self, extension: impl ExtensionFactory) -> Self {
         self.extensions.push(Box::new(extension));
+        self
+    }
+
+    /// Set a global error formatter for the schema.
+    ///
+    /// This formatter will be called for every [`ServerError`] produced by the
+    /// schema (validation errors, resolver errors, etc.) before the error is
+    /// included in the response. This allows centralised error formatting,
+    /// e.g. to add consistent extensions, rewrite messages, or strip
+    /// sensitive information.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use gqlrs::*;
+    ///
+    /// struct Query;
+    ///
+    /// #[Object]
+    /// impl Query {
+    ///     async fn value(&self) -> i32 {
+    ///         100
+    ///     }
+    /// }
+    ///
+    /// let schema = Schema::build(Query, EmptyMutation, EmptySubscription)
+    ///     .error_formatter(|mut error| {
+    ///         error.extensions
+    ///             .get_or_insert_with(ErrorExtensionValues::default)
+    ///             .set("code", "INTERNAL_ERROR");
+    ///         error
+    ///     })
+    ///     .finish();
+    /// ```
+    #[must_use]
+    pub fn error_formatter<F>(mut self, formatter: F) -> Self
+    where
+        F: Fn(ServerError) -> ServerError + Send + Sync + 'static,
+    {
+        self.error_formatter = Some(Box::new(formatter));
         self
     }
 
@@ -291,6 +332,7 @@ impl<Query, Mutation, Subscription> SchemaBuilder<Query, Mutation, Subscription>
             max_directives: self.max_directives,
             max_aliases: self.max_aliases,
             extensions: self.extensions,
+            error_formatter: self.error_formatter,
             env: SchemaEnv(Arc::new(SchemaEnvInner {
                 registry: self.registry,
                 data: self.data,
@@ -331,6 +373,7 @@ pub struct SchemaInner<Query, Mutation, Subscription> {
     pub(crate) max_directives: Option<usize>,
     pub(crate) max_aliases: Option<usize>,
     pub(crate) extensions: Vec<Box<dyn ExtensionFactory>>,
+    pub(crate) error_formatter: Option<ErrorFormatter>,
     pub(crate) env: SchemaEnv,
 }
 
@@ -412,6 +455,7 @@ where
             max_aliases: None,
             extensions: Default::default(),
             custom_directives: Default::default(),
+            error_formatter: None,
         }
     }
 
@@ -494,6 +538,14 @@ where
         )
     }
 
+    /// Apply the error formatter to all errors in the response.
+    fn format_errors(&self, mut response: Response) -> Response {
+        if let Some(formatter) = &self.0.error_formatter {
+            response.errors = response.errors.drain(..).map(|e| formatter(e)).collect();
+        }
+        response
+    }
+
     async fn execute_once(&self, env: QueryEnv, execute_data: Option<&Data>) -> Response {
         // execute
         let ctx = ContextBase {
@@ -530,7 +582,7 @@ where
 
         resp.errors
             .extend(std::mem::take(&mut *env.errors.lock().unwrap()));
-        resp
+        self.format_errors(resp)
     }
 
     /// Execute a GraphQL query.
@@ -567,7 +619,10 @@ where
                             .execute(env.operation_name.as_deref(), f)
                             .await
                     }
-                    Err(errors) => Response::from_errors(errors),
+                    Err(errors) => {
+                        let resp = Response::from_errors(errors);
+                        self.format_errors(resp)
+                    }
                 }
             }
         };
@@ -619,7 +674,8 @@ where
                 {
                     Ok(res) => res,
                     Err(errors) => {
-                        yielder.yield_item(Response::from_errors(errors)).await;
+                        let resp = Response::from_errors(errors);
+                        yielder.yield_item(schema.format_errors(resp)).await;
                         return;
                     }
                 };
@@ -663,7 +719,8 @@ where
                     collect_subscription_streams(&ctx, &schema.0.subscription, &mut streams)
                 };
                 if let Err(err) = collect_result {
-                    yielder.yield_item(Response::from_errors(vec![err])).await;
+                    let resp = Response::from_errors(vec![err]);
+                    yielder.yield_item(schema.format_errors(resp)).await;
                 }
 
                 let mut stream = stream::select_all(streams);
