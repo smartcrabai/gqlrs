@@ -46,7 +46,6 @@ mod inner {
 use std::{future::Future, pin::Pin};
 
 use futures_util::Stream;
-
 pub use inner::*;
 
 #[doc(hidden)]

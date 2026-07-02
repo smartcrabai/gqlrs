@@ -1,3 +1,5 @@
+#![cfg(not(gqlrs_no_send))]
+
 use actix_http::Method;
 use actix_web::{App, dev::Service, guard, test, web, web::Data};
 use async_graphql::*;

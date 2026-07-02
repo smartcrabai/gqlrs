@@ -8,6 +8,7 @@ homepage = "https://github.com/smartcrabai/gqlrs"
 keywords = ["futures", "async", "graphql"]
 license = "MIT OR Apache-2.0"
 name = "gqlrs"
+links = "gqlrs"
 readme = "README.md"
 repository = "https://github.com/smartcrabai/gqlrs"
 rust-version = "1.89.0"

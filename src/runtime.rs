@@ -69,10 +69,9 @@ mod tokio {
         }
     }
 }
-use crate::{MaybeSend, MaybeSync, sendable::MaybeBoxFuture};
-
 #[cfg(feature = "tokio")]
 pub use self::tokio::{TokioSpawner, TokioTimer};
+use crate::{MaybeSend, MaybeSync, sendable::MaybeBoxFuture};
 
 /// Timing facilities required by parts of the crate
 ///
