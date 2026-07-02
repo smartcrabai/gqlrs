@@ -44,18 +44,17 @@ impl<T: InputType> InputType for Option<T> {
         }
     }
 
-    #[allow(clippy::manual_async_fn)]
     fn validate_input_guards<'a>(
         &'a self,
         ctx: &'a Context<'_>,
         input_value: Option<&'a Value>,
     ) -> impl std::future::Future<Output = Result<()>> + Send + 'a {
-        async move {
+        Box::pin(async move {
             if let Some(value) = self {
                 value.validate_input_guards(ctx, input_value).await?;
             }
             Ok(())
-        }
+        })
     }
 }
 
