@@ -210,3 +210,40 @@ async fn test_output_using_borrowed_field() {
         })
     );
 }
+
+#[tokio::test]
+async fn test_output_using_infers_graphql_type() {
+    struct Email(String);
+
+    fn expose(email: &Email) -> String {
+        email.0.clone()
+    }
+
+    #[derive(SimpleObject)]
+    struct User {
+        #[graphql(output_using = "expose")]
+        email: Email,
+    }
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn user(&self) -> User {
+            User {
+                email: Email("alice@example.com".to_string()),
+            }
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    let query = "{ user { email } }";
+    assert_eq!(
+        schema.execute(query).await.data,
+        value!({
+            "user": {
+                "email": "alice@example.com"
+            }
+        })
+    );
+}

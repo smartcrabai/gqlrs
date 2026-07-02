@@ -1370,3 +1370,42 @@ pub async fn test_input_object_input_using_with_process_with() {
         })
     );
 }
+
+#[tokio::test]
+pub async fn test_input_object_input_using_infers_graphql_type() {
+    struct Name(String);
+
+    fn from_graphql(value: String) -> Name {
+        Name(value.to_uppercase())
+    }
+
+    fn to_graphql(value: &Name) -> String {
+        value.0.clone()
+    }
+
+    #[derive(InputObject)]
+    struct MyInput {
+        #[graphql(input_using = "from_graphql", output_using = "to_graphql")]
+        name: Name,
+    }
+
+    struct Root;
+
+    #[Object]
+    impl Root {
+        async fn test(&self, input: MyInput) -> String {
+            input.name.0
+        }
+    }
+
+    let schema = Schema::new(Root, EmptyMutation, EmptySubscription);
+    let query = r#"{
+        test(input: { name: "hello" })
+    }"#;
+    assert_eq!(
+        schema.execute(query).await.data,
+        value!({
+            "test": "HELLO"
+        })
+    );
+}
