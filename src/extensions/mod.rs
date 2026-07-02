@@ -25,7 +25,7 @@ pub use self::apollo_tracing::ApolloTracing;
 #[cfg(feature = "log")]
 pub use self::logger::Logger;
 #[cfg(feature = "tracing")]
-pub use self::tracing::Tracing;
+pub use self::tracing::{Tracing, TracingConfig};
 use crate::{
     Data, DataContext, Error, QueryPathNode, Request, Response, Result, SDLExportOptions,
     SchemaEnv, ServerError, ServerResult, ValidationResult, Value, Variables,
