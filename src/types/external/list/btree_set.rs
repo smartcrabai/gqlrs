@@ -1,8 +1,9 @@
 use std::{borrow::Cow, collections::BTreeSet};
 
 use crate::{
-    ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType, Positioned,
-    ServerResult, Value, parser::types::Field, registry, resolver_utils::resolve_list,
+    ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType,
+    OutputTypeMarker, Positioned, ServerResult, Value, parser::types::Field, registry,
+    resolver_utils::resolve_list,
 };
 
 impl<T: InputType + Ord> InputType for BTreeSet<T> {
@@ -45,8 +46,7 @@ impl<T: InputType + Ord> InputType for BTreeSet<T> {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-impl<T: OutputType + Ord> OutputType for BTreeSet<T> {
+impl<T: OutputTypeMarker + Ord> OutputTypeMarker for BTreeSet<T> {
     fn type_name() -> Cow<'static, str> {
         Cow::Owned(format!("[{}]", T::qualified_type_name()))
     }
@@ -59,7 +59,10 @@ impl<T: OutputType + Ord> OutputType for BTreeSet<T> {
         T::create_type_info(registry);
         Self::qualified_type_name()
     }
+}
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+impl<T: OutputType + Ord> OutputType for BTreeSet<T> {
     async fn resolve(
         &self,
         ctx: &ContextSelectionSet<'_>,

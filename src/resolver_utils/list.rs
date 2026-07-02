@@ -1,10 +1,10 @@
 use crate::{
-    ContextSelectionSet, OutputType, Positioned, ServerResult, Value, extensions::ResolveInfo,
-    parser::types::Field,
+    ContextSelectionSet, OutputType, OutputTypeMarker, Positioned, ServerResult, Value,
+    extensions::ResolveInfo, parser::types::Field,
 };
 
 /// Resolve an list by executing each of the items concurrently.
-pub async fn resolve_list<'a, T: OutputType + 'a>(
+pub async fn resolve_list<'a, T: OutputType + OutputTypeMarker + 'a>(
     ctx: &ContextSelectionSet<'a>,
     field: &Positioned<Field>,
     iter: impl IntoIterator<Item = T>,

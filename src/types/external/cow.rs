@@ -2,12 +2,13 @@ use std::borrow::Cow;
 
 use async_graphql_parser::types::Field;
 
-use crate::{ContextSelectionSet, OutputType, Positioned, ServerResult, Value, registry};
+use crate::{
+    ContextSelectionSet, OutputType, OutputTypeMarker, Positioned, ServerResult, Value, registry,
+};
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-impl<T> OutputType for Cow<'_, T>
+impl<T> OutputTypeMarker for Cow<'_, T>
 where
-    T: OutputType + ToOwned + ?Sized,
+    T: OutputTypeMarker + ToOwned + ?Sized,
     <T as ToOwned>::Owned: Send + Sync,
 {
     fn type_name() -> Cow<'static, str> {
@@ -15,9 +16,16 @@ where
     }
 
     fn create_type_info(registry: &mut registry::Registry) -> String {
-        <T as OutputType>::create_type_info(registry)
+        <T as OutputTypeMarker>::create_type_info(registry)
     }
+}
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+impl<T> OutputType for Cow<'_, T>
+where
+    T: OutputType + ToOwned + ?Sized,
+    <T as ToOwned>::Owned: Send + Sync,
+{
     async fn resolve(
         &self,
         ctx: &ContextSelectionSet<'_>,

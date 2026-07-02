@@ -4,8 +4,8 @@ use futures_util::FutureExt;
 use indexmap::IndexMap;
 
 use crate::{
-    Context, ContextBase, ContextSelectionSet, Error, Name, OutputType, ServerError, ServerResult,
-    Value, extensions::ResolveInfo, parser::types::Selection,
+    Context, ContextBase, ContextSelectionSet, Error, Name, OutputTypeMarker, ServerError,
+    ServerResult, Value, extensions::ResolveInfo, parser::types::Selection,
 };
 
 /// Represents a GraphQL container object.
@@ -13,7 +13,7 @@ use crate::{
 /// This helper trait allows the type to call `resolve_container` on itself in
 /// its `OutputType::resolve` implementation.
 #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-pub trait ContainerType: OutputType {
+pub trait ContainerType: OutputTypeMarker {
     /// This function returns true of type `EmptyMutation` only.
     #[doc(hidden)]
     fn is_empty() -> bool {
@@ -125,7 +125,7 @@ impl<T: ContainerType, E: Into<Error> + Send + Sync + Clone> ContainerType for R
 }
 
 /// Resolve an container by executing each of the fields concurrently.
-pub async fn resolve_container<'a, T: ContainerType + ?Sized>(
+pub async fn resolve_container<'a, T: ContainerType + OutputTypeMarker + ?Sized>(
     ctx: &ContextSelectionSet<'a>,
     root: &'a T,
 ) -> ServerResult<Value> {
@@ -133,7 +133,7 @@ pub async fn resolve_container<'a, T: ContainerType + ?Sized>(
 }
 
 /// Resolve an container by executing each of the fields serially.
-pub async fn resolve_container_serial<'a, T: ContainerType + ?Sized>(
+pub async fn resolve_container_serial<'a, T: ContainerType + OutputTypeMarker + ?Sized>(
     ctx: &ContextSelectionSet<'a>,
     root: &'a T,
 ) -> ServerResult<Value> {
@@ -174,7 +174,7 @@ fn insert_value(target: &mut IndexMap<Name, Value>, name: Name, value: Value) {
     }
 }
 
-async fn resolve_container_inner<'a, T: ContainerType + ?Sized>(
+async fn resolve_container_inner<'a, T: ContainerType + OutputTypeMarker + ?Sized>(
     ctx: &ContextSelectionSet<'a>,
     root: &'a T,
     parallel: bool,
@@ -203,7 +203,7 @@ pub struct Fields<'a>(Vec<BoxFieldFuture<'a>>);
 impl<'a> Fields<'a> {
     /// Add another set of fields to this set of fields using the given
     /// container.
-    pub fn add_set<T: ContainerType + ?Sized>(
+    pub fn add_set<T: ContainerType + OutputTypeMarker + ?Sized>(
         &mut self,
         ctx: &ContextSelectionSet<'a>,
         root: &'a T,

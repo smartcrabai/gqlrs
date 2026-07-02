@@ -1,8 +1,9 @@
 use std::{borrow::Cow, collections::HashSet, hash::Hash};
 
 use crate::{
-    ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType, Positioned,
-    Result, ServerResult, Value, parser::types::Field, registry, resolver_utils::resolve_list,
+    ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType,
+    OutputTypeMarker, Positioned, Result, ServerResult, Value, parser::types::Field, registry,
+    resolver_utils::resolve_list,
 };
 
 impl<T: InputType + Hash + Eq> InputType for HashSet<T> {
@@ -45,8 +46,7 @@ impl<T: InputType + Hash + Eq> InputType for HashSet<T> {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-impl<T: OutputType + Hash + Eq> OutputType for HashSet<T> {
+impl<T: OutputTypeMarker + Hash + Eq> OutputTypeMarker for HashSet<T> {
     fn type_name() -> Cow<'static, str> {
         Cow::Owned(format!("[{}]", T::qualified_type_name()))
     }
@@ -59,7 +59,10 @@ impl<T: OutputType + Hash + Eq> OutputType for HashSet<T> {
         T::create_type_info(registry);
         Self::qualified_type_name()
     }
+}
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+impl<T: OutputType + Hash + Eq> OutputType for HashSet<T> {
     async fn resolve(
         &self,
         ctx: &ContextSelectionSet<'_>,
