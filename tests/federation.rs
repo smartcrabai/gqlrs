@@ -162,11 +162,10 @@ pub async fn test_find_entity_with_context() {
     struct MyLoader;
 
     #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-    impl Loader<ID> for MyLoader {
-        type Value = MyObj;
+    impl Loader<ID, MyObj> for MyLoader {
         type Error = Infallible;
 
-        async fn load(&self, keys: &[ID]) -> Result<HashMap<ID, Self::Value>, Self::Error> {
+        async fn load(&self, keys: &[ID]) -> Result<HashMap<ID, MyObj>, Self::Error> {
             Ok(keys
                 .iter()
                 .filter(|id| id.as_str() != "999")

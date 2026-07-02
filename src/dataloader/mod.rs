@@ -14,11 +14,10 @@
 //! struct MyLoader;
 //!
 //! #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-//! impl Loader<i32> for MyLoader {
-//!     type Value = String;
+//! impl Loader<i32, String> for MyLoader {
 //!     type Error = Infallible;
 //!
-//!     async fn load(&self, keys: &[i32]) -> Result<HashMap<i32, Self::Value>, Self::Error> {
+//!     async fn load(&self, keys: &[i32]) -> Result<HashMap<i32, String>, Self::Error> {
 //!         // Use `MyLoader` to load data.
 //!         Ok(keys.iter().copied().map(|n| (n, n.to_string())).collect())
 //!     }
@@ -85,31 +84,46 @@ use crate::runtime::Timer;
 type FxHashMap<K, V> = scc::HashMap<K, V, FxBuildHasher>;
 
 #[allow(clippy::type_complexity)]
-struct ResSender<K: Send + Sync + Hash + Eq + Clone + 'static, T: Loader<K>> {
-    use_cache_values: HashMap<K, T::Value>,
-    tx: oneshot::Sender<Result<HashMap<K, T::Value>, T::Error>>,
+struct ResSender<K, V, T>
+where
+    K: Send + Sync + Hash + Eq + Clone + 'static,
+    V: Send + Sync + Clone + 'static,
+    T: Loader<K, V>,
+{
+    use_cache_values: HashMap<K, V>,
+    tx: oneshot::Sender<Result<HashMap<K, V>, <T as Loader<K, V>>::Error>>,
 }
 
-struct Requests<K: Send + Sync + Hash + Eq + Clone + 'static, T: Loader<K>> {
+struct Requests<K, V, T>
+where
+    K: Send + Sync + Hash + Eq + Clone + 'static,
+    V: Send + Sync + Clone + 'static,
+    T: Loader<K, V>,
+{
     keys: HashSet<K>,
-    pending: Vec<(HashSet<K>, ResSender<K, T>)>,
-    cache_storage: Box<dyn CacheStorage<Key = K, Value = T::Value>>,
+    pending: Vec<(HashSet<K>, ResSender<K, V, T>)>,
+    cache_storage: Box<dyn CacheStorage<Key = K, Value = V>>,
     disable_cache: bool,
 }
 
-type KeysAndSender<K, T> = (HashSet<K>, Vec<(HashSet<K>, ResSender<K, T>)>);
+type KeysAndSender<K, V, T> = (HashSet<K>, Vec<(HashSet<K>, ResSender<K, V, T>)>);
 
-impl<K: Send + Sync + Hash + Eq + Clone + 'static, T: Loader<K>> Requests<K, T> {
+impl<K, V, T> Requests<K, V, T>
+where
+    K: Send + Sync + Hash + Eq + Clone + 'static,
+    V: Send + Sync + Clone + 'static,
+    T: Loader<K, V>,
+{
     fn new<C: CacheFactory>(cache_factory: &C) -> Self {
         Self {
             keys: Default::default(),
             pending: Vec::new(),
-            cache_storage: cache_factory.create::<K, T::Value>(),
+            cache_storage: cache_factory.create::<K, V>(),
             disable_cache: false,
         }
     }
 
-    fn take(&mut self) -> KeysAndSender<K, T> {
+    fn take(&mut self) -> KeysAndSender<K, V, T> {
         (
             std::mem::take(&mut self.keys),
             std::mem::take(&mut self.pending),
@@ -118,24 +132,27 @@ impl<K: Send + Sync + Hash + Eq + Clone + 'static, T: Loader<K>> Requests<K, T> 
 }
 
 /// Trait for batch loading.
+///
+/// Loaders are distinguished by both the key type `K` and the returned value
+/// type `V`. This allows multiple loaders on the same type to use the same key
+/// type but different return types without colliding in the internal request
+/// map.
 #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-pub trait Loader<K: Send + Sync + Hash + Eq + Clone + 'static>: Send + Sync + 'static {
-    /// type of value.
-    type Value: Send + Sync + Clone + 'static;
-
+pub trait Loader<K, V>: Send + Sync + 'static
+where
+    K: Send + Sync + Hash + Eq + Clone + 'static,
+    V: Send + Sync + Clone + 'static,
+{
     /// Type of error.
     type Error: Send + Clone + 'static;
 
     /// Load the data set specified by the `keys`.
     #[cfg(feature = "boxed-trait")]
-    async fn load(&self, keys: &[K]) -> Result<HashMap<K, Self::Value>, Self::Error>;
+    async fn load(&self, keys: &[K]) -> Result<HashMap<K, V>, Self::Error>;
 
     /// Load the data set specified by the `keys`.
     #[cfg(not(feature = "boxed-trait"))]
-    fn load(
-        &self,
-        keys: &[K],
-    ) -> impl Future<Output = Result<HashMap<K, Self::Value>, Self::Error>> + Send;
+    fn load(&self, keys: &[K]) -> impl Future<Output = Result<HashMap<K, V>, Self::Error>> + Send;
 }
 
 struct DataLoaderInner<T> {
@@ -145,12 +162,13 @@ struct DataLoaderInner<T> {
 
 impl<T> DataLoaderInner<T> {
     #[cfg_attr(feature = "tracing", instrument(skip_all))]
-    async fn do_load<K>(&self, disable_cache: bool, (keys, senders): KeysAndSender<K, T>)
+    async fn do_load<K, V>(&self, disable_cache: bool, (keys, senders): KeysAndSender<K, V, T>)
     where
         K: Send + Sync + Hash + Eq + Clone + 'static,
-        T: Loader<K>,
+        V: Send + Sync + Clone + 'static,
+        T: Loader<K, V>,
     {
-        let tid = TypeId::of::<K>();
+        let tid = TypeId::of::<(K, V)>();
         let keys = keys.into_iter().collect::<Vec<_>>();
 
         match self.loader.load(&keys).await {
@@ -158,7 +176,7 @@ impl<T> DataLoaderInner<T> {
                 // update cache
                 let mut entry = self.requests.get_async(&tid).await.unwrap();
 
-                let typed_requests = entry.get_mut().downcast_mut::<Requests<K, T>>().unwrap();
+                let typed_requests = entry.get_mut().downcast_mut::<Requests<K, V, T>>().unwrap();
 
                 let disable_cache = typed_requests.disable_cache || disable_cache;
                 if !disable_cache {
@@ -275,23 +293,25 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
     }
 
     /// Enable/Disable cache of specified loader.
-    pub async fn enable_cache<K>(&self, enable: bool)
+    pub async fn enable_cache<K, V>(&self, enable: bool)
     where
         K: Send + Sync + Hash + Eq + Clone + 'static,
-        T: Loader<K>,
+        V: Send + Sync + Clone + 'static,
+        T: Loader<K, V>,
     {
-        let tid = TypeId::of::<K>();
+        let tid = TypeId::of::<(K, V)>();
         let mut entry = self.inner.requests.get_async(&tid).await.unwrap();
-        let typed_requests = entry.get_mut().downcast_mut::<Requests<K, T>>().unwrap();
+        let typed_requests = entry.get_mut().downcast_mut::<Requests<K, V, T>>().unwrap();
         typed_requests.disable_cache = !enable;
     }
 
     /// Use this `DataLoader` load a data.
     #[cfg_attr(feature = "tracing", instrument(skip_all))]
-    pub async fn load_one<K>(&self, key: K) -> Result<Option<T::Value>, T::Error>
+    pub async fn load_one<K, V>(&self, key: K) -> Result<Option<V>, <T as Loader<K, V>>::Error>
     where
         K: Send + Sync + Hash + Eq + Clone + 'static,
-        T: Loader<K>,
+        V: Send + Sync + Clone + 'static,
+        T: Loader<K, V>,
     {
         let mut values = self.load_many(std::iter::once(key.clone())).await?;
         Ok(values.remove(&key))
@@ -299,19 +319,27 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
 
     /// Use this `DataLoader` to load some data.
     #[cfg_attr(feature = "tracing", instrument(skip_all))]
-    pub async fn load_many<K, I>(&self, keys: I) -> Result<HashMap<K, T::Value>, T::Error>
+    pub async fn load_many<K, V>(
+        &self,
+        keys: impl IntoIterator<Item = K>,
+    ) -> Result<HashMap<K, V>, <T as Loader<K, V>>::Error>
     where
         K: Send + Sync + Hash + Eq + Clone + 'static,
-        I: IntoIterator<Item = K>,
-        T: Loader<K>,
+        V: Send + Sync + Clone + 'static,
+        T: Loader<K, V>,
     {
-        enum Action<K: Send + Sync + Hash + Eq + Clone + 'static, T: Loader<K>> {
-            ImmediateLoad(KeysAndSender<K, T>),
+        enum Action<K, V, T>
+        where
+            K: Send + Sync + Hash + Eq + Clone + 'static,
+            V: Send + Sync + Clone + 'static,
+            T: Loader<K, V>,
+        {
+            ImmediateLoad(KeysAndSender<K, V, T>),
             StartFetch,
             Delay,
         }
 
-        let tid = TypeId::of::<K>();
+        let tid = TypeId::of::<(K, V)>();
 
         let (action, rx) = {
             let mut entry = self
@@ -319,9 +347,9 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
                 .requests
                 .entry_async(tid)
                 .await
-                .or_insert_with(|| Box::new(Requests::<K, T>::new(&self.cache_factory)));
+                .or_insert_with(|| Box::new(Requests::<K, V, T>::new(&self.cache_factory)));
 
-            let typed_requests = entry.downcast_mut::<Requests<K, T>>().unwrap();
+            let typed_requests = entry.downcast_mut::<Requests<K, V, T>>().unwrap();
 
             let prev_count = typed_requests.keys.len();
             let mut keys_set = HashSet::new();
@@ -393,7 +421,7 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
 
                     let keys = {
                         let mut entry = inner.requests.get_async(&tid).await.unwrap();
-                        let typed_requests = entry.downcast_mut::<Requests<K, T>>().unwrap();
+                        let typed_requests = entry.downcast_mut::<Requests<K, V, T>>().unwrap();
                         typed_requests.take()
                     };
 
@@ -416,21 +444,21 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
     /// **NOTE: If the cache type is [NoCache], this function will not take
     /// effect. **
     #[cfg_attr(feature = "tracing", instrument(skip_all))]
-    pub async fn feed_many<K, I>(&self, values: I)
+    pub async fn feed_many<K, V>(&self, values: impl IntoIterator<Item = (K, V)>)
     where
         K: Send + Sync + Hash + Eq + Clone + 'static,
-        I: IntoIterator<Item = (K, T::Value)>,
-        T: Loader<K>,
+        V: Send + Sync + Clone + 'static,
+        T: Loader<K, V>,
     {
-        let tid = TypeId::of::<K>();
+        let tid = TypeId::of::<(K, V)>();
         let mut entry = self
             .inner
             .requests
             .entry_async(tid)
             .await
-            .or_insert_with(|| Box::new(Requests::<K, T>::new(&self.cache_factory)));
+            .or_insert_with(|| Box::new(Requests::<K, V, T>::new(&self.cache_factory)));
 
-        let typed_requests = entry.downcast_mut::<Requests<K, T>>().unwrap();
+        let typed_requests = entry.downcast_mut::<Requests<K, V, T>>().unwrap();
 
         for (key, value) in values {
             typed_requests
@@ -444,10 +472,11 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
     /// **NOTE: If the cache type is [NoCache], this function will not take
     /// effect. **
     #[cfg_attr(feature = "tracing", instrument(skip_all))]
-    pub async fn feed_one<K>(&self, key: K, value: T::Value)
+    pub async fn feed_one<K, V>(&self, key: K, value: V)
     where
         K: Send + Sync + Hash + Eq + Clone + 'static,
-        T: Loader<K>,
+        V: Send + Sync + Clone + 'static,
+        T: Loader<K, V>,
     {
         self.feed_many(std::iter::once((key, value))).await;
     }
@@ -457,19 +486,20 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
     /// **NOTE: if the cache type is [NoCache], this function will not take
     /// effect. **
     #[cfg_attr(feature = "tracing", instrument(skip_all))]
-    pub fn clear_one<K>(&self, key: &K)
+    pub fn clear_one<K, V>(&self, key: &K)
     where
         K: Send + Sync + Hash + Eq + Clone + 'static,
-        T: Loader<K>,
+        V: Send + Sync + Clone + 'static,
+        T: Loader<K, V>,
     {
-        let tid = TypeId::of::<K>();
+        let tid = TypeId::of::<(K, V)>();
         let mut entry = self
             .inner
             .requests
             .entry_sync(tid)
-            .or_insert_with(|| Box::new(Requests::<K, T>::new(&self.cache_factory)));
+            .or_insert_with(|| Box::new(Requests::<K, V, T>::new(&self.cache_factory)));
 
-        let typed_requests = entry.downcast_mut::<Requests<K, T>>().unwrap();
+        let typed_requests = entry.downcast_mut::<Requests<K, V, T>>().unwrap();
         typed_requests.cache_storage.remove(key);
     }
 
@@ -478,33 +508,35 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
     /// **NOTE: If the cache type is [NoCache], this function will not take
     /// effect. **
     #[cfg_attr(feature = "tracing", instrument(skip_all))]
-    pub fn clear<K>(&self)
+    pub fn clear<K, V>(&self)
     where
         K: Send + Sync + Hash + Eq + Clone + 'static,
-        T: Loader<K>,
+        V: Send + Sync + Clone + 'static,
+        T: Loader<K, V>,
     {
-        let tid = TypeId::of::<K>();
+        let tid = TypeId::of::<(K, V)>();
         let mut entry = self
             .inner
             .requests
             .entry_sync(tid)
-            .or_insert_with(|| Box::new(Requests::<K, T>::new(&self.cache_factory)));
+            .or_insert_with(|| Box::new(Requests::<K, V, T>::new(&self.cache_factory)));
 
-        let typed_requests = entry.downcast_mut::<Requests<K, T>>().unwrap();
+        let typed_requests = entry.downcast_mut::<Requests<K, V, T>>().unwrap();
         typed_requests.cache_storage.clear();
     }
 
     /// Gets all values in the cache.
-    pub async fn get_cached_values<K>(&self) -> HashMap<K, T::Value>
+    pub async fn get_cached_values<K, V>(&self) -> HashMap<K, V>
     where
         K: Send + Sync + Hash + Eq + Clone + 'static,
-        T: Loader<K>,
+        V: Send + Sync + Clone + 'static,
+        T: Loader<K, V>,
     {
-        let tid = TypeId::of::<K>();
+        let tid = TypeId::of::<(K, V)>();
         match self.inner.requests.get_async(&tid).await {
             None => HashMap::new(),
             Some(requests) => {
-                let typed_requests = requests.get().downcast_ref::<Requests<K, T>>().unwrap();
+                let typed_requests = requests.get().downcast_ref::<Requests<K, V, T>>().unwrap();
                 typed_requests
                     .cache_storage
                     .iter()
@@ -525,22 +557,20 @@ mod tests {
     struct MyLoader;
 
     #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-    impl Loader<i32> for MyLoader {
-        type Value = i32;
+    impl Loader<i32, i32> for MyLoader {
         type Error = ();
 
-        async fn load(&self, keys: &[i32]) -> Result<HashMap<i32, Self::Value>, Self::Error> {
+        async fn load(&self, keys: &[i32]) -> Result<HashMap<i32, i32>, Self::Error> {
             assert!(keys.len() <= 10);
             Ok(keys.iter().copied().map(|k| (k, k)).collect())
         }
     }
 
     #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-    impl Loader<i64> for MyLoader {
-        type Value = i64;
+    impl Loader<i64, i64> for MyLoader {
         type Error = ();
 
-        async fn load(&self, keys: &[i64]) -> Result<HashMap<i64, Self::Value>, Self::Error> {
+        async fn load(&self, keys: &[i64]) -> Result<HashMap<i64, i64>, Self::Error> {
             assert!(keys.len() <= 10);
             Ok(keys.iter().copied().map(|k| (k, k)).collect())
         }
@@ -638,7 +668,7 @@ mod tests {
         );
 
         // Clear cache
-        loader.clear::<i32>();
+        loader.clear::<i32, i32>();
         assert_eq!(
             loader.load_many(vec![1, 2, 3]).await.unwrap(),
             vec![(1, 1), (2, 2), (3, 3)].into_iter().collect()
@@ -674,7 +704,7 @@ mod tests {
         );
 
         // Clear cache
-        loader.clear::<i32>();
+        loader.clear::<i32, i32>();
         assert_eq!(
             loader.load_many(vec![1, 2, 3]).await.unwrap(),
             vec![(1, 1), (2, 2), (3, 3)].into_iter().collect()
@@ -742,14 +772,14 @@ mod tests {
         loader.feed_many(vec![(1, 10), (2, 20), (3, 30)]).await;
 
         // All from the loader
-        loader.enable_cache::<i32>(false).await;
+        loader.enable_cache::<i32, i32>(false).await;
         assert_eq!(
             loader.load_many(vec![1, 2, 3]).await.unwrap(),
             vec![(1, 1), (2, 2), (3, 3)].into_iter().collect()
         );
 
         // All from the cache
-        loader.enable_cache::<i32>(true).await;
+        loader.enable_cache::<i32, i32>(true).await;
         assert_eq!(
             loader.load_many(vec![1, 2, 3]).await.unwrap(),
             vec![(1, 10), (2, 20), (3, 30)].into_iter().collect()
@@ -757,15 +787,56 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_dataloader_same_key_different_value_types() {
+        // This test demonstrates that loaders can be distinguished by return
+        // type, not just by key type. Both implementations use i32 keys, but
+        // they return different value types (i32 vs String).
+        //
+        // With the old TypeId::of::<K>() approach, loaders with the same key
+        // type would share request map entries. With TypeId::of::<(K, V)>() they
+        // are kept separate even within the same DataLoader type.
+        struct MultiLoader;
+
+        #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+        impl Loader<i32, i32> for MultiLoader {
+            type Error = ();
+
+            async fn load(&self, keys: &[i32]) -> Result<HashMap<i32, i32>, Self::Error> {
+                Ok(keys.iter().copied().map(|k| (k, k * 10)).collect())
+            }
+        }
+
+        #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+        impl Loader<i32, String> for MultiLoader {
+            type Error = ();
+
+            async fn load(&self, keys: &[i32]) -> Result<HashMap<i32, String>, Self::Error> {
+                Ok(keys
+                    .iter()
+                    .copied()
+                    .map(|k| (k, format!("value-{k}")))
+                    .collect())
+            }
+        }
+
+        let loader = DataLoader::new(MultiLoader, TokioSpawner::current(), TokioTimer::default());
+
+        let int_result: Option<i32> = loader.load_one(42i32).await.unwrap();
+        let str_result: Option<String> = loader.load_one(42i32).await.unwrap();
+
+        assert_eq!(int_result, Some(420));
+        assert_eq!(str_result, Some("value-42".to_string()));
+    }
+
+    #[tokio::test]
     async fn test_dataloader_dead_lock() {
         struct MyDelayLoader;
 
         #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-        impl Loader<i32> for MyDelayLoader {
-            type Value = i32;
+        impl Loader<i32, i32> for MyDelayLoader {
             type Error = ();
 
-            async fn load(&self, keys: &[i32]) -> Result<HashMap<i32, Self::Value>, Self::Error> {
+            async fn load(&self, keys: &[i32]) -> Result<HashMap<i32, i32>, Self::Error> {
                 tokio::time::sleep(Duration::from_secs(1)).await;
                 Ok(keys.iter().copied().map(|k| (k, k)).collect())
             }

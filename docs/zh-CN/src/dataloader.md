@@ -73,11 +73,10 @@ struct UserNameLoader {
     pool: sqlx::Pool<Postgres>,
 }
 
-impl Loader<u64> for UserNameLoader {
-    type Value = String;
+impl Loader<u64, String> for UserNameLoader {
     type Error = Arc<sqlx::Error>;
 
-    async fn load(&self, keys: &[u64]) -> Result<HashMap<u64, Self::Value>, Self::Error> {
+    async fn load(&self, keys: &[u64]) -> Result<HashMap<u64, String>, Self::Error> {
         let query = format!("SELECT name FROM user WHERE id IN ({})", keys.iter().join(","));
         Ok(sqlx::query_as(query)
             .fetch(&self.pool)
@@ -128,20 +127,18 @@ struct PostgresLoader {
     pool: sqlx::Pool<Postgres>,
 }
 
-impl Loader<UserId> for PostgresLoader {
-    type Value = User;
+impl Loader<UserId, User> for PostgresLoader {
     type Error = Arc<sqlx::Error>;
 
-    async fn load(&self, keys: &[UserId]) -> Result<HashMap<UserId, Self::Value>, Self::Error> {
+    async fn load(&self, keys: &[UserId]) -> Result<HashMap<UserId, User>, Self::Error> {
         // 从数据库中加载 User
     }
 }
 
-impl Loader<TodoId> for PostgresLoader {
-    type Value = Todo;
+impl Loader<TodoId, Todo> for PostgresLoader {
     type Error = sqlx::Error;
 
-    async fn load(&self, keys: &[TodoId]) -> Result<HashMap<TodoId, Self::Value>, Self::Error> {
+    async fn load(&self, keys: &[TodoId]) -> Result<HashMap<TodoId, Todo>, Self::Error> {
         // 从数据库中加载 Todo
     }
 }
