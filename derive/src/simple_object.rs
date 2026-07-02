@@ -383,7 +383,8 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
         };
 
         let vis = &field.vis;
-        // When output_using is specified, the return type should be owned (not a reference)
+        // When output_using is specified, the return type should be owned (not a
+        // reference)
         let ty = if field.output_using.is_some() {
             quote! { #ty }
         } else {
