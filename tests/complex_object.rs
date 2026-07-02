@@ -56,7 +56,7 @@ async fn test_complex_object_non_async_resolvers() {
         }
 
         fn b(&self, ctx: &Context<'_>, v: i32) -> Result<i32> {
-            Ok(self.value + v + ctx.data_unchecked::<i32>())
+            Ok(self.value + v + ctx.data::<i32>().unwrap())
         }
 
         fn c(&self) -> Result<bool> {
@@ -194,7 +194,7 @@ pub async fn test_complex_object_with_generic_context_data() {
         }
 
         async fn obj(&self, ctx: &Context<'_>) -> MyObject<D> {
-            MyObject::new(ctx.data_unchecked::<D>().answer())
+            MyObject::new(ctx.data::<D>().unwrap().answer())
         }
     }
 

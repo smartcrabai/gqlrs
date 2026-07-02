@@ -32,7 +32,7 @@ pub(crate) struct HelloQueryRoot;
 impl HelloQueryRoot {
     /// Returns hello
     async fn hello<'a>(&self, ctx: &'a Context<'_>) -> String {
-        let name = ctx.data_opt::<Hello>().map(|hello| hello.0.as_str());
+        let name = ctx.data::<Hello>().ok().map(|hello| hello.0.as_str());
         format!("Hello, {}!", name.unwrap_or("world"))
     }
 }
@@ -44,7 +44,7 @@ pub(crate) struct CountQueryRoot;
 #[Object]
 impl CountQueryRoot {
     async fn count<'a>(&self, ctx: &'a Context<'_>) -> i32 {
-        *ctx.data_unchecked::<Count>().lock().await
+        *ctx.data::<Count>().unwrap().lock().await
     }
 }
 
@@ -53,13 +53,13 @@ pub(crate) struct CountMutation;
 #[Object]
 impl CountMutation {
     async fn add_count<'a>(&self, ctx: &'a Context<'_>, count: i32) -> i32 {
-        let mut guard_count = ctx.data_unchecked::<Count>().lock().await;
+        let mut guard_count = ctx.data::<Count>().unwrap().lock().await;
         *guard_count += count;
         *guard_count
     }
 
     async fn subtract_count<'a>(&self, ctx: &'a Context<'_>, count: i32) -> i32 {
-        let mut guard_count = ctx.data_unchecked::<Count>().lock().await;
+        let mut guard_count = ctx.data::<Count>().unwrap().lock().await;
         *guard_count -= count;
         *guard_count
     }
