@@ -418,7 +418,8 @@ pub async fn test_concrete_object_with_lifetime() {
 }
 
 /// Regression test for https://github.com/async-graphql/async-graphql/issues/1451
-/// Stack overflow when a generic type's ComplexObject method returns the same generic type.
+/// Stack overflow when a generic type's ComplexObject method returns the same
+/// generic type.
 #[tokio::test]
 pub async fn test_generic_complex_object_returns_self() {
     #[derive(SimpleObject)]
