@@ -9,6 +9,9 @@ use axum::{
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
 /// Extractor for GraphQL request.
+///
+/// Supports configuring [`MultipartOptions`](async_graphql::http::MultipartOptions)
+/// by inserting them into request extensions (e.g. via axum middleware).
 pub struct GraphQLRequest<R = rejection::GraphQLRejection>(
     pub async_graphql::Request,
     PhantomData<R>,
@@ -76,6 +79,10 @@ where
 }
 
 /// Extractor for GraphQL batch request.
+///
+/// Supports configuring [`MultipartOptions`](async_graphql::http::MultipartOptions)
+/// by inserting them into request extensions (e.g. via axum middleware).
+/// When not configured, uses `MultipartOptions::default()`.
 pub struct GraphQLBatchRequest<R = rejection::GraphQLRejection>(
     pub async_graphql::BatchRequest,
     PhantomData<R>,
@@ -97,6 +104,12 @@ where
     type Rejection = R;
 
     async fn from_request(req: Request, _state: &S) -> Result<Self, Self::Rejection> {
+        let opts = req
+            .extensions()
+            .get::<MultipartOptions>()
+            .copied()
+            .unwrap_or_default();
+
         if req.method() == Method::GET {
             let uri = req.uri();
             let res = async_graphql::http::parse_query_string(uri.query().unwrap_or_default())
@@ -119,12 +132,7 @@ where
                 .map_err(|err| std::io::Error::other(err.to_string()));
             let body_reader = tokio_util::io::StreamReader::new(body_stream).compat();
             Ok(Self(
-                async_graphql::http::receive_batch_body(
-                    content_type,
-                    body_reader,
-                    MultipartOptions::default(),
-                )
-                .await?,
+                async_graphql::http::receive_batch_body(content_type, body_reader, opts).await?,
                 PhantomData,
             ))
         }
