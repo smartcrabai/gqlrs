@@ -1347,8 +1347,9 @@ impl Registry {
         <ID as InputType>::create_type_info(self);
     }
 
-    /// Registers the `@semanticNonNull` directive only if any field uses `semantic_non_null`.
-    /// This ensures the directive does not appear in introspection when unused.
+    /// Registers the `@semanticNonNull` directive only if any field uses
+    /// `semantic_non_null`. This ensures the directive does not appear in
+    /// introspection when unused.
     pub(crate) fn add_semantic_non_null_directive_if_needed(&mut self) {
         let has_semantic_non_null = self.types.values().any(|ty| match ty {
             MetaType::Object { fields, .. } | MetaType::Interface { fields, .. } => {
