@@ -58,6 +58,7 @@ pub fn generate(object_args: &args::OneofObject) -> GeneratorResult<TokenStream>
     let mut schema_fields = Vec::new();
     let mut parse_item = Vec::new();
     let mut put_fields = Vec::new();
+    let mut validate_items = Vec::new();
 
     for variant in s {
         let enum_name = &variant.ident;
@@ -184,6 +185,16 @@ pub fn generate(object_args: &args::OneofObject) -> GeneratorResult<TokenStream>
                     map.insert(#crate_name::Name::new(#field_name), #crate_name::InputType::to_value(value));
                 }
             });
+
+            validate_items.push(quote! {
+                Self::#enum_name(value) => {
+                    if let ::std::option::Option::Some(#crate_name::Value::Object(__obj)) = __input_value {
+                        if let ::std::option::Option::Some(__field_value) = __obj.get(#field_name) {
+                            #crate_name::InputType::validate_input_guards(value, ctx, ::std::option::Option::Some(__field_value)).await?;
+                        }
+                    }
+                }
+            });
         } else {
             return Err(Error::new_spanned(ty, "Invalid type").into());
         }
@@ -241,6 +252,21 @@ pub fn generate(object_args: &args::OneofObject) -> GeneratorResult<TokenStream>
                 fn as_raw_value(&self) -> ::std::option::Option<&Self::RawValueType> {
                     ::std::option::Option::Some(self)
                 }
+
+                fn validate_input_guards<'__a>(
+                    &'__a self,
+                    ctx: &'__a #crate_name::Context<'_>,
+                    __input_value: ::std::option::Option<&'__a #crate_name::Value>,
+                ) -> impl ::std::future::Future<Output = #crate_name::Result<()>> + ::std::marker::Send + '__a {
+                    async move {
+                        let _ = ctx;
+                        let _ = __input_value;
+                        match self {
+                            #(#validate_items)*
+                        }
+                        ::std::result::Result::Ok(())
+                    }
+                }
             }
 
             impl #crate_name::InputObjectType for #ident {}
@@ -285,6 +311,21 @@ pub fn generate(object_args: &args::OneofObject) -> GeneratorResult<TokenStream>
                         #(#put_fields)*
                     }
                     #crate_name::Value::Object(map)
+                }
+
+                fn __internal_validate_input_guards<'__a>(
+                    &'__a self,
+                    ctx: &'__a #crate_name::Context<'_>,
+                    __input_value: ::std::option::Option<&'__a #crate_name::Value>,
+                ) -> impl ::std::future::Future<Output = #crate_name::Result<()>> + ::std::marker::Send + '__a where Self: #crate_name::InputType {
+                    async move {
+                        let _ = ctx;
+                        let _ = __input_value;
+                        match self {
+                            #(#validate_items)*
+                        }
+                        ::std::result::Result::Ok(())
+                    }
                 }
             }
         });
@@ -331,6 +372,14 @@ pub fn generate(object_args: &args::OneofObject) -> GeneratorResult<TokenStream>
 
                     fn as_raw_value(&self) -> ::std::option::Option<&Self::RawValueType> {
                         ::std::option::Option::Some(self)
+                    }
+
+                    fn validate_input_guards<'__a>(
+                        &'__a self,
+                        ctx: &'__a #crate_name::Context<'_>,
+                        __input_value: ::std::option::Option<&'__a #crate_name::Value>,
+                    ) -> impl ::std::future::Future<Output = #crate_name::Result<()>> + ::std::marker::Send + '__a {
+                        self.__internal_validate_input_guards(ctx, __input_value)
                     }
                 }
 

@@ -1,8 +1,8 @@
 use std::{borrow::Cow, collections::BTreeSet};
 
 use crate::{
-    ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType,
-    OutputTypeMarker, Positioned, ServerResult, Value, parser::types::Field, registry,
+    Context, ContextSelectionSet, Error, InputType, InputValueError, InputValueResult, OutputType,
+    OutputTypeMarker, Positioned, Result, ServerResult, Value, parser::types::Field, registry,
     resolver_utils::resolve_list,
 };
 
@@ -43,6 +43,27 @@ impl<T: InputType + Ord> InputType for BTreeSet<T> {
 
     fn as_raw_value(&self) -> Option<&Self::RawValueType> {
         Some(self)
+    }
+
+    #[allow(clippy::manual_async_fn)]
+    fn validate_input_guards<'a>(
+        &'a self,
+        ctx: &'a Context<'_>,
+        input_value: Option<&'a Value>,
+    ) -> impl std::future::Future<Output = Result<()>> + Send + 'a {
+        async move {
+            let values = match input_value {
+                Some(Value::List(values)) => values.as_slice(),
+                Some(value) => std::slice::from_ref(value),
+                None => &[],
+            };
+            for value in values {
+                let item = T::parse(Some(value.clone()))
+                    .map_err(|err| Error::new(err.into_server_error(Default::default()).message))?;
+                item.validate_input_guards(ctx, Some(value)).await?;
+            }
+            Ok(())
+        }
     }
 }
 

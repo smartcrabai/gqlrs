@@ -1104,10 +1104,15 @@ fn generate_parameter_extraction(
     Ok(quote! {
         #[allow(non_snake_case, unused_variables, unused_mut)]
         // Todo: if there are no processors we can drop the mut.
-        let (__pos, mut #non_mut_ident) = ctx.param_value::<#ty>(#name, #default)
+        let (__pos, mut #non_mut_ident, __raw_value) = ctx.param_value_with_raw::<#ty>(#name, #default)
             .map_err(|err| ctx.set_error_path(err))?;
         #process_with
         #validators
+        {
+            use #crate_name::InputType as _;
+            #non_mut_ident.validate_input_guards(ctx, __raw_value.as_ref()).await
+                .map_err(|err| ctx.set_error_path(err.into_server_error(__pos)))?;
+        }
         #[allow(non_snake_case, unused_variables)]
         let #ident = #non_mut_ident;
     })

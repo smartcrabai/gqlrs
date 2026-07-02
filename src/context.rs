@@ -652,6 +652,32 @@ impl<'a, T> ContextBase<'a, T> {
     }
 
     #[doc(hidden)]
+    fn get_param_value_with_raw<Q: InputType>(
+        &self,
+        arguments: &[(Positioned<Name>, Positioned<InputValue>)],
+        name: &str,
+        default: Option<fn() -> Q>,
+    ) -> ServerResult<(Pos, Q, Option<Value>)> {
+        let value = arguments
+            .iter()
+            .find(|(n, _)| n.node.as_str() == name)
+            .map(|(_, value)| value)
+            .cloned();
+        if value.is_none()
+            && let Some(default) = default
+        {
+            return Ok((Pos::default(), default(), None));
+        }
+        let (pos, value) = match value {
+            Some(value) => (value.pos, self.resolve_input_value(value)?),
+            None => (Pos::default(), None),
+        };
+        InputType::parse(value.clone())
+            .map(|parsed| (pos, parsed, value))
+            .map_err(|e| e.into_server_error(pos))
+    }
+
+    #[doc(hidden)]
     #[must_use]
     pub fn with_index(&'a self, idx: usize) -> ContextBase<'a, T>
     where
@@ -679,6 +705,15 @@ impl<'a> ContextBase<'a, &'a Positioned<Field>> {
         default: Option<fn() -> T>,
     ) -> ServerResult<(Pos, T)> {
         self.get_param_value(&self.item.node.arguments, name, default)
+    }
+
+    #[doc(hidden)]
+    pub fn param_value_with_raw<T: InputType>(
+        &self,
+        name: &str,
+        default: Option<fn() -> T>,
+    ) -> ServerResult<(Pos, T, Option<Value>)> {
+        self.get_param_value_with_raw(&self.item.node.arguments, name, default)
     }
 
     #[doc(hidden)]

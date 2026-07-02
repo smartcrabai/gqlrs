@@ -286,7 +286,12 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
                 None => quote! { ::std::option::Option::None },
             };
             get_params.push(quote! {
-                let (_, #ident) = ctx.param_value::<#ty>(#name, #get_default)?;
+                let (__pos, #ident, __raw_value) = ctx.param_value_with_raw::<#ty>(#name, #get_default)?;
+                {
+                    use #crate_name::InputType as _;
+                    #ident.validate_input_guards(ctx, __raw_value.as_ref()).await
+                        .map_err(|err| err.into_server_error(__pos))?;
+                }
             });
 
             let has_desc = desc.is_some();

@@ -240,6 +240,8 @@ pub fn generate(object_args: &args::InputObject) -> GeneratorResult<TokenStream>
     let mut schema_fields = Vec::new();
     let mut flatten_fields = Vec::new();
     let mut federation_fields = Vec::new();
+    let mut field_guard_checks = Vec::new();
+    let mut field_validations = Vec::new();
 
     for field in &s.fields {
         let ident = field.ident.as_ref().unwrap();
@@ -277,6 +279,35 @@ pub fn generate(object_args: &args::InputObject) -> GeneratorResult<TokenStream>
             &name,
         ));
 
+        if let Some(guard) = &field.guard {
+            let guard_code = quote! {
+                {
+                    use #crate_name::GuardExt;
+                    #guard
+                }
+            };
+            let guard_check = quote! {
+                if let ::std::result::Result::Err(err) = #crate_name::Guard::check(&#guard_code, ctx).await {
+                    return ::std::result::Result::Err(err);
+                }
+            };
+            if field.flatten {
+                field_guard_checks.push(quote! {
+                    if __input_value.is_some() {
+                        #guard_check
+                    }
+                });
+            } else {
+                field_guard_checks.push(quote! {
+                    if let ::std::option::Option::Some(#crate_name::Value::Object(__obj)) = __input_value {
+                        if __obj.contains_key(#name) {
+                            #guard_check
+                        }
+                    }
+                });
+            }
+        }
+
         let process_with = match field.process_with.as_ref() {
             Some(fn_path) => quote! { #fn_path(&mut #ident); },
             None => Default::default(),
@@ -294,6 +325,9 @@ pub fn generate(object_args: &args::InputObject) -> GeneratorResult<TokenStream>
 
         if field.flatten {
             flatten_fields.push((ident, ty));
+            field_validations.push(quote! {
+                #crate_name::InputType::validate_input_guards(&self.#ident, ctx, __input_value).await?;
+            });
 
             let assert_generics = (!object_args.generics.params.is_empty()).then(|| {
                 let generics_list = &object_args.generics.params;
@@ -406,6 +440,13 @@ pub fn generate(object_args: &args::InputObject) -> GeneratorResult<TokenStream>
         });
 
         fields.push(ident);
+        field_validations.push(quote! {
+            if let ::std::option::Option::Some(#crate_name::Value::Object(__obj)) = __input_value {
+                if let ::std::option::Option::Some(__field_value) = __obj.get(#name) {
+                    #crate_name::InputType::validate_input_guards(&self.#ident, ctx, ::std::option::Option::Some(__field_value)).await?;
+                }
+            }
+        });
 
         let has_visible = field.visible.is_some();
         let visible = visible_fn(&field.visible);
@@ -570,6 +611,20 @@ pub fn generate(object_args: &args::InputObject) -> GeneratorResult<TokenStream>
                 fn as_raw_value(&self) -> ::std::option::Option<&Self::RawValueType> {
                     ::std::option::Option::Some(self)
                 }
+
+                fn validate_input_guards<'__a>(
+                    &'__a self,
+                    ctx: &'__a #crate_name::Context<'_>,
+                    __input_value: ::std::option::Option<&'__a #crate_name::Value>,
+                ) -> impl ::std::future::Future<Output = #crate_name::Result<()>> + ::std::marker::Send + '__a {
+                    async move {
+                        let _ = ctx;
+                        let _ = __input_value;
+                        #(#field_guard_checks)*
+                        #(#field_validations)*
+                        ::std::result::Result::Ok(())
+                    }
+                }
             }
 
             impl #impl_generics #crate_name::InputObjectType for #ident #ty_generics #where_clause {}
@@ -615,6 +670,20 @@ pub fn generate(object_args: &args::InputObject) -> GeneratorResult<TokenStream>
                 fn __internal_federation_fields() -> ::std::option::Option<::std::string::String> where Self: #crate_name::InputType {
                     #get_federation_fields
                 }
+
+                fn __internal_validate_input_guards<'__a>(
+                    &'__a self,
+                    ctx: &'__a #crate_name::Context<'_>,
+                    __input_value: ::std::option::Option<&'__a #crate_name::Value>,
+                ) -> impl ::std::future::Future<Output = #crate_name::Result<()>> + ::std::marker::Send + '__a where Self: #crate_name::InputType {
+                    async move {
+                        let _ = ctx;
+                        let _ = __input_value;
+                        #(#field_guard_checks)*
+                        #(#field_validations)*
+                        ::std::result::Result::Ok(())
+                    }
+                }
             }
         });
 
@@ -657,6 +726,14 @@ pub fn generate(object_args: &args::InputObject) -> GeneratorResult<TokenStream>
 
                     fn as_raw_value(&self) -> ::std::option::Option<&Self::RawValueType> {
                         ::std::option::Option::Some(self)
+                    }
+
+                    fn validate_input_guards<'__a>(
+                        &'__a self,
+                        ctx: &'__a #crate_name::Context<'_>,
+                        __input_value: ::std::option::Option<&'__a #crate_name::Value>,
+                    ) -> impl ::std::future::Future<Output = #crate_name::Result<()>> + ::std::marker::Send + '__a {
+                        self.__internal_validate_input_guards(ctx, __input_value)
                     }
                 }
 

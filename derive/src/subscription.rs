@@ -194,9 +194,14 @@ pub fn generate(
                 non_mut_ident.mutability = None;
                 get_params.push(quote! {
                     #[allow(non_snake_case, unused_mut)]
-                    let (__pos, mut #non_mut_ident) = ctx.param_value::<#ty>(#name, #default)?;
+                    let (__pos, mut #non_mut_ident, __raw_value) = ctx.param_value_with_raw::<#ty>(#name, #default)?;
                     #process_with
                     #validators
+                    {
+                        use #crate_name::InputType as _;
+                        #non_mut_ident.validate_input_guards(ctx, __raw_value.as_ref()).await
+                            .map_err(|err| err.into_server_error(__pos))?;
+                    }
                     #[allow(non_snake_case)]
                     let #ident = #non_mut_ident;
                 });

@@ -1,7 +1,6 @@
-#[cfg(not(feature = "boxed-trait"))]
-use std::future::Future;
 use std::{
     borrow::Cow,
+    future::Future,
     sync::{Arc, Weak},
 };
 
@@ -62,6 +61,22 @@ pub trait InputType: Send + Sync + Sized {
 
     /// Returns a reference to the raw value.
     fn as_raw_value(&self) -> Option<&Self::RawValueType>;
+
+    /// Validates field guards on this input type.
+    ///
+    /// This method is called after parsing the input to check any field-level
+    /// guards that require context (e.g., role-based access). The `value`
+    /// argument is the resolved input value supplied by the client, if any, so
+    /// implementors can distinguish omitted fields from provided fields. By
+    /// default, this is a no-op. InputObject types override this to check field
+    /// guards.
+    fn validate_input_guards<'a>(
+        &'a self,
+        _ctx: &'a Context<'_>,
+        _value: Option<&'a Value>,
+    ) -> impl Future<Output = Result<()>> + Send + 'a {
+        async { Ok(()) }
+    }
 }
 
 /// Marker trait for GraphQL output type metadata.
@@ -284,6 +299,14 @@ impl<T: InputType> InputType for Box<T> {
     fn as_raw_value(&self) -> Option<&Self::RawValueType> {
         self.as_ref().as_raw_value()
     }
+
+    fn validate_input_guards<'a>(
+        &'a self,
+        ctx: &'a Context<'_>,
+        value: Option<&'a Value>,
+    ) -> impl Future<Output = Result<()>> + Send + 'a {
+        self.as_ref().validate_input_guards(ctx, value)
+    }
 }
 
 impl<T: OutputTypeMarker + ?Sized> OutputTypeMarker for Arc<T> {
@@ -335,6 +358,14 @@ impl<T: InputType> InputType for Arc<T> {
 
     fn as_raw_value(&self) -> Option<&Self::RawValueType> {
         self.as_ref().as_raw_value()
+    }
+
+    fn validate_input_guards<'a>(
+        &'a self,
+        ctx: &'a Context<'_>,
+        value: Option<&'a Value>,
+    ) -> impl Future<Output = Result<()>> + Send + 'a {
+        self.as_ref().validate_input_guards(ctx, value)
     }
 }
 
