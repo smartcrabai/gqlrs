@@ -188,7 +188,7 @@ impl Human<'_> {
 
     /// The friends of the human, or an empty list if they have none.
     async fn friends<'ctx>(&self, ctx: &Context<'ctx>) -> Vec<Character<'ctx>> {
-        let star_wars = ctx.data_unchecked::<StarWars>();
+        let star_wars = ctx.data::<StarWars>().unwrap();
         star_wars
             .friends(self.0)
             .into_iter()
@@ -230,7 +230,7 @@ impl Droid<'_> {
 
     /// The friends of the droid, or an empty list if they have none.
     async fn friends<'ctx>(&self, ctx: &Context<'ctx>) -> Vec<Character<'ctx>> {
-        let star_wars = ctx.data_unchecked::<StarWars>();
+        let star_wars = ctx.data::<StarWars>().unwrap();
         star_wars
             .friends(self.0)
             .into_iter()
@@ -267,7 +267,7 @@ impl QueryRoot {
         )]
         episode: Option<Episode>,
     ) -> Character<'a> {
-        let star_wars = ctx.data_unchecked::<StarWars>();
+        let star_wars = ctx.data::<StarWars>().unwrap();
         match episode {
             Some(episode) => {
                 if episode == Episode::Empire {
@@ -285,7 +285,7 @@ impl QueryRoot {
         ctx: &Context<'a>,
         #[graphql(desc = "id of the human")] id: String,
     ) -> Option<Human<'a>> {
-        ctx.data_unchecked::<StarWars>().human(&id).map(Human)
+        ctx.data::<StarWars>().unwrap().human(&id).map(Human)
     }
 
     async fn humans<'a>(
@@ -296,7 +296,7 @@ impl QueryRoot {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<usize, Human<'a>>> {
-        let humans = ctx.data_unchecked::<StarWars>().humans().to_vec();
+        let humans = ctx.data::<StarWars>().unwrap().humans().to_vec();
         query_characters(after, before, first, last, &humans, Human).await
     }
 
@@ -305,7 +305,7 @@ impl QueryRoot {
         ctx: &Context<'a>,
         #[graphql(desc = "id of the droid")] id: String,
     ) -> Option<Droid<'a>> {
-        ctx.data_unchecked::<StarWars>().droid(&id).map(Droid)
+        ctx.data::<StarWars>().unwrap().droid(&id).map(Droid)
     }
 
     async fn droids<'a>(
@@ -316,7 +316,7 @@ impl QueryRoot {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<usize, Droid<'a>>> {
-        let droids = ctx.data_unchecked::<StarWars>().droids().to_vec();
+        let droids = ctx.data::<StarWars>().unwrap().droids().to_vec();
         query_characters(after, before, first, last, &droids, Droid).await
     }
 }

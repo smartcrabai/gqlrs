@@ -70,7 +70,7 @@ async fn test_non_async_resolvers() {
         }
 
         fn b(&self, ctx: &Context<'_>, v: i32) -> Result<i32> {
-            Ok(v + ctx.data_unchecked::<i32>())
+            Ok(v + ctx.data::<i32>().unwrap())
         }
 
         fn c(&self) -> Result<bool> {
@@ -296,7 +296,7 @@ async fn test_optional_output_with_try() {
     #[Object]
     impl Query {
         async fn obj(&self, ctx: &Context<'_>) -> Option<u32> {
-            let x = ctx.data_unchecked::<B>();
+            let x = ctx.data::<B>().unwrap();
 
             if x.some? { Some(300) } else { None }
         }
