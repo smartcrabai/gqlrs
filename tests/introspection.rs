@@ -1612,6 +1612,26 @@ pub async fn test_introspection_directives() {
           "args": []
         },
         {
+          "name": "semanticNonNull",
+          "locations": [
+            "FIELD_DEFINITION"
+          ],
+          "args": [
+            {
+              "name": "levels",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "LIST",
+                  "name": null
+                }
+              },
+              "defaultValue": "[0]"
+            }
+          ]
+        },
+        {
           "name": "skip",
           "locations": [
             "FIELD",

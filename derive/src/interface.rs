@@ -215,6 +215,7 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
         override_from,
         directives,
         requires_scopes,
+        semantic_non_null,
     } in &interface_args.fields
     {
         let (name, method_name) = if let Some(method) = method {
@@ -405,6 +406,7 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
         let has_tags = !tags.is_empty();
         let has_directives = !directives.is_empty();
         let has_requires_scopes = !requires_scopes.is_empty();
+        let has_semantic_non_null = semantic_non_null.unwrap_or(interface_args.semantic_non_null);
 
         let directives = gen_directive_calls(
             &crate_name,
@@ -448,6 +450,16 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
         }
         if has_requires_scopes {
             field_sets.push(quote!(field.requires_scopes = ::std::vec![ #(#requires_scopes),* ];));
+        }
+        if has_semantic_non_null {
+            match oty {
+                OutputType::Value(_) => {
+                    field_sets.push(quote!(field.semantic_nullability = <#schema_ty as #crate_name::OutputType>::semantic_nullability();));
+                }
+                OutputType::Result(_) => {
+                    field_sets.push(quote!(field.semantic_nullability = #crate_name::registry::SemanticNullability::OutNonNull;));
+                }
+            }
         }
 
         schema_fields.push(quote! {
