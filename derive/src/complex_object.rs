@@ -499,7 +499,7 @@ pub fn generate(
                 {
                     let mut field = #crate_name::registry::MetaField::new(
                         ::std::string::ToString::to_string(#field_name),
-                        <#schema_ty as #crate_name::OutputType>::create_type_info(registry),
+                        <#schema_ty as #crate_name::OutputTypeMarker>::create_type_info(registry),
                     );
                     #(#schema_args)*
                     #(#field_sets)*

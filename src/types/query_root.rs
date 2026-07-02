@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
 use crate::{
-    Any, Context, ContextSelectionSet, ObjectType, OutputType, Positioned, ServerError,
-    ServerResult, SimpleObject, Value,
+    Any, Context, ContextSelectionSet, ObjectType, OutputType, OutputTypeMarker, Positioned,
+    ServerError, ServerResult, SimpleObject, Value,
     model::{__Schema, __Type},
     parser::types::Field,
     registry::{self, SDLExportOptions},
@@ -103,8 +103,7 @@ impl<T: ObjectType> ContainerType for QueryRoot<T> {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-impl<T: ObjectType> OutputType for QueryRoot<T> {
+impl<T: ObjectType> OutputTypeMarker for QueryRoot<T> {
     fn type_name() -> Cow<'static, str> {
         T::type_name()
     }
@@ -121,7 +120,10 @@ impl<T: ObjectType> OutputType for QueryRoot<T> {
 
         root
     }
+}
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+impl<T: ObjectType> OutputType for QueryRoot<T> {
     async fn resolve(
         &self,
         ctx: &ContextSelectionSet<'_>,

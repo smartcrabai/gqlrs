@@ -3,8 +3,8 @@ use std::{borrow::Cow, pin::Pin};
 use indexmap::IndexMap;
 
 use crate::{
-    CacheControl, ContainerType, Context, ContextSelectionSet, OutputType, Positioned, Response,
-    ServerResult, SimpleObject, SubscriptionType, Value,
+    CacheControl, ContainerType, Context, ContextSelectionSet, OutputType, OutputTypeMarker,
+    Positioned, Response, ServerResult, SimpleObject, SubscriptionType, Value,
     futures_util::stream::Stream,
     parser::types::Field,
     registry::{MetaType, MetaTypeId, Registry},
@@ -36,11 +36,10 @@ where
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-impl<A, B> OutputType for MergedObject<A, B>
+impl<A, B> OutputTypeMarker for MergedObject<A, B>
 where
-    A: OutputType,
-    B: OutputType,
+    A: OutputTypeMarker,
+    B: OutputTypeMarker,
 {
     fn type_name() -> Cow<'static, str> {
         Cow::Owned(format!("{}_{}", A::type_name(), B::type_name()))
@@ -91,7 +90,14 @@ where
             }
         })
     }
+}
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+impl<A, B> OutputType for MergedObject<A, B>
+where
+    A: OutputType,
+    B: OutputType,
+{
     async fn resolve(
         &self,
         _ctx: &ContextSelectionSet<'_>,

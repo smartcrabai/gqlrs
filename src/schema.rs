@@ -11,8 +11,8 @@ use futures_util::stream::{self, BoxStream, FuturesOrdered, StreamExt};
 
 use crate::{
     BatchRequest, BatchResponse, CacheControl, ContextBase, EmptyMutation, EmptySubscription,
-    ErrorFormatter, Executor, InputType, ObjectType, OutputType, QueryEnv, Request, Response,
-    ServerError, ServerResult, SubscriptionType, Variables,
+    ErrorFormatter, Executor, InputType, ObjectType, OutputType, OutputTypeMarker, QueryEnv,
+    Request, Response, ServerError, ServerResult, SubscriptionType, Variables,
     context::{Data, QueryEnvInner},
     custom_directive::CustomDirectiveFactory,
     extensions::{ExtensionFactory, Extensions},
