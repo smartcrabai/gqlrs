@@ -110,11 +110,10 @@ pub async fn test_no_error_formatter() {
 pub async fn test_dynamic_schema_error_formatter() {
     use gqlrs::dynamic::*;
 
-    let query = Object::new("Query").field(Field::new(
-        "value",
-        TypeRef::named_nn(TypeRef::INT),
-        |_| FieldFuture::new(async { Ok(Some(Value::from(100))) }),
-    ));
+    let query =
+        Object::new("Query").field(Field::new("value", TypeRef::named_nn(TypeRef::INT), |_| {
+            FieldFuture::new(async { Ok(Some(Value::from(100))) })
+        }));
 
     let schema = Schema::build("Query", None, None)
         .register(query)
