@@ -161,17 +161,16 @@ impl CursorType for uuid::Uuid {
 
 /// A opaque cursor that encode/decode the value to base64
 ///
-/// `OpaqueCursor<T>` implements both [`CursorType`] and [`InputType`], so it can
-/// be used directly as a GraphQL input argument (instead of accepting
-/// `Option<String>` and manually decoding via connection helpers). In the GraphQL
-/// schema it is represented as a `String` cursor.
+/// `OpaqueCursor<T>` implements both [`CursorType`] and [`InputType`], so it
+/// can be used directly as a GraphQL input argument (instead of accepting
+/// `Option<String>` and manually decoding via connection helpers). In the
+/// GraphQL schema it is represented as a `String` cursor.
 ///
 /// # Examples
 ///
 /// ```rust
-/// use gqlrs::*;
-/// use gqlrs::connection::*;
-/// use serde::{Serialize, Deserialize};
+/// use gqlrs::{connection::*, *};
+/// use serde::{Deserialize, Serialize};
 ///
 /// #[derive(Serialize, Deserialize, Clone)]
 /// struct MyCursor {
