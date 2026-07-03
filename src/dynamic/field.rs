@@ -329,8 +329,7 @@ impl<'a> IntoFuture for FieldFuture<'a> {
     /// # Examples
     ///
     /// ```
-    /// use gqlrs::dynamic::*;
-    /// use gqlrs::Value;
+    /// use gqlrs::{Value, dynamic::*};
     ///
     /// let field_future = FieldFuture::new(async move { Ok(Some(Value::from(42))) });
     ///
