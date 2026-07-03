@@ -3,11 +3,11 @@ use std::{borrow::Cow, pin::Pin};
 use indexmap::IndexMap;
 
 use crate::{
+    CacheControl, ContainerType, Context, ContextSelectionSet, OutputType, OutputTypeMarker,
+    Positioned, Response, ServerResult, SimpleObject, SubscriptionType, Value,
     futures_util::stream::Stream,
     parser::types::Field,
     registry::{MetaField, MetaType, MetaTypeId, Registry},
-    CacheControl, ContainerType, Context, ContextSelectionSet, OutputType, OutputTypeMarker,
-    Positioned, Response, ServerResult, SimpleObject, SubscriptionType, Value,
 };
 
 fn extend_fields(

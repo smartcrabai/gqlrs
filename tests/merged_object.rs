@@ -713,7 +713,8 @@ mod issue_1647 {
 }
 
 /// Regression test for https://github.com/async-graphql/async-graphql/issues/1316
-/// Duplicate field names across members of a MergedObject should produce an error.
+/// Duplicate field names across members of a MergedObject should produce an
+/// error.
 #[test]
 #[should_panic(expected = "Field `a` is defined multiple times in MergedObject")]
 fn test_merged_object_duplicate_fields() {
@@ -743,7 +744,8 @@ fn test_merged_object_duplicate_fields() {
 }
 
 /// Regression test for https://github.com/async-graphql/async-graphql/issues/1316
-/// Duplicate field names across members of a MergedSubscription should produce an error.
+/// Duplicate field names across members of a MergedSubscription should produce
+/// an error.
 #[test]
 #[should_panic(expected = "Field `events` is defined multiple times in MergedSubscription")]
 fn test_merged_subscription_duplicate_fields() {
