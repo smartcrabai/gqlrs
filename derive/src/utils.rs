@@ -278,23 +278,30 @@ pub fn visible_fn(visible: &Option<Visible>) -> TokenStream {
     }
 }
 
-pub fn parse_complexity_expr(expr: Expr) -> GeneratorResult<(HashSet<String>, Expr)> {
-    #[derive(Default)]
-    struct VisitComplexityExpr {
+pub fn parse_complexity_expr(
+    expr: Expr,
+    arg_names: &HashSet<String>,
+) -> GeneratorResult<(HashSet<String>, Expr)> {
+    struct VisitComplexityExpr<'a> {
         variables: HashSet<String>,
+        arg_names: &'a HashSet<String>,
     }
 
-    impl<'a> Visit<'a> for VisitComplexityExpr {
+    impl<'a, 'b> Visit<'a> for VisitComplexityExpr<'b> {
         fn visit_expr_path(&mut self, i: &'a ExprPath) {
-            if let Some(ident) = i.path.get_ident()
-                && ident != "child_complexity"
-            {
-                self.variables.insert(ident.to_string());
+            if let Some(ident) = i.path.get_ident() {
+                let name = ident.to_string();
+                if name != "child_complexity" && self.arg_names.contains(&name) {
+                    self.variables.insert(name);
+                }
             }
         }
     }
 
-    let mut visit = VisitComplexityExpr::default();
+    let mut visit = VisitComplexityExpr {
+        arg_names,
+        variables: HashSet::new(),
+    };
     visit.visit_expr(&expr);
     Ok((visit.variables, expr))
 }

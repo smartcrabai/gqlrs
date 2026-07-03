@@ -407,7 +407,11 @@ pub fn generate(
             let visible = visible_fn(&method_args.visible);
 
             let complexity = if let Some(complexity) = &method_args.complexity {
-                let (variables, expr) = parse_complexity_expr(complexity.clone())?;
+                let arg_names: ::std::collections::HashSet<String> = args
+                    .iter()
+                    .map(|(pat_ident, _, _)| pat_ident.ident.to_string())
+                    .collect();
+                let (variables, expr) = parse_complexity_expr(complexity.clone(), &arg_names)?;
                 let mut parse_args = Vec::new();
                 for variable in variables {
                     if let Some((
