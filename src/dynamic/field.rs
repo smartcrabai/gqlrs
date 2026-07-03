@@ -2,6 +2,7 @@ use std::{
     any::Any,
     borrow::Cow,
     fmt::{self, Debug},
+    future::IntoFuture,
     ops::Deref,
 };
 
@@ -313,6 +314,34 @@ impl<'a> FieldFuture<'a> {
     /// Create a `FieldFuture` from a `Value`
     pub fn from_value(value: Option<Value>) -> Self {
         FieldFuture::Value(value.map(FieldValue::from))
+    }
+}
+
+impl<'a> IntoFuture for FieldFuture<'a> {
+    type Output = Result<Option<FieldValue<'a>>>;
+    type IntoFuture = BoxFuture<'a, Result<Option<FieldValue<'a>>>>;
+
+    /// Convert `FieldFuture` into a future that can be awaited.
+    ///
+    /// This allows external code (e.g., extension helpers) to wrap and
+    /// conditionally execute a `FieldFuture`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gqlrs::dynamic::*;
+    /// use gqlrs::Value;
+    ///
+    /// let field_future = FieldFuture::new(async move { Ok(Some(Value::from(42))) });
+    ///
+    /// // In an extension or wrapper, you can now await a FieldFuture:
+    /// // let result = field_future.await?;
+    /// ```
+    fn into_future(self) -> Self::IntoFuture {
+        match self {
+            FieldFuture::Value(value) => Box::pin(async move { Ok(value) }),
+            FieldFuture::Future(fut) => fut,
+        }
     }
 }
 

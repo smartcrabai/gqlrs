@@ -141,4 +141,24 @@ mod tests {
 
         assert_eq!(sdl, expected);
     }
+
+    #[tokio::test]
+    async fn field_future_from_future_can_be_awaited() {
+        let value = FieldFuture::new(async { Ok(Some(Value::from(42))) })
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(value.try_to_value().unwrap(), &Value::from(42));
+    }
+
+    #[tokio::test]
+    async fn field_future_from_value_can_be_awaited() {
+        let value = FieldFuture::from_value(Some(Value::from(42)))
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(value.try_to_value().unwrap(), &Value::from(42));
+    }
 }
