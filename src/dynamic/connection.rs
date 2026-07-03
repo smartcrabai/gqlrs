@@ -1,10 +1,10 @@
-use crate::Value;
-
 use super::{Field, FieldFuture, FieldValue, Object, TypeRef};
+use crate::Value;
 
 /// Information about pagination in a connection.
 ///
-/// This is the dynamic-schema equivalent of [`crate::types::connection::PageInfo`].
+/// This is the dynamic-schema equivalent of
+/// [`crate::types::connection::PageInfo`].
 #[derive(Debug, Clone)]
 pub struct DynamicPageInfo {
     /// When paginating backwards, are there more items?
@@ -110,12 +110,13 @@ impl DynamicEdge {
 
 /// A connection result containing edges and page information.
 ///
-/// This is the dynamic-schema equivalent of [`crate::types::connection::Connection`].
+/// This is the dynamic-schema equivalent of
+/// [`crate::types::connection::Connection`].
 ///
 /// # Examples
 ///
 /// ```
-/// use gqlrs::{dynamic::*, Value};
+/// use gqlrs::{Value, dynamic::*};
 ///
 /// // Build a connection result.
 /// let mut conn = DynamicConnection::new(false, true);
@@ -210,12 +211,13 @@ impl DynamicConnection {
 ///
 /// By default the connection type is named `<node_type_name>Connection` and
 /// the edge type is `<node_type_name>Edge`. You can override these with
-/// [`connection_name`](Self::connection_name) and [`edge_name`](Self::edge_name).
+/// [`connection_name`](Self::connection_name) and
+/// [`edge_name`](Self::edge_name).
 ///
 /// # Examples
 ///
 /// ```no_run
-/// use gqlrs::{dynamic::*, Value};
+/// use gqlrs::{Value, dynamic::*};
 ///
 /// // Define the node type. The node field resolver receives the `Value`
 /// // stored in `DynamicEdge::node` as its parent value.
