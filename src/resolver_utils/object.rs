@@ -2,7 +2,7 @@ use std::{future::Future, pin::Pin};
 
 use indexmap::IndexMap;
 
-use crate::{Context, Error, Name, OutputType, ServerError, ServerResult, Value};
+use crate::{Context, ContextBase, Error, Name, OutputType, ServerError, ServerResult, Value};
 
 /// Helper used by proc-macro-generated object resolvers to reduce emitted code.
 #[doc(hidden)]
@@ -15,6 +15,7 @@ use crate::{Context, Error, Name, OutputType, ServerError, ServerResult, Value};
 pub fn resolve_field_async<'a, T, E, F>(
     ctx: &'a Context<'a>,
     fut: F,
+    nullable: bool,
 ) -> Pin<Box<dyn Future<Output = ServerResult<Option<Value>>> + Send + 'a>>
 where
     T: OutputType + Send,
@@ -22,16 +23,39 @@ where
     F: Future<Output = Result<T, E>> + Send + 'a,
 {
     Box::pin(async move {
-        let obj: T = fut.await.map_err(|err| {
-            let err = ::std::convert::Into::<Error>::into(err).into_server_error(ctx.item.pos);
-            ctx.set_error_path(err)
-        })?;
-
-        let ctx_obj = ctx.with_selection_set(&ctx.item.node.selection_set);
-        OutputType::resolve(&obj, &ctx_obj, ctx.item)
-            .await
-            .map(Option::Some)
+        match fut.await {
+            Ok(obj) => {
+                let ctx_obj = ctx.with_selection_set(&ctx.item.node.selection_set);
+                match OutputType::resolve(&obj, &ctx_obj, ctx.item).await {
+                    Ok(value) => Ok(Some(value)),
+                    Err(err) if nullable => {
+                        ctx.add_error(set_error_path_if_empty(ctx, err));
+                        Ok(Some(Value::Null))
+                    }
+                    Err(err) => Err(err),
+                }
+            }
+            Err(err) => {
+                let err = ::std::convert::Into::<Error>::into(err).into_server_error(ctx.item.pos);
+                let err = ctx.set_error_path(err);
+                if nullable {
+                    ctx.add_error(err);
+                    Ok(Some(Value::Null))
+                } else {
+                    Err(err)
+                }
+            }
+        }
     })
+}
+
+#[doc(hidden)]
+pub fn set_error_path_if_empty<T>(ctx: &ContextBase<'_, T>, err: ServerError) -> ServerError {
+    if err.path.is_empty() {
+        ctx.set_error_path(err)
+    } else {
+        err
+    }
 }
 
 /// Helper used by proc-macro-generated object resolvers to parse entity params.
@@ -80,4 +104,26 @@ pub fn resolve_simple_field_value<'a, T: OutputType + ?Sized + 'a>(
         .map(Option::Some)
         .map_err(|err| ctx.set_error_path(err))
     })
+}
+
+/// Resolve a nullable field value, recording any resolver error and returning
+/// `Value::Null` instead of propagating it past this field.
+#[doc(hidden)]
+pub async fn resolve_nullable_field_value<T: OutputType + ?Sized>(
+    ctx: &Context<'_>,
+    value: &T,
+) -> ServerResult<Option<Value>> {
+    match OutputType::resolve(
+        value,
+        &ctx.with_selection_set(&ctx.item.node.selection_set),
+        ctx.item,
+    )
+    .await
+    {
+        Ok(value) => Ok(Some(value)),
+        Err(err) => {
+            ctx.add_error(set_error_path_if_empty(ctx, err));
+            Ok(Some(Value::Null))
+        }
+    }
 }

@@ -14,7 +14,8 @@ use crate::{
     utils::{
         GeneratorResult, extract_input_args, gen_boxed_trait, gen_deprecation, gen_directive_calls,
         generate_default, generate_guards, get_cfg_attrs, get_crate_path, get_rustdoc,
-        get_type_path_and_name, nullable_type_check, parse_complexity_expr, parse_graphql_attrs,
+        get_type_path_and_name, nullable_output_type_create_type_info, nullable_type_check,
+        output_type_create_type_info, parse_complexity_expr, parse_graphql_attrs,
         remove_graphql_attrs, unwrap_type, visible_fn,
     },
 };
@@ -404,6 +405,20 @@ pub fn generate(
                 }
             };
             let schema_ty = ty.value_type();
+            let field_type = match &ty {
+                OutputType::Value(_) => output_type_create_type_info(&crate_name, &schema_ty),
+                OutputType::Result(_) => {
+                    nullable_output_type_create_type_info(&crate_name, &schema_ty)
+                }
+            };
+            let field_nullable = match &ty {
+                OutputType::Value(_) => nullable_type_check(&crate_name, &schema_ty),
+                OutputType::Result(_) => quote!(true),
+            };
+            let result_nullable = match &ty {
+                OutputType::Value(_) => quote!(false),
+                OutputType::Result(_) => quote!(true),
+            };
             let visible = visible_fn(&method_args.visible);
 
             let complexity = if let Some(complexity) = &method_args.complexity {
@@ -500,7 +515,7 @@ pub fn generate(
             }
             if has_semantic_non_null {
                 field_sets.push(quote! {
-                    field.semantic_nullability = match <#schema_ty as #crate_name::OutputType>::semantic_nullability() {
+                    field.semantic_nullability = match <#schema_ty as #crate_name::OutputTypeMarker>::semantic_nullability() {
                         #crate_name::registry::SemanticNullability::None => #crate_name::registry::SemanticNullability::OutNonNull,
                         v => v,
                     };
@@ -512,7 +527,7 @@ pub fn generate(
                 {
                     let mut field = #crate_name::registry::MetaField::new(
                         ::std::string::ToString::to_string(#field_name),
-                        <#schema_ty as #crate_name::OutputTypeMarker>::create_type_info(registry),
+                        #field_type,
                     );
                     #(#schema_args)*
                     #(#field_sets)*
@@ -553,11 +568,15 @@ pub fn generate(
                     }
                     OutputType::Result(_) => {
                         quote! {
-                            self.#field_ident(ctx, #(#use_params),*)
-                                .map_err(|err| {
-                                    ::std::convert::Into::<#crate_name::Error>::into(err)
-                                        .into_server_error(ctx.item.pos)
-                                })
+                            match self.#field_ident(ctx, #(#use_params),*) {
+                                ::std::result::Result::Ok(value) => ::std::result::Result::Ok(value),
+                                ::std::result::Result::Err(err) => {
+                                    let err = ::std::convert::Into::<#crate_name::Error>::into(err)
+                                        .into_server_error(ctx.item.pos);
+                                    ctx.add_error(ctx.set_error_path(err));
+                                    return ::std::result::Result::Ok(::std::option::Option::Some(#crate_name::Value::Null));
+                                }
+                            }
                         }
                     }
                 }
@@ -568,10 +587,9 @@ pub fn generate(
             };
             let guard = match method_args.guard.as_ref().or(object_args.guard.as_ref()) {
                 Some(code) => {
-                    let nullable = nullable_type_check(&crate_name, &schema_ty);
                     let on_error = if is_async {
                         quote! {
-                            if #nullable {
+                            if #field_nullable {
                                 ctx.add_error(ctx.set_error_path(err));
                                 return ::std::result::Result::Ok(::std::option::Option::None);
                             }
@@ -579,7 +597,7 @@ pub fn generate(
                         }
                     } else {
                         quote! {
-                            if #nullable {
+                            if #field_nullable {
                                 ctx.add_error(ctx.set_error_path(err));
                                 return ::std::result::Result::Ok(
                                     ::std::option::Option::Some(#crate_name::Value::Null),
@@ -600,24 +618,49 @@ pub fn generate(
                         #guard
                         #resolve_obj.map(::std::option::Option::Some)
                     };
-                    let obj = match f.await.map_err(|err| ctx.set_error_path(err))? {
-                        ::std::option::Option::Some(obj) => obj,
-                        ::std::option::Option::None => {
+                    let obj = match f.await {
+                        ::std::result::Result::Ok(::std::option::Option::Some(obj)) => obj,
+                        ::std::result::Result::Ok(::std::option::Option::None) => {
                             return ::std::result::Result::Ok(
                                 ::std::option::Option::Some(#crate_name::Value::Null),
                             );
                         }
+                        ::std::result::Result::Err(err) => {
+                            let err = ctx.set_error_path(err);
+                            if #result_nullable {
+                                ctx.add_error(err);
+                                return ::std::result::Result::Ok(
+                                    ::std::option::Option::Some(#crate_name::Value::Null),
+                                );
+                            }
+                            return ::std::result::Result::Err(err);
+                        }
                     };
-                    let ctx_obj = ctx.with_selection_set(&ctx.item.node.selection_set);
-                    return #crate_name::OutputType::resolve(&obj, &ctx_obj, ctx.item)
-                        .await
-                        .map(::std::option::Option::Some);
+                    if #result_nullable {
+                        return #crate_name::resolver_utils::resolve_nullable_field_value(ctx, &obj).await;
+                    }
+                    return #crate_name::resolver_utils::resolve_simple_field_value(ctx, &obj).await;
                 }
             } else {
                 quote! {
                     #(#get_params)*
                     #guard
-                    let obj = #resolve_obj.map_err(|err| ctx.set_error_path(err))?;
+                    let obj = match #resolve_obj {
+                        ::std::result::Result::Ok(obj) => obj,
+                        ::std::result::Result::Err(err) => {
+                            let err = ctx.set_error_path(err);
+                            if #result_nullable {
+                                ctx.add_error(err);
+                                return ::std::result::Result::Ok(
+                                    ::std::option::Option::Some(#crate_name::Value::Null),
+                                );
+                            }
+                            return ::std::result::Result::Err(err);
+                        }
+                    };
+                    if #result_nullable {
+                        return #crate_name::resolver_utils::resolve_nullable_field_value(ctx, &obj).await;
+                    }
                     return #crate_name::resolver_utils::resolve_simple_field_value(ctx, &obj).await;
                 }
             };

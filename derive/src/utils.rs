@@ -75,6 +75,24 @@ pub fn nullable_type_check(crate_name: &syn::Path, ty: &Type) -> TokenStream {
     }
 }
 
+pub fn output_type_create_type_info(crate_name: &syn::Path, ty: &Type) -> TokenStream {
+    quote! {
+        <#ty as #crate_name::OutputTypeMarker>::create_type_info(registry)
+    }
+}
+
+pub fn nullable_output_type_create_type_info(crate_name: &syn::Path, ty: &Type) -> TokenStream {
+    let create_type_info = output_type_create_type_info(crate_name, ty);
+    quote! {{
+        let ty = #create_type_info;
+        if let ::std::option::Option::Some(ty) = ty.strip_suffix('!') {
+            ::std::string::ToString::to_string(ty)
+        } else {
+            ty
+        }
+    }}
+}
+
 fn is_output_type_nullable(ty: &Type) -> bool {
     match ty {
         Type::Group(ty) => is_output_type_nullable(&ty.elem),
@@ -88,7 +106,11 @@ fn is_output_type_nullable(ty: &Type) -> bool {
             if ident == "Option" || ident == "Weak" {
                 return true;
             }
-            if matches!(ident.as_str(), "Arc" | "Box" | "Cow" | "Result") {
+            // Result<T, E> is always nullable: errors become null + error in response
+            if ident == "Result" || ident == "FieldResult" {
+                return true;
+            }
+            if matches!(ident.as_str(), "Arc" | "Box" | "Cow") {
                 return first_generic_type(&segment.arguments).is_some_and(is_output_type_nullable);
             }
             false

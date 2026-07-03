@@ -322,7 +322,7 @@ pub fn generate(
                     .push(quote!(field.directive_invocations = ::std::vec![ #(#directives),* ];));
             }
             if has_semantic_non_null {
-                field_sets.push(quote!(field.semantic_nullability = <<#stream_ty as #crate_name::futures_util::stream::Stream>::Item as #crate_name::OutputType>::semantic_nullability();));
+                field_sets.push(quote!(field.semantic_nullability = <<#stream_ty as #crate_name::futures_util::stream::Stream>::Item as #crate_name::OutputTypeMarker>::semantic_nullability();));
             }
 
             schema_fields.push(quote! {

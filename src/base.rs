@@ -166,7 +166,6 @@ impl<T: OutputTypeMarker + Sync, E: Into<Error> + Send + Sync + Clone> OutputTyp
         T::type_name()
     }
 
-    #[cfg(feature = "nullable-result")]
     fn qualified_type_name() -> String {
         T::type_name().to_string()
     }
@@ -181,12 +180,8 @@ impl<T: OutputTypeMarker + Sync, E: Into<Error> + Send + Sync + Clone> OutputTyp
     }
 
     fn create_type_info(registry: &mut Registry) -> String {
-        let ty = T::create_type_info(registry);
-        if cfg!(feature = "nullable-result") {
-            T::type_name().to_string()
-        } else {
-            ty
-        }
+        T::create_type_info(registry);
+        T::type_name().to_string()
     }
 }
 
@@ -198,19 +193,17 @@ impl<T: OutputType + Sync, E: Into<Error> + Send + Sync + Clone> OutputType for 
         field: &Positioned<Field>,
     ) -> ServerResult<Value> {
         match self {
-            Ok(value) => value.resolve(ctx, field).await,
-            Err(err) => {
-                let server_error =
-                    ctx.set_error_path(err.clone().into().into_server_error(field.pos));
-                #[cfg(feature = "nullable-result")]
-                {
-                    ctx.add_error(server_error);
+            Ok(value) => match OutputType::resolve(value, ctx, field).await {
+                Ok(value) => Ok(value),
+                Err(err) => {
+                    ctx.add_error(crate::resolver_utils::set_error_path_if_empty(ctx, err));
                     Ok(Value::Null)
                 }
-                #[cfg(not(feature = "nullable-result"))]
-                {
-                    Err(server_error)
-                }
+            },
+            Err(err) => {
+                let err = err.clone().into().into_server_error(field.pos);
+                ctx.add_error(ctx.set_error_path(err));
+                Ok(Value::Null)
             }
         }
     }
