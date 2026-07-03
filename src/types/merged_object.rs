@@ -3,12 +3,31 @@ use std::{borrow::Cow, pin::Pin};
 use indexmap::IndexMap;
 
 use crate::{
-    CacheControl, ContainerType, Context, ContextSelectionSet, OutputType, OutputTypeMarker,
-    Positioned, Response, ServerResult, SimpleObject, SubscriptionType, Value,
     futures_util::stream::Stream,
     parser::types::Field,
-    registry::{MetaType, MetaTypeId, Registry},
+    registry::{MetaField, MetaType, MetaTypeId, Registry},
+    CacheControl, ContainerType, Context, ContextSelectionSet, OutputType, OutputTypeMarker,
+    Positioned, Response, ServerResult, SimpleObject, SubscriptionType, Value,
 };
+
+fn extend_fields(
+    fields: &mut IndexMap<String, MetaField>,
+    new_fields: IndexMap<String, MetaField>,
+    merged_type: &str,
+    type_name: impl Fn() -> Cow<'static, str>,
+) {
+    for (name, field) in new_fields {
+        if fields.contains_key(&name) {
+            panic!(
+                "Field `{}` is defined multiple times in {} `{}`",
+                name,
+                merged_type,
+                type_name()
+            );
+        }
+        fields.insert(name, field);
+    }
+}
 
 #[doc(hidden)]
 pub struct MergedObject<A, B>(pub A, pub B);
@@ -56,7 +75,7 @@ where
                 ..
             } = registry.create_fake_output_type::<B>()
             {
-                fields.extend(b_fields);
+                extend_fields(&mut fields, b_fields, "MergedObject", Self::type_name);
                 cc = cc.merge(&b_cc);
             }
 
@@ -66,7 +85,7 @@ where
                 ..
             } = registry.create_fake_output_type::<A>()
             {
-                fields.extend(a_fields);
+                extend_fields(&mut fields, a_fields, "MergedObject", Self::type_name);
                 cc = cc.merge(&a_cc);
             }
 
@@ -127,7 +146,7 @@ where
                 ..
             } = registry.create_fake_subscription_type::<B>()
             {
-                fields.extend(b_fields);
+                extend_fields(&mut fields, b_fields, "MergedSubscription", Self::type_name);
                 cc = cc.merge(&b_cc);
             }
 
@@ -137,7 +156,7 @@ where
                 ..
             } = registry.create_fake_subscription_type::<A>()
             {
-                fields.extend(a_fields);
+                extend_fields(&mut fields, a_fields, "MergedSubscription", Self::type_name);
                 cc = cc.merge(&a_cc);
             }
 

@@ -711,3 +711,73 @@ mod issue_1647 {
         );
     }
 }
+
+/// Regression test for https://github.com/async-graphql/async-graphql/issues/1316
+/// Duplicate field names across members of a MergedObject should produce an error.
+#[test]
+#[should_panic(expected = "Field `a` is defined multiple times in MergedObject")]
+fn test_merged_object_duplicate_fields() {
+    #[derive(SimpleObject, Default)]
+    struct ObjA {
+        a: i32,
+    }
+
+    #[derive(SimpleObject, Default)]
+    struct ObjB {
+        a: i32,
+    }
+
+    #[derive(MergedObject, Default)]
+    struct Merged(ObjA, ObjB);
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn merged(&self) -> Merged {
+            Merged::default()
+        }
+    }
+
+    Schema::new(Query, EmptyMutation, EmptySubscription);
+}
+
+/// Regression test for https://github.com/async-graphql/async-graphql/issues/1316
+/// Duplicate field names across members of a MergedSubscription should produce an error.
+#[test]
+#[should_panic(expected = "Field `events` is defined multiple times in MergedSubscription")]
+fn test_merged_subscription_duplicate_fields() {
+    #[derive(Default)]
+    struct Sub1;
+
+    #[Subscription]
+    impl Sub1 {
+        async fn events(&self) -> impl Stream<Item = i32> {
+            futures_util::stream::iter(0..10)
+        }
+    }
+
+    #[derive(Default)]
+    struct Sub2;
+
+    #[Subscription]
+    impl Sub2 {
+        async fn events(&self) -> impl Stream<Item = i32> {
+            futures_util::stream::iter(10..20)
+        }
+    }
+
+    #[derive(MergedSubscription, Default)]
+    struct Subscription(Sub1, Sub2);
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn value(&self) -> i32 {
+            10
+        }
+    }
+
+    Schema::new(Query, EmptyMutation, Subscription::default());
+}
