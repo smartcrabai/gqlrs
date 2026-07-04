@@ -1220,6 +1220,70 @@ pub fn generate(
                 };
             }
         }
+    } else if cfg!(feature = "fast-check") {
+        let mut codes = Vec::new();
+
+        codes.push(quote! {
+            #item_impl
+        });
+
+        for concrete in &object_args.concretes {
+            let gql_typename = &concrete.name;
+            let params = &concrete.params.0;
+            let ty = {
+                let s = quote!(#self_ty).to_string();
+                match s.rfind('<') {
+                    Some(pos) => syn::parse_str(&s[..pos]).unwrap(),
+                    None => self_ty.clone(),
+                }
+            };
+            let concrete_type = quote! { #ty<#(#params),*> };
+
+            let def_bounds = if !concrete.bounds.0.is_empty() {
+                let bounds = concrete.bounds.0.iter().map(|b| quote!(#b));
+                Some(quote!(<#(#bounds),*>))
+            } else {
+                None
+            };
+
+            codes.push(quote! {
+                #[allow(clippy::all, clippy::pedantic)]
+                #boxed_trait
+                impl #def_bounds #crate_name::resolver_utils::ContainerType for #concrete_type {
+                    async fn resolve_field(&self, _ctx: &#crate_name::Context<'_>) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
+                        ::std::result::Result::Ok(::std::option::Option::None)
+                    }
+
+                    async fn find_entity(&self, _ctx: &#crate_name::Context<'_>, _params: &#crate_name::Value) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
+                        ::std::result::Result::Ok(::std::option::Option::None)
+                    }
+                }
+
+                #[allow(clippy::all, clippy::pedantic)]
+                #boxed_trait
+                impl #def_bounds #crate_name::OutputType for #concrete_type {
+                    fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
+                        ::std::borrow::Cow::Borrowed(#gql_typename)
+                    }
+
+                    fn create_type_info(_registry: &mut #crate_name::registry::Registry) -> ::std::string::String {
+                        ::std::string::String::new()
+                    }
+
+                    async fn resolve(
+                        &self,
+                        _ctx: &#crate_name::ContextSelectionSet<'_>,
+                        _field: &#crate_name::Positioned<#crate_name::parser::types::Field>
+                    ) -> #crate_name::ServerResult<#crate_name::Value> {
+                        ::std::result::Result::Ok(#crate_name::Value::Null)
+                    }
+                }
+
+                impl #def_bounds #crate_name::ObjectType for #concrete_type {}
+            });
+        }
+
+        quote!(#(#codes)*)
     } else {
         let mut codes = Vec::new();
 

@@ -789,86 +789,155 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
             None
         };
 
-        code.push(quote! {
-            impl #impl_generics #ident #ty_generics #where_clause {
-                #(#getters)*
-
-                fn __internal_create_type_info_simple_object(
-                    registry: &mut #crate_name::registry::Registry,
-                    name: &str,
-                    complex_fields: #crate_name::indexmap::IndexMap<::std::string::String, #crate_name::registry::MetaField>,
-                ) -> ::std::string::String where Self: #crate_name::OutputTypeMarker {
-                    registry.create_output_type::<Self, _>(#crate_name::registry::MetaTypeId::Object, |registry| {
-                        #crate_name::registry::ObjectBuilder::new(
-                            ::std::string::ToString::to_string(name),
-                            {
-                                let mut fields = #crate_name::indexmap::IndexMap::with_capacity(#field_count);
-                                #(#schema_fields)*
-                                ::std::iter::Extend::extend(&mut fields, complex_fields.clone());
-                                fields
-                            },
-                        )
-                        #(#object_builder_concretes)*
-                        .build()
-                    })
+        if cfg!(feature = "fast-check") {
+            code.push(quote! {
+                #[allow(clippy::all, clippy::pedantic)]
+                impl #impl_generics #ident #ty_generics #where_clause {
+                    #(#getters)*
                 }
+            });
 
-                async fn __internal_resolve_field(&self, ctx: &#crate_name::Context<'_>) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> where Self: #crate_name::ContainerType {
-                    #(#resolvers)*
-                    ::std::result::Result::Ok(::std::option::Option::None)
-                }
+            for concrete in &object_args.concretes {
+                let gql_typename = &concrete.name;
+                let params = &concrete.params.0;
+                let concrete_type = quote! { #ident<#type_lifetimes #(#params),*> };
+
+                let def_bounds = if !lifetimes.is_empty() || !concrete.bounds.0.is_empty() {
+                    let bounds = lifetimes
+                        .iter()
+                        .map(|l| quote!(#l))
+                        .chain(concrete.bounds.0.iter().map(|b| quote!(#b)));
+                    Some(quote!(<#(#bounds),*>))
+                } else {
+                    None
+                };
+
+                let expanded = quote! {
+                    #[allow(clippy::all, clippy::pedantic)]
+                    #boxed_trait
+                    impl #def_bounds #crate_name::resolver_utils::ContainerType for #concrete_type {
+                        async fn resolve_field(&self, _ctx: &#crate_name::Context<'_>) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
+                            ::std::result::Result::Ok(::std::option::Option::None)
+                        }
+
+                        async fn find_entity(&self, _ctx: &#crate_name::Context<'_>, _params: &#crate_name::Value) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
+                            ::std::result::Result::Ok(::std::option::Option::None)
+                        }
+
+                        async fn find_entities(
+                            &self,
+                            _ctx: &#crate_name::Context<'_>,
+                            _representations: &[#crate_name::Value],
+                        ) -> #crate_name::ServerResult<::std::vec::Vec<::std::option::Option<#crate_name::Value>>> {
+                            ::std::result::Result::Ok(::std::vec::Vec::new())
+                        }
+                    }
+
+                    #[allow(clippy::all, clippy::pedantic)]
+                    impl #def_bounds #crate_name::OutputTypeMarker for #concrete_type {
+                        fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
+                            ::std::borrow::Cow::Borrowed(#gql_typename)
+                        }
+
+                        fn create_type_info(_registry: &mut #crate_name::registry::Registry) -> ::std::string::String {
+                            ::std::string::String::new()
+                        }
+                    }
+
+                    #[allow(clippy::all, clippy::pedantic)]
+                    #boxed_trait
+                    impl #def_bounds #crate_name::OutputType for #concrete_type {
+                        async fn resolve(&self, _ctx: &#crate_name::ContextSelectionSet<'_>, _field: &#crate_name::Positioned<#crate_name::parser::types::Field>) -> #crate_name::ServerResult<#crate_name::Value> {
+                            ::std::result::Result::Ok(#crate_name::Value::Null)
+                        }
+                    }
+
+                    impl #def_bounds #crate_name::ObjectType for #concrete_type {}
+                };
+                code.push(expanded);
             }
-        });
+        } else {
+            code.push(quote! {
+                impl #impl_generics #ident #ty_generics #where_clause {
+                    #(#getters)*
 
-        for concrete in &object_args.concretes {
-            let gql_typename = &concrete.name;
-            let params = &concrete.params.0;
-            let concrete_type = quote! { #ident<#type_lifetimes #(#params),*> };
+                    fn __internal_create_type_info_simple_object(
+                        registry: &mut #crate_name::registry::Registry,
+                        name: &str,
+                        complex_fields: #crate_name::indexmap::IndexMap<::std::string::String, #crate_name::registry::MetaField>,
+                    ) -> ::std::string::String where Self: #crate_name::OutputTypeMarker {
+                        registry.create_output_type::<Self, _>(#crate_name::registry::MetaTypeId::Object, |registry| {
+                            #crate_name::registry::ObjectBuilder::new(
+                                ::std::string::ToString::to_string(name),
+                                {
+                                    let mut fields = #crate_name::indexmap::IndexMap::with_capacity(#field_count);
+                                    #(#schema_fields)*
+                                    ::std::iter::Extend::extend(&mut fields, complex_fields.clone());
+                                    fields
+                                },
+                            )
+                            #(#object_builder_concretes)*
+                            .build()
+                        })
+                    }
 
-            let def_bounds = if !lifetimes.is_empty() || !concrete.bounds.0.is_empty() {
-                let bounds = lifetimes
-                    .iter()
-                    .map(|l| quote!(#l))
-                    .chain(concrete.bounds.0.iter().map(|b| quote!(#b)));
-                Some(quote!(<#(#bounds),*>))
-            } else {
-                None
-            };
-
-            let expanded = quote! {
-                #[allow(clippy::all, clippy::pedantic)]
-                #boxed_trait
-                impl #def_bounds #crate_name::resolver_utils::ContainerType for #concrete_type {
-                    async fn resolve_field(&self, ctx: &#crate_name::Context<'_>) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
-                        #complex_resolver
-                        self.__internal_resolve_field(ctx).await
+                    async fn __internal_resolve_field(&self, ctx: &#crate_name::Context<'_>) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> where Self: #crate_name::ContainerType {
+                        #(#resolvers)*
+                        ::std::result::Result::Ok(::std::option::Option::None)
                     }
                 }
+            });
 
-                #[allow(clippy::all, clippy::pedantic)]
-                impl #def_bounds #crate_name::OutputTypeMarker for #concrete_type {
-                    fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
-                        ::std::borrow::Cow::Borrowed(#gql_typename)
+            for concrete in &object_args.concretes {
+                let gql_typename = &concrete.name;
+                let params = &concrete.params.0;
+                let concrete_type = quote! { #ident<#type_lifetimes #(#params),*> };
+
+                let def_bounds = if !lifetimes.is_empty() || !concrete.bounds.0.is_empty() {
+                    let bounds = lifetimes
+                        .iter()
+                        .map(|l| quote!(#l))
+                        .chain(concrete.bounds.0.iter().map(|b| quote!(#b)));
+                    Some(quote!(<#(#bounds),*>))
+                } else {
+                    None
+                };
+
+                let expanded = quote! {
+                    #[allow(clippy::all, clippy::pedantic)]
+                    #boxed_trait
+                    impl #def_bounds #crate_name::resolver_utils::ContainerType for #concrete_type {
+                        async fn resolve_field(&self, ctx: &#crate_name::Context<'_>) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
+                            #complex_resolver
+                            self.__internal_resolve_field(ctx).await
+                        }
                     }
 
-                    fn create_type_info(registry: &mut #crate_name::registry::Registry) -> ::std::string::String {
-                        let mut fields = #crate_name::indexmap::IndexMap::with_capacity(#field_count);
-                        #concat_complex_fields
-                        Self::__internal_create_type_info_simple_object(registry, #gql_typename, fields)
-                    }
-                }
+                    #[allow(clippy::all, clippy::pedantic)]
+                    impl #def_bounds #crate_name::OutputTypeMarker for #concrete_type {
+                        fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
+                            ::std::borrow::Cow::Borrowed(#gql_typename)
+                        }
 
-                #[allow(clippy::all, clippy::pedantic)]
-                #boxed_trait
-                impl #def_bounds #crate_name::OutputType for #concrete_type {
-                    async fn resolve(&self, ctx: &#crate_name::ContextSelectionSet<'_>, _field: &#crate_name::Positioned<#crate_name::parser::types::Field>) -> #crate_name::ServerResult<#crate_name::Value> {
-                        #resolve_container
+                        fn create_type_info(registry: &mut #crate_name::registry::Registry) -> ::std::string::String {
+                            let mut fields = #crate_name::indexmap::IndexMap::with_capacity(#field_count);
+                            #concat_complex_fields
+                            Self::__internal_create_type_info_simple_object(registry, #gql_typename, fields)
+                        }
                     }
-                }
 
-                impl #def_bounds #crate_name::ObjectType for #concrete_type {}
-            };
-            code.push(expanded);
+                    #[allow(clippy::all, clippy::pedantic)]
+                    #boxed_trait
+                    impl #def_bounds #crate_name::OutputType for #concrete_type {
+                        async fn resolve(&self, ctx: &#crate_name::ContextSelectionSet<'_>, _field: &#crate_name::Positioned<#crate_name::parser::types::Field>) -> #crate_name::ServerResult<#crate_name::Value> {
+                            #resolve_container
+                        }
+                    }
+
+                    impl #def_bounds #crate_name::ObjectType for #concrete_type {}
+                };
+                code.push(expanded);
+            }
         }
 
         quote!(#(#code)*)

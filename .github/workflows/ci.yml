@@ -29,11 +29,15 @@ jobs:
       - name: Extract metadata
         id: meta
         run: |
-          FEATURES=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "gqlrs") | .features | keys | map(select(. != "boxed-trait" and . != "fast-check")) | join(",")')
-          echo "features=$FEATURES" >> "$GITHUB_OUTPUT"
-      - name: Build with all features
-        run: cargo build --all-features
-      - name: Build with all features except boxed-trait and fast-check
+          FEATURES_EXCEPT_FAST_CHECK=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "gqlrs") | .features | keys | map(select(. != "fast-check")) | join(",")')
+          FEATURES_EXCEPT_BOXED_TRAIT_AND_FAST_CHECK=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "gqlrs") | .features | keys | map(select(. != "boxed-trait" and . != "fast-check")) | join(",")')
+          echo "features_except_fast_check=$FEATURES_EXCEPT_FAST_CHECK" >> "$GITHUB_OUTPUT"
+          echo "features=$FEATURES_EXCEPT_BOXED_TRAIT_AND_FAST_CHECK" >> "$GITHUB_OUTPUT"
+      - name: Build with all runtime features
+        run: cargo build --features ${{ steps.meta.outputs.features_except_fast_check }}
+      - name: Check fast-check feature
+        run: cargo check --features fast-check,boxed-trait
+      - name: Build with all runtime features except boxed-trait
         run: cargo build --features ${{ steps.meta.outputs.features }}
       - name: Build
         run: cargo build --workspace --verbose
@@ -62,11 +66,15 @@ jobs:
       - name: Extract metadata
         id: meta
         run: |
-          FEATURES=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "gqlrs") | .features | keys | map(select(. != "boxed-trait" and . != "fast-check")) | join(",")')
-          echo "features=$FEATURES" >> "$GITHUB_OUTPUT"
-      - name: Build with all features
-        run: cargo build --all-features
-      - name: Build with all features except boxed-trait and fast-check
+          FEATURES_EXCEPT_FAST_CHECK=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "gqlrs") | .features | keys | map(select(. != "fast-check")) | join(",")')
+          FEATURES_EXCEPT_BOXED_TRAIT_AND_FAST_CHECK=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "gqlrs") | .features | keys | map(select(. != "boxed-trait" and . != "fast-check")) | join(",")')
+          echo "features_except_fast_check=$FEATURES_EXCEPT_FAST_CHECK" >> "$GITHUB_OUTPUT"
+          echo "features=$FEATURES_EXCEPT_BOXED_TRAIT_AND_FAST_CHECK" >> "$GITHUB_OUTPUT"
+      - name: Build with all runtime features
+        run: cargo build --features ${{ steps.meta.outputs.features_except_fast_check }}
+      - name: Check fast-check feature
+        run: cargo check --features fast-check,boxed-trait
+      - name: Build with all runtime features except boxed-trait
         run: cargo build --features ${{ steps.meta.outputs.features }}
       - name: Build
         run: cargo build --workspace --verbose
