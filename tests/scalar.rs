@@ -11,12 +11,27 @@ mod test_mod {
     }
 }
 
+mod generic_mod {
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Deserialize)]
+    pub struct Bar {
+        value: i32,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    pub struct Foo<T> {
+        value: T,
+    }
+}
+
 scalar!(
     test_mod::MyValue,
     "MV",
     "DESC",
     "https://tools.ietf.org/html/rfc4122"
 );
+scalar!(generic_mod::Foo<generic_mod::Bar>);
 
 #[tokio::test]
 pub async fn test_scalar_macro() {
@@ -43,6 +58,42 @@ pub async fn test_scalar_macro() {
                 "name": "MV",
                 "description": "DESC",
                 "specifiedByURL": "https://tools.ietf.org/html/rfc4122",
+            }
+        })
+    );
+}
+
+#[tokio::test]
+pub async fn test_scalar_macro_default_name_for_generic_type() {
+    type GenericScalar = generic_mod::Foo<generic_mod::Bar>;
+
+    assert_eq!(<GenericScalar as InputType>::type_name().as_ref(), "FooBar");
+    assert_eq!(
+        <GenericScalar as OutputType>::type_name().as_ref(),
+        "FooBar"
+    );
+
+    struct Query;
+
+    #[Object]
+    #[allow(unreachable_code)]
+    impl Query {
+        async fn value(&self) -> GenericScalar {
+            todo!()
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    assert_eq!(
+        schema
+            .execute(r#"{ __type(name:"FooBar") { name } }"#)
+            .await
+            .into_result()
+            .unwrap()
+            .data,
+        value!({
+            "__type": {
+                "name": "FooBar",
             }
         })
     );

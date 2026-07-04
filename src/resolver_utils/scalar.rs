@@ -43,6 +43,74 @@ pub trait ScalarType: Sized + Send {
     fn to_value(&self) -> Value;
 }
 
+#[doc(hidden)]
+pub fn default_scalar_name(type_name: &'static str) -> ::std::borrow::Cow<'static, str> {
+    let mut name = ::std::string::String::new();
+    let bytes = type_name.as_bytes();
+    let mut pos = 0;
+
+    while pos < bytes.len() {
+        if is_scalar_name_token_char(bytes[pos]) {
+            let start = pos;
+            pos += 1;
+            while pos < bytes.len() && is_scalar_name_token_char(bytes[pos]) {
+                pos += 1;
+            }
+
+            let token = &type_name[start..pos];
+            let mut next = pos;
+            while next < bytes.len() && bytes[next].is_ascii_whitespace() {
+                next += 1;
+            }
+
+            if next + 1 < bytes.len() && bytes[next] == b':' && bytes[next + 1] == b':' {
+                continue;
+            }
+
+            if is_ignored_scalar_name_token(token) {
+                continue;
+            }
+
+            if name.is_empty() && !is_graphql_name_start(bytes[start]) {
+                name.push('_');
+            }
+            name.push_str(token);
+        } else {
+            pos += 1;
+        }
+    }
+
+    if name.is_empty() {
+        name.push('_');
+    }
+
+    if name == type_name && is_valid_graphql_name(type_name) {
+        ::std::borrow::Cow::Borrowed(type_name)
+    } else {
+        ::std::borrow::Cow::Owned(name)
+    }
+}
+
+fn is_scalar_name_token_char(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_'
+}
+
+fn is_graphql_name_start(byte: u8) -> bool {
+    byte.is_ascii_alphabetic() || byte == b'_'
+}
+
+fn is_valid_graphql_name(name: &str) -> bool {
+    let mut bytes = name.bytes();
+    let Some(first) = bytes.next() else {
+        return false;
+    };
+    is_graphql_name_start(first) && bytes.all(is_scalar_name_token_char)
+}
+
+fn is_ignored_scalar_name_token(token: &str) -> bool {
+    matches!(token, "as" | "const" | "dyn" | "for" | "impl" | "mut")
+}
+
 /// Define a scalar
 ///
 /// If your type implemented `serde::Serialize` and `serde::Deserialize`, then
@@ -100,7 +168,7 @@ macro_rules! scalar {
     ($ty:ty, $name:literal, $desc:literal, $specified_by_url:literal) => {
         $crate::scalar_internal!(
             $ty,
-            $name,
+            ::std::borrow::Cow::Borrowed($name),
             ::std::option::Option::Some(::std::string::ToString::to_string($desc)),
             ::std::option::Option::Some(::std::string::ToString::to_string($specified_by_url))
         );
@@ -109,7 +177,7 @@ macro_rules! scalar {
     ($ty:ty, $name:literal, $desc:literal) => {
         $crate::scalar_internal!(
             $ty,
-            $name,
+            ::std::borrow::Cow::Borrowed($name),
             ::std::option::Option::Some(::std::string::ToString::to_string($desc)),
             ::std::option::Option::None
         );
@@ -118,7 +186,7 @@ macro_rules! scalar {
     ($ty:ty, $name:literal) => {
         $crate::scalar_internal!(
             $ty,
-            $name,
+            ::std::borrow::Cow::Borrowed($name),
             ::std::option::Option::None,
             ::std::option::Option::None
         );
@@ -127,7 +195,7 @@ macro_rules! scalar {
     ($ty:ty) => {
         $crate::scalar_internal!(
             $ty,
-            ::std::stringify!($ty),
+            $crate::resolver_utils::default_scalar_name(::std::stringify!($ty)),
             ::std::option::Option::None,
             ::std::option::Option::None
         );
@@ -152,7 +220,7 @@ macro_rules! scalar_internal {
             type RawValueType = Self;
 
             fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
-                ::std::borrow::Cow::Borrowed($name)
+                $name
             }
 
             fn create_type_info(
@@ -160,7 +228,7 @@ macro_rules! scalar_internal {
             ) -> ::std::string::String {
                 registry.create_input_type::<$ty, _>($crate::registry::MetaTypeId::Scalar, |_| {
                     $crate::registry::MetaType::Scalar {
-                        name: ::std::borrow::ToOwned::to_owned($name),
+                        name: ::std::borrow::Cow::into_owned($name),
                         description: $desc,
                         is_valid: ::std::option::Option::Some(::std::sync::Arc::new(|value| {
                             <$ty as $crate::ScalarType>::is_valid(value)
@@ -201,7 +269,7 @@ macro_rules! scalar_internal_output {
     ($ty:ty, $name:expr, $desc:expr, $specified_by_url:expr) => {
         impl $crate::OutputTypeMarker for $ty {
             fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
-                ::std::borrow::Cow::Borrowed($name)
+                $name
             }
 
             fn create_type_info(
@@ -209,7 +277,7 @@ macro_rules! scalar_internal_output {
             ) -> ::std::string::String {
                 registry.create_output_type::<$ty, _>($crate::registry::MetaTypeId::Scalar, |_| {
                     $crate::registry::MetaType::Scalar {
-                        name: ::std::borrow::ToOwned::to_owned($name),
+                        name: ::std::borrow::Cow::into_owned($name),
                         description: $desc,
                         is_valid: ::std::option::Option::Some(::std::sync::Arc::new(|value| {
                             <$ty as $crate::ScalarType>::is_valid(value)
@@ -245,7 +313,7 @@ macro_rules! scalar_internal_output {
     ($ty:ty, $name:expr, $desc:expr, $specified_by_url:expr) => {
         impl $crate::OutputTypeMarker for $ty {
             fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
-                ::std::borrow::Cow::Borrowed($name)
+                $name
             }
 
             fn create_type_info(
@@ -253,7 +321,7 @@ macro_rules! scalar_internal_output {
             ) -> ::std::string::String {
                 registry.create_output_type::<$ty, _>($crate::registry::MetaTypeId::Scalar, |_| {
                     $crate::registry::MetaType::Scalar {
-                        name: ::std::borrow::ToOwned::to_owned($name),
+                        name: ::std::borrow::Cow::into_owned($name),
                         description: $desc,
                         is_valid: ::std::option::Option::Some(::std::sync::Arc::new(|value| {
                             <$ty as $crate::ScalarType>::is_valid(value)
