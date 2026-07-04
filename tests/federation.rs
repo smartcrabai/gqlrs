@@ -1078,6 +1078,146 @@ pub async fn test_interface_object() {
     assert!(schema_sdl.contains("type MyInterfaceObject2 @key(fields: \"id\") @interfaceObject"));
 }
 
+/// Tests Federation v2.3 entity interfaces: when an interface has `@key`,
+/// the implementing object types must appear in the `_Entity` union,
+/// not the interface itself (GraphQL unions can only contain object types).
+#[tokio::test]
+pub async fn test_entity_interface_expands_to_implementors() {
+    #[derive(SimpleObject)]
+    struct ObjA {
+        id: u64,
+    }
+
+    #[derive(SimpleObject)]
+    struct ObjB {
+        id: u64,
+    }
+
+    #[derive(Interface)]
+    #[graphql(field(name = "id", ty = "&u64"))]
+    enum NodeInterface {
+        ObjA(ObjA),
+        ObjB(ObjB),
+    }
+
+    struct Query;
+
+    #[Object(extends)]
+    impl Query {
+        #[graphql(entity)]
+        async fn node_interface(&self, id: u64) -> NodeInterface {
+            NodeInterface::ObjB(ObjB { id })
+        }
+
+        #[graphql(entity)]
+        async fn obj_a(&self, id: u64) -> ObjA {
+            ObjA { id: id + 1 }
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    let query = r#"{
+            __type(name: "_Entity") { possibleTypes { name } }
+        }"#;
+    let result = schema.execute(query).await.into_result().unwrap().data;
+
+    // The _Entity union should contain the implementing object types,
+    // NOT the interface name itself
+    assert_eq!(
+        result,
+        value!({
+            "__type": {
+                "possibleTypes": [
+                    {"name": "ObjA"},
+                    {"name": "ObjB"},
+                ]
+            }
+        })
+    );
+
+    let query = r#"{
+            _entities(representations: [
+                {__typename: "ObjA", id: 42},
+                {__typename: "ObjB", id: 7},
+            ]) {
+                __typename
+                ... on ObjA { id }
+                ... on ObjB { id }
+            }
+        }"#;
+    let result = schema.execute(query).await.into_result().unwrap().data;
+
+    assert_eq!(
+        result,
+        value!({
+            "_entities": [
+                {
+                    "__typename": "ObjA",
+                    "id": 43,
+                },
+                {
+                    "__typename": "ObjB",
+                    "id": 7,
+                },
+            ]
+        })
+    );
+}
+
+#[tokio::test]
+pub async fn test_nested_entity_interface_expands_to_concrete_implementors() {
+    #[derive(SimpleObject)]
+    struct Company {
+        id: ID,
+    }
+
+    #[derive(SimpleObject)]
+    struct Organization {
+        id: ID,
+    }
+
+    #[derive(Interface)]
+    #[graphql(field(name = "id", ty = "&ID"))]
+    enum EntityInterface {
+        Company(Company),
+        Organization(Organization),
+    }
+
+    #[derive(Interface)]
+    #[graphql(field(name = "id", ty = "&ID"))]
+    enum NodeInterface {
+        EntityInterface(EntityInterface),
+    }
+
+    struct Query;
+
+    #[Object(extends)]
+    impl Query {
+        #[graphql(entity)]
+        async fn node_interface(&self, id: ID) -> NodeInterface {
+            NodeInterface::EntityInterface(EntityInterface::Company(Company { id }))
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    let query = r#"{
+            __type(name: "_Entity") { possibleTypes { name } }
+        }"#;
+    let result = schema.execute(query).await.into_result().unwrap().data;
+
+    assert_eq!(
+        result,
+        value!({
+            "__type": {
+                "possibleTypes": [
+                    {"name": "Company"},
+                    {"name": "Organization"},
+                ]
+            }
+        })
+    );
+}
+
 #[tokio::test]
 pub async fn test_unresolvable_entity() {
     #[derive(SimpleObject)]

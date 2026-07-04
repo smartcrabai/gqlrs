@@ -224,11 +224,6 @@ impl Interface {
         &self.name
     }
 
-    #[inline]
-    pub(crate) fn is_entity(&self) -> bool {
-        !self.keys.is_empty()
-    }
-
     pub(crate) fn register(&self, registry: &mut Registry) -> Result<(), SchemaError> {
         let mut fields = IndexMap::new();
 

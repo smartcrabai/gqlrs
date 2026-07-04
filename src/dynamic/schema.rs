@@ -241,19 +241,14 @@ impl SchemaBuilder {
             registry.create_federation_types();
 
             // create _Entity type
-            let entity = self
-                .types
-                .values()
-                .filter(|ty| match ty {
-                    Type::Object(obj) => obj.is_entity(),
-                    Type::Interface(interface) => interface.is_entity(),
-                    _ => false,
-                })
-                .fold(Union::new("_Entity"), |entity, ty| {
-                    entity.possible_type(ty.name())
-                });
-            self.types
-                .insert("_Entity".to_string(), Type::Union(entity));
+            let entity_possible_types = registry.entity_possible_types();
+            if !entity_possible_types.is_empty() {
+                let entity = entity_possible_types
+                    .into_iter()
+                    .fold(Union::new("_Entity"), |entity, ty| entity.possible_type(ty));
+                self.types
+                    .insert("_Entity".to_string(), Type::Union(entity));
+            }
         }
 
         let inner = SchemaInner {
@@ -1125,6 +1120,61 @@ mod tests {
                 ]
             );
         }
+    }
+
+    #[tokio::test]
+    async fn federation_entity_interface_expands_to_implementors() {
+        let obj_a = Object::new("ObjA").implement("Node").field(Field::new(
+            "id",
+            TypeRef::named_nn(TypeRef::ID),
+            |_| FieldFuture::new(async { Ok(Some(Value::from("a"))) }),
+        ));
+
+        let obj_b = Object::new("ObjB").implement("Node").field(Field::new(
+            "id",
+            TypeRef::named_nn(TypeRef::ID),
+            |_| FieldFuture::new(async { Ok(Some(Value::from("b"))) }),
+        ));
+
+        let interface = Interface::new("Node")
+            .field(InterfaceField::new("id", TypeRef::named_nn(TypeRef::ID)))
+            .key("id");
+
+        let query =
+            Object::new("Query").field(Field::new("value", TypeRef::named(TypeRef::INT), |_| {
+                FieldFuture::new(async { Ok(Some(Value::from(100))) })
+            }));
+
+        let schema = Schema::build("Query", None, None)
+            .register(query)
+            .register(obj_a)
+            .register(obj_b)
+            .register(interface)
+            .finish()
+            .unwrap();
+
+        assert_eq!(
+            schema
+                .execute(
+                    r#"
+                {
+                    __type(name: "_Entity") { possibleTypes { name } }
+                }
+                "#,
+                )
+                .await
+                .into_result()
+                .unwrap()
+                .data,
+            value!({
+                "__type": {
+                    "possibleTypes": [
+                        {"name": "ObjA"},
+                        {"name": "ObjB"},
+                    ],
+                },
+            })
+        );
     }
 
     #[tokio::test]
