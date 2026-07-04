@@ -2,6 +2,40 @@
 
 use gqlrs::*;
 
+#[test]
+pub fn test_error_extension_values_iter() {
+    let mut values = ErrorExtensionValues::default();
+    values.set("b", "two");
+    values.set("a", 1);
+
+    let iterated = values
+        .iter()
+        .map(|(name, value)| (name.as_str(), value.clone()))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        iterated,
+        vec![
+            ("a", Value::Number(1.into())),
+            ("b", Value::String("two".to_string()))
+        ]
+    );
+
+    let by_ref = (&values)
+        .into_iter()
+        .map(|(name, value)| (name.as_str(), value.clone()))
+        .collect::<Vec<_>>();
+    assert_eq!(by_ref, iterated);
+
+    let owned = values.into_iter().collect::<Vec<_>>();
+    assert_eq!(
+        owned,
+        vec![
+            ("a".to_string(), Value::Number(1.into())),
+            ("b".to_string(), Value::String("two".to_string()))
+        ]
+    );
+}
+
 #[tokio::test]
 pub async fn test_error_extensions() {
     #[derive(Enum, Eq, PartialEq, Copy, Clone)]
