@@ -29,11 +29,11 @@ jobs:
       - name: Extract metadata
         id: meta
         run: |
-          FEATURES=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "gqlrs") | .features | keys | map(select(. != "boxed-trait")) | join(",")')
+          FEATURES=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "gqlrs") | .features | keys | map(select(. != "boxed-trait" and . != "fast-check")) | join(",")')
           echo "features=$FEATURES" >> "$GITHUB_OUTPUT"
       - name: Build with all features
         run: cargo build --all-features
-      - name: Build with all features except boxed-trait
+      - name: Build with all features except boxed-trait and fast-check
         run: cargo build --features ${{ steps.meta.outputs.features }}
       - name: Build
         run: cargo build --workspace --verbose
@@ -62,11 +62,11 @@ jobs:
       - name: Extract metadata
         id: meta
         run: |
-          FEATURES=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "gqlrs") | .features | keys | map(select(. != "boxed-trait")) | join(",")')
+          FEATURES=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "gqlrs") | .features | keys | map(select(. != "boxed-trait" and . != "fast-check")) | join(",")')
           echo "features=$FEATURES" >> "$GITHUB_OUTPUT"
       - name: Build with all features
         run: cargo build --all-features
-      - name: Build with all features except boxed-trait
+      - name: Build with all features except boxed-trait and fast-check
         run: cargo build --features ${{ steps.meta.outputs.features }}
       - name: Build
         run: cargo build --workspace --verbose
