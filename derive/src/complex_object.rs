@@ -375,7 +375,7 @@ pub fn generate(
                     .create_validators_with_context(
                         &crate_name,
                         quote!(&#ident),
-                        Some(quote!(.map_err(|err| err.into_server_error(__pos)))),
+                        Some(quote!(.map_err(|err| ctx.set_error_path(err.into_server_error(__pos))))),
                         Some(quote!(ctx)),
                     )?;
 
@@ -383,7 +383,8 @@ pub fn generate(
                 non_mut_ident.mutability = None;
                 get_params.push(quote! {
                     #[allow(non_snake_case, unused_mut)]
-                    let (__pos, mut #non_mut_ident, __raw_value) = ctx.param_value_with_raw::<#ty>(#name, #default)?;
+                    let (__pos, mut #non_mut_ident, __raw_value) = ctx.param_value_with_raw::<#ty>(#name, #default)
+                        .map_err(|err| ctx.set_error_path(err))?;
                     #process_with
                     #validators
                     {
@@ -627,11 +628,15 @@ pub fn generate(
 
             let resolve_block = if is_async {
                 quote! {
+                    #(#get_params)*
                     let f = async move {
-                        #(#get_params)*
                         #guard
                         #resolve_obj.map(::std::option::Option::Some)
                     };
+                    // NOTE: `Err` here means the resolver (or a non-nullable guard) failed. If
+                    // the field itself is nullable, that error must only null this field
+                    // instead of bubbling up through `?` and nulling an ancestor (see
+                    // async-graphql#1549). Non-nullable fields still propagate the error.
                     let obj = match f.await {
                         ::std::result::Result::Ok(::std::option::Option::Some(obj)) => obj,
                         ::std::result::Result::Ok(::std::option::Option::None) => {
@@ -659,6 +664,8 @@ pub fn generate(
                 quote! {
                     #(#get_params)*
                     #guard
+                    // See the async branch above: a nullable field must only be nulled by a
+                    // resolver error, not have it propagate to an ancestor field.
                     let obj = match #resolve_obj {
                         ::std::result::Result::Ok(obj) => obj,
                         ::std::result::Result::Err(err) => {
