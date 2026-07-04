@@ -11,6 +11,7 @@ use crate::{
 pub struct ComplexityCalculate<'ctx, 'a> {
     pub complexity: &'a mut usize,
     pub complexity_stack: Vec<usize>,
+    limit_check_stack: Vec<bool>,
     pub variable_definition: Option<&'ctx [Positioned<VariableDefinition>]>,
 }
 
@@ -19,7 +20,34 @@ impl<'a> ComplexityCalculate<'_, 'a> {
         Self {
             complexity,
             complexity_stack: Default::default(),
+            limit_check_stack: Default::default(),
             variable_definition: None,
+        }
+    }
+}
+
+impl<'ctx> ComplexityCalculate<'ctx, '_> {
+    fn has_custom_complexity(ctx: &VisitorContext<'ctx>, field: &'ctx Positioned<Field>) -> bool {
+        ctx.parent_type()
+            .and_then(|parent| match parent {
+                MetaType::Object { fields, .. } => fields.get(MetaTypeName::concrete_typename(
+                    field.node.name.node.as_str(),
+                )),
+                _ => None,
+            })
+            .and_then(|field| field.compute_complexity.as_ref())
+            .is_some()
+    }
+
+    fn add_complexity(&mut self, ctx: &mut VisitorContext<'ctx>, complexity: usize) {
+        let total_complexity = {
+            let current_complexity = self.complexity_stack.last_mut().unwrap();
+            *current_complexity = current_complexity.saturating_add(complexity);
+            *current_complexity
+        };
+
+        if self.limit_check_stack.last().copied().unwrap_or(false) {
+            ctx.check_complexity_limit(total_complexity);
         }
     }
 }
@@ -31,10 +59,12 @@ impl<'ctx> Visitor<'ctx> for ComplexityCalculate<'ctx, '_> {
 
     fn enter_document(&mut self, _ctx: &mut VisitorContext<'ctx>, _doc: &'ctx ExecutableDocument) {
         self.complexity_stack.push(0);
+        self.limit_check_stack.push(true);
     }
 
     fn exit_document(&mut self, _ctx: &mut VisitorContext<'ctx>, _doc: &'ctx ExecutableDocument) {
         *self.complexity = self.complexity_stack.pop().unwrap();
+        self.limit_check_stack.pop().unwrap();
     }
 
     fn enter_operation_definition(
@@ -46,12 +76,16 @@ impl<'ctx> Visitor<'ctx> for ComplexityCalculate<'ctx, '_> {
         self.variable_definition = Some(&operation_definition.node.variable_definitions);
     }
 
-    fn enter_field(&mut self, _ctx: &mut VisitorContext<'_>, _field: &Positioned<Field>) {
+    fn enter_field(&mut self, ctx: &mut VisitorContext<'ctx>, field: &'ctx Positioned<Field>) {
+        let can_check_limit = self.limit_check_stack.last().copied().unwrap_or(false)
+            && !Self::has_custom_complexity(ctx, field);
         self.complexity_stack.push(0);
+        self.limit_check_stack.push(can_check_limit);
     }
 
     fn exit_field(&mut self, ctx: &mut VisitorContext<'ctx>, field: &'ctx Positioned<Field>) {
         let children_complex = self.complexity_stack.pop().unwrap();
+        self.limit_check_stack.pop().unwrap();
 
         if let Some(MetaType::Object { fields, .. }) = ctx.parent_type()
             && let Some(meta_field) = fields.get(MetaTypeName::concrete_typename(
@@ -65,15 +99,13 @@ impl<'ctx> Visitor<'ctx> for ComplexityCalculate<'ctx, '_> {
                 &field.node,
                 children_complex,
             ) {
-                Ok(n) => {
-                    *self.complexity_stack.last_mut().unwrap() += n;
-                }
+                Ok(n) => self.add_complexity(ctx, n),
                 Err(err) => ctx.report_error(vec![field.pos], err.to_string()),
             }
             return;
         }
 
-        *self.complexity_stack.last_mut().unwrap() += 1 + children_complex;
+        self.add_complexity(ctx, 1 + children_complex);
     }
 }
 
@@ -115,6 +147,12 @@ mod tests {
             todo!()
         }
 
+        #[graphql(complexity = "count")]
+        #[allow(unused_variables)]
+        async fn weighted(&self, count: usize) -> i32 {
+            todo!()
+        }
+
         async fn c(&self) -> MyObj {
             todo!()
         }
@@ -137,6 +175,11 @@ mod tests {
             &self,
             #[graphql(default_with = "5")] count: usize,
         ) -> Vec<MySimpleObj> {
+            todo!()
+        }
+
+        #[graphql(complexity = 1)]
+        async fn cheap_simple_obj(&self) -> MySimpleObj {
             todo!()
         }
 
@@ -222,6 +265,46 @@ mod tests {
             }"#,
             7 * 5 + 2,
         );
+    }
+
+    #[test]
+    fn default_nested_complexity_limit_stops_sibling_fields() {
+        let registry =
+            Schema::<Query, EmptyMutation, Subscription>::create_registry(Default::default());
+        let doc = parse_query(
+            r#"{
+                obj { a b weighted(count: "bad") }
+            }"#,
+        )
+        .unwrap();
+        let mut ctx = VisitorContext::new(&registry, &doc, None, None);
+        ctx.set_limits(Some(1), None);
+        let mut complexity = 0;
+        let mut complexity_calculate = ComplexityCalculate::new(&mut complexity);
+        visit(&mut complexity_calculate, &mut ctx, &doc);
+        assert_eq!(complexity, 3);
+        assert!(ctx.has_exceeded_limit());
+        assert!(ctx.errors.is_empty());
+    }
+
+    #[test]
+    fn child_complexity_over_limit_does_not_stop_reduced_parent_complexity() {
+        let registry =
+            Schema::<Query, EmptyMutation, Subscription>::create_registry(Default::default());
+        let doc = parse_query(
+            r#"{
+                cheapSimpleObj { c }
+                value
+            }"#,
+        )
+        .unwrap();
+        let mut ctx = VisitorContext::new(&registry, &doc, None, None);
+        ctx.set_limits(Some(2), None);
+        let mut complexity = 0;
+        let mut complexity_calculate = ComplexityCalculate::new(&mut complexity);
+        visit(&mut complexity_calculate, &mut ctx, &doc);
+        assert_eq!(complexity, 2);
+        assert!(!ctx.has_exceeded_limit());
     }
 
     #[test]

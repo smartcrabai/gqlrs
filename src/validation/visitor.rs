@@ -24,6 +24,9 @@ pub struct VisitorContext<'a> {
     type_stack: Vec<Option<&'a registry::MetaType>>,
     input_type: Vec<Option<MetaTypeName<'a>>>,
     fragments: &'a HashMap<Name, Positioned<FragmentDefinition>>,
+    limit_complexity: Option<usize>,
+    limit_depth: Option<usize>,
+    exceeded_limit: bool,
 }
 
 impl<'a> VisitorContext<'a> {
@@ -41,6 +44,9 @@ impl<'a> VisitorContext<'a> {
             type_stack: Default::default(),
             input_type: Default::default(),
             fragments: &doc.fragments,
+            limit_complexity: None,
+            limit_depth: None,
+            exceeded_limit: false,
         }
     }
 
@@ -50,6 +56,35 @@ impl<'a> VisitorContext<'a> {
 
     pub(crate) fn append_errors(&mut self, errors: Vec<RuleError>) {
         self.errors.extend(errors);
+    }
+
+    pub(crate) fn set_limits(
+        &mut self,
+        limit_complexity: Option<usize>,
+        limit_depth: Option<usize>,
+    ) {
+        self.limit_complexity = limit_complexity;
+        self.limit_depth = limit_depth;
+    }
+
+    pub(crate) fn check_complexity_limit(&mut self, complexity: usize) {
+        if let Some(limit) = self.limit_complexity {
+            if complexity > limit {
+                self.exceeded_limit = true;
+            }
+        }
+    }
+
+    pub(crate) fn check_depth_limit(&mut self, depth: usize) {
+        if let Some(limit) = self.limit_depth {
+            if depth > limit {
+                self.exceeded_limit = true;
+            }
+        }
+    }
+
+    pub(crate) fn has_exceeded_limit(&self) -> bool {
+        self.exceeded_limit
     }
 
     pub(crate) fn with_type<F: FnMut(&mut VisitorContext<'a>)>(
@@ -540,6 +575,9 @@ pub(crate) fn visit<'a, V: Visitor<'a>>(
     v.enter_document(ctx, doc);
 
     for (name, fragment) in &doc.fragments {
+        if ctx.has_exceeded_limit() {
+            break;
+        }
         ctx.with_type(
             ctx.registry
                 .types
@@ -549,6 +587,9 @@ pub(crate) fn visit<'a, V: Visitor<'a>>(
     }
 
     for (name, operation) in doc.operations.iter() {
+        if ctx.has_exceeded_limit() {
+            break;
+        }
         visit_operation_definition(v, ctx, name, operation);
     }
 
@@ -591,6 +632,9 @@ fn visit_selection_set<'a, V: Visitor<'a>>(
     if !selection_set.node.items.is_empty() {
         v.enter_selection_set(ctx, selection_set);
         for selection in &selection_set.node.items {
+            if ctx.has_exceeded_limit() {
+                break;
+            }
             visit_selection(v, ctx, selection);
         }
         v.exit_selection_set(ctx, selection_set);
