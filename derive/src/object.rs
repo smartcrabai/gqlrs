@@ -4,8 +4,8 @@ use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use quote::quote;
 use syn::{
-    Block, Error, Expr, FnArg, ImplItem, ItemImpl, Pat, PatIdent, ReturnType, Token, Type,
-    TypeReference, ext::IdentExt, punctuated::Punctuated,
+    Block, Error, Expr, FnArg, GenericArgument, ImplItem, ItemImpl, Pat, PatIdent, PathArguments,
+    ReturnType, Token, Type, TypeReference, ext::IdentExt, punctuated::Punctuated,
 };
 
 use crate::{
@@ -87,6 +87,7 @@ pub fn generate(
     let mut resolvers = Vec::new();
     let mut schema_fields = Vec::new();
     let mut find_entities = Vec::new();
+    let mut find_entities_batch = Vec::new();
     let mut add_keys = Vec::new();
     let mut create_entity_types = Vec::new();
 
@@ -309,6 +310,122 @@ pub fn generate(
                         }
                     },
                 ));
+            } else if method_args.entity_batch {
+                // Batch entity resolver: #[graphql(entity_batch)]
+                // The method should accept Vec<Key> and return Vec<Entity>
+                let cfg_attrs = get_cfg_attrs(&method.attrs);
+
+                if method.sig.asyncness.is_none() {
+                    return Err(Error::new_spanned(method, "Must be asynchronous").into());
+                }
+
+                let args = extract_input_args::<args::Argument>(&crate_name, method)?;
+
+                let output = method.sig.output.clone();
+                let ty = match &output {
+                    ReturnType::Type(_, ty) => OutputType::parse(ty)?,
+                    ReturnType::Default => {
+                        return Err(Error::new_spanned(
+                            &output,
+                            "Resolver must have a return type",
+                        )
+                        .into());
+                    }
+                };
+
+                let batch_output_ty = ty.value_type();
+                let entity_type = extract_batch_entity_type(&batch_output_ty).ok_or_else(|| {
+                    Error::new_spanned(
+                        &output,
+                        "Batch entity resolver must return Vec<Entity>, Vec<Option<Entity>>, Result<Vec<Entity>>, or Result<Vec<Option<Entity>>>.",
+                    )
+                })?;
+
+                if args.len() != 1 {
+                    return Err(Error::new_spanned(
+                        method,
+                        "Batch entity resolver must have exactly one key parameter.",
+                    )
+                    .into());
+                }
+
+                let (ident, key_ty, arg) = &args[0];
+                let key_item_ty = extract_vec_inner_type(key_ty).ok_or_else(|| {
+                    Error::new_spanned(
+                        key_ty,
+                        "Batch entity resolver key parameter must be Vec<Key>.",
+                    )
+                })?;
+                let key_name = arg.name.clone().unwrap_or_else(|| {
+                    object_args
+                        .rename_args
+                        .rename(ident.ident.unraw().to_string(), RenameTarget::Argument)
+                });
+
+                add_keys.push(quote! {
+                    {
+                        let mut key_str = Vec::new();
+                        if let Some(fields) = <#key_item_ty as #crate_name::InputType>::federation_fields() {
+                            key_str.push(format!("{} {}", #key_name, fields));
+                        } else {
+                            key_str.push(#key_name.to_string());
+                        }
+                        registry.add_keys(&<#entity_type as #crate_name::OutputType>::type_name(), &key_str.join(" "));
+                    }
+                });
+                create_entity_types.push(
+                    quote! { <#entity_type as #crate_name::OutputType>::create_type_info(registry); },
+                );
+
+                let field_ident = &method.sig.ident;
+                if let OutputType::Value(inner_ty) = &ty {
+                    let block = &method.block;
+                    let new_block = quote!({
+                        {
+                            let value:#inner_ty = async move #block.await;
+                            ::std::result::Result::Ok(value)
+                        }
+                    });
+                    method.block = syn::parse2::<Block>(new_block).expect("invalid block");
+                    method.sig.output =
+                        syn::parse2::<ReturnType>(quote! { -> #crate_name::Result<#inner_ty> })
+                            .expect("invalid result type");
+                }
+
+                let do_batch_find = quote! {
+                    self.#field_ident(ctx, batch_keys)
+                        .await
+                        .map_err(|err| ::std::convert::Into::<#crate_name::Error>::into(err)
+                        .into_server_error(ctx.item.pos))
+                };
+
+                find_entities_batch.push(quote! {
+                    #(#cfg_attrs)*
+                    if typename_ref == <#entity_type as #crate_name::OutputType>::type_name().as_ref() {
+                        let mut batch_keys = ::std::vec::Vec::with_capacity(batch_indices.len());
+                        let mut key_indices = ::std::vec::Vec::with_capacity(batch_indices.len());
+                        for &idx in batch_indices {
+                            if results[idx].is_none() {
+                                if let #crate_name::Value::Object(params) = &representations[idx] {
+                                    if let ::std::option::Option::Some(value) = params.get(#key_name) {
+                                        if let ::std::option::Option::Some(parsed) = <#key_item_ty as #crate_name::InputType>::parse(::std::option::Option::Some(::std::clone::Clone::clone(value))).ok() {
+                                            key_indices.push(idx);
+                                            batch_keys.push(parsed);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if !batch_keys.is_empty() {
+                            let batch_results = #do_batch_find?;
+                            for (idx, result) in key_indices.iter().zip(batch_results.iter()) {
+                                let ctx_obj = ctx.with_selection_set(&ctx.item.node.selection_set);
+                                let resolved = #crate_name::OutputType::resolve(result, &ctx_obj, ctx.item).await.map_err(|err| ctx.set_error_path(err))?;
+                                results[*idx] = ::std::option::Option::Some(resolved);
+                            }
+                        }
+                    }
+                });
             } else if !method_args.skip {
                 let is_async = method.sig.asyncness.is_some();
                 let cfg_attrs = get_cfg_attrs(&method.attrs);
@@ -821,6 +938,9 @@ pub fn generate(
     find_entities.sort_by(|(a, _), (b, _)| b.cmp(a));
     let find_entities_iter = find_entities.iter().map(|(_, code)| code);
 
+    let has_batch_entities = !find_entities_batch.is_empty();
+    let find_entities_batch_iter = find_entities_batch.iter();
+
     if resolvers.is_empty() && create_entity_types.is_empty() {
         return Err(Error::new_spanned(
             self_ty,
@@ -929,6 +1049,60 @@ pub fn generate(
                         }
                         ::std::result::Result::Ok(::std::option::Option::None)
                     }
+
+                    async fn find_entities(
+                        &self,
+                        ctx: &#crate_name::Context<'_>,
+                        representations: &[#crate_name::Value],
+                    ) -> #crate_name::ServerResult<::std::vec::Vec<::std::option::Option<#crate_name::Value>>> {
+                        if !#has_batch_entities {
+                            // No batch resolvers, use default behavior
+                            let results = #crate_name::futures_util::future::try_join_all(
+                                representations.iter().map(|rep| self.find_entity(ctx, rep)),
+                            )
+                            .await?;
+                            return ::std::result::Result::Ok(results);
+                        }
+
+                        // Group representations by __typename
+                        let mut results: ::std::vec::Vec<::std::option::Option<#crate_name::Value>> = ::std::vec::Vec::with_capacity(representations.len());
+                        results.resize_with(representations.len(), || ::std::option::Option::None);
+
+                        let mut type_groups: #crate_name::indexmap::IndexMap<::std::string::String, ::std::vec::Vec<usize>> = #crate_name::indexmap::IndexMap::new();
+                        let mut ungrouped_indices: ::std::vec::Vec<usize> = ::std::vec::Vec::new();
+                        for (idx, rep) in representations.iter().enumerate() {
+                            match rep {
+                                #crate_name::Value::Object(params) => {
+                                    if let ::std::option::Option::Some(#crate_name::Value::String(typename)) = params.get("__typename") {
+                                        type_groups.entry(typename.clone()).or_default().push(idx);
+                                    } else {
+                                        ungrouped_indices.push(idx);
+                                    }
+                                }
+                                _ => ungrouped_indices.push(idx),
+                            }
+                        }
+
+                        for (typename, batch_indices) in &type_groups {
+                            let typename_ref = typename.as_str();
+                            #(#find_entities_batch_iter)*
+
+                            // No batch resolver matched, fall back to individual find_entity
+                            for &idx in batch_indices {
+                                if results[idx].is_none() {
+                                    results[idx] = self.find_entity(ctx, &representations[idx]).await?;
+                                }
+                            }
+                        }
+
+                        for idx in ungrouped_indices {
+                            if results[idx].is_none() {
+                                results[idx] = self.find_entity(ctx, &representations[idx]).await?;
+                            }
+                        }
+
+                        ::std::result::Result::Ok(results)
+                    }
                 }
 
                 #[allow(clippy::all, clippy::pedantic)]
@@ -1013,6 +1187,59 @@ pub fn generate(
                         }
                         ::std::result::Result::Ok(::std::option::Option::None)
                     }
+
+                    async fn __internal_find_entities(
+                        &self,
+                        ctx: &#crate_name::Context<'_>,
+                        representations: &[#crate_name::Value],
+                    ) -> #crate_name::ServerResult<::std::vec::Vec<::std::option::Option<#crate_name::Value>>> {
+                        if !#has_batch_entities {
+                            let results = #crate_name::futures_util::future::try_join_all(
+                                representations
+                                    .iter()
+                                    .map(|rep| self.__internal_find_entity(ctx, rep)),
+                            )
+                            .await?;
+                            return ::std::result::Result::Ok(results);
+                        }
+
+                        let mut results: ::std::vec::Vec<::std::option::Option<#crate_name::Value>> = ::std::vec::Vec::with_capacity(representations.len());
+                        results.resize_with(representations.len(), || ::std::option::Option::None);
+
+                        let mut type_groups: #crate_name::indexmap::IndexMap<::std::string::String, ::std::vec::Vec<usize>> = #crate_name::indexmap::IndexMap::new();
+                        let mut ungrouped_indices: ::std::vec::Vec<usize> = ::std::vec::Vec::new();
+                        for (idx, rep) in representations.iter().enumerate() {
+                            match rep {
+                                #crate_name::Value::Object(params) => {
+                                    if let ::std::option::Option::Some(#crate_name::Value::String(typename)) = params.get("__typename") {
+                                        type_groups.entry(typename.clone()).or_default().push(idx);
+                                    } else {
+                                        ungrouped_indices.push(idx);
+                                    }
+                                }
+                                _ => ungrouped_indices.push(idx),
+                            }
+                        }
+
+                        for (typename, batch_indices) in &type_groups {
+                            let typename_ref = typename.as_str();
+                            #(#find_entities_batch_iter)*
+
+                            for &idx in batch_indices {
+                                if results[idx].is_none() {
+                                    results[idx] = self.__internal_find_entity(ctx, &representations[idx]).await?;
+                                }
+                            }
+                        }
+
+                        for idx in ungrouped_indices {
+                            if results[idx].is_none() {
+                                results[idx] = self.__internal_find_entity(ctx, &representations[idx]).await?;
+                            }
+                        }
+
+                        ::std::result::Result::Ok(results)
+                    }
                 }
             };
         });
@@ -1046,6 +1273,14 @@ pub fn generate(
                     async fn find_entity(&self, ctx: &#crate_name::Context<'_>, params: &#crate_name::Value) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
                         self.__internal_find_entity(ctx, params).await
                     }
+
+                    async fn find_entities(
+                        &self,
+                        ctx: &#crate_name::Context<'_>,
+                        representations: &[#crate_name::Value],
+                    ) -> #crate_name::ServerResult<::std::vec::Vec<::std::option::Option<#crate_name::Value>>> {
+                        self.__internal_find_entities(ctx, representations).await
+                    }
                 }
 
                 impl #def_bounds #crate_name::OutputTypeMarker for #concrete_type {
@@ -1077,6 +1312,45 @@ pub fn generate(
     };
 
     Ok(expanded.into())
+}
+
+fn extract_vec_inner_type(ty: &Type) -> Option<&Type> {
+    let Type::Path(path) = ty else {
+        return None;
+    };
+    let segment = path.path.segments.last()?;
+    if segment.ident != "Vec" {
+        return None;
+    }
+    let PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return None;
+    };
+    args.args.iter().find_map(|arg| match arg {
+        GenericArgument::Type(ty) => Some(ty),
+        _ => None,
+    })
+}
+
+fn extract_option_inner_type(ty: &Type) -> Option<&Type> {
+    let Type::Path(path) = ty else {
+        return None;
+    };
+    let segment = path.path.segments.last()?;
+    if segment.ident != "Option" {
+        return None;
+    }
+    let PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return None;
+    };
+    args.args.iter().find_map(|arg| match arg {
+        GenericArgument::Type(ty) => Some(ty),
+        _ => None,
+    })
+}
+
+fn extract_batch_entity_type(ty: &Type) -> Option<&Type> {
+    let item_ty = extract_vec_inner_type(ty)?;
+    Some(extract_option_inner_type(item_ty).unwrap_or(item_ty))
 }
 
 fn generate_field_match(

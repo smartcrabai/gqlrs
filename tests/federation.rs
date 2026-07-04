@@ -1279,3 +1279,141 @@ pub async fn test_entity_guard() {
         }]
     );
 }
+
+#[tokio::test]
+pub async fn test_batch_entity_resolver() {
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Clone, SimpleObject)]
+    struct User {
+        id: ID,
+        name: String,
+    }
+
+    struct Query {
+        /// Tracks how many times the batch resolver was called.
+        batch_call_count: Arc<Mutex<usize>>,
+    }
+
+    #[Object]
+    impl Query {
+        #[graphql(entity_batch)]
+        async fn find_users_by_ids(&self, #[graphql(name = "id")] ids: Vec<ID>) -> Vec<User> {
+            *self.batch_call_count.lock().unwrap() += 1;
+            ids.into_iter()
+                .map(|id| User {
+                    name: format!("User {}", id.as_str()),
+                    id,
+                })
+                .collect()
+        }
+    }
+
+    let batch_count = Arc::new(Mutex::new(0usize));
+    let schema = Schema::build(
+        Query {
+            batch_call_count: batch_count.clone(),
+        },
+        EmptyMutation,
+        EmptySubscription,
+    )
+    .finish();
+
+    // Test with multiple representations of the same type
+    let query = r#"{
+            _entities(representations: [
+                {__typename: "User", id: "1"},
+                {__typename: "User", id: "2"},
+                {__typename: "User", id: "3"}
+            ]) {
+                __typename
+                ... on User {
+                    id
+                    name
+                }
+            }
+        }"#;
+    let result = schema.execute(query).await.into_result().unwrap();
+    assert_eq!(
+        result.data,
+        value!({
+            "_entities": [
+                {"__typename": "User", "id": "1", "name": "User 1"},
+                {"__typename": "User", "id": "2", "name": "User 2"},
+                {"__typename": "User", "id": "3", "name": "User 3"},
+            ]
+        })
+    );
+    // Batch resolver should have been called exactly once
+    assert_eq!(*batch_count.lock().unwrap(), 1);
+}
+
+#[tokio::test]
+pub async fn test_batch_entity_with_individual_fallback() {
+    #[derive(Clone, SimpleObject)]
+    struct User {
+        id: ID,
+        name: String,
+    }
+
+    #[derive(Clone, SimpleObject)]
+    struct Product {
+        upc: String,
+        title: String,
+    }
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        #[graphql(entity_batch)]
+        async fn find_users_by_ids(&self, #[graphql(name = "id")] ids: Vec<ID>) -> Vec<User> {
+            ids.into_iter()
+                .map(|id| User {
+                    name: format!("User {}", id.as_str()),
+                    id,
+                })
+                .collect()
+        }
+
+        #[graphql(entity)]
+        async fn find_product_by_upc(&self, upc: String) -> Product {
+            Product {
+                upc,
+                title: "Test Product".to_string(),
+            }
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+
+    // Test with mixed entity types
+    let query = r#"{
+            _entities(representations: [
+                {__typename: "User", id: "1"},
+                {__typename: "Product", upc: "B001"},
+                {__typename: "User", id: "2"}
+            ]) {
+                __typename
+                ... on User {
+                    id
+                    name
+                }
+                ... on Product {
+                    upc
+                    title
+                }
+            }
+        }"#;
+    let result = schema.execute(query).await.into_result().unwrap();
+    assert_eq!(
+        result.data,
+        value!({
+            "_entities": [
+                {"__typename": "User", "id": "1", "name": "User 1"},
+                {"__typename": "Product", "upc": "B001", "title": "Test Product"},
+                {"__typename": "User", "id": "2", "name": "User 2"},
+            ]
+        })
+    );
+}

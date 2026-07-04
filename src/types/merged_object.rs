@@ -53,6 +53,32 @@ where
             Err(err) => Err(err),
         }
     }
+
+    async fn find_entities(
+        &self,
+        ctx: &Context<'_>,
+        representations: &[Value],
+    ) -> ServerResult<Vec<Option<Value>>> {
+        let mut results = self.0.find_entities(ctx, representations).await?;
+        // For any entity not found by the first resolver, try the second
+        let missing_indices: Vec<usize> = results
+            .iter()
+            .enumerate()
+            .filter_map(|(i, r)| if r.is_none() { Some(i) } else { None })
+            .collect();
+        if !missing_indices.is_empty() {
+            let missing_reps: Vec<Value> = missing_indices
+                .iter()
+                .map(|&i| representations[i].clone())
+                .collect();
+            let second_results: Vec<Option<Value>> =
+                self.1.find_entities(ctx, &missing_reps).await?;
+            for (&i, value) in missing_indices.iter().zip(second_results) {
+                results[i] = value;
+            }
+        }
+        Ok(results)
+    }
 }
 
 impl<A, B> OutputTypeMarker for MergedObject<A, B>

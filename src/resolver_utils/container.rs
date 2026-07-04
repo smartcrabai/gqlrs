@@ -72,6 +72,42 @@ pub trait ContainerType: OutputTypeMarker {
     ) -> impl Future<Output = ServerResult<Option<Value>>> + Send {
         async { Ok(None) }
     }
+
+    /// Find multiple GraphQL entities from a batch of representations.
+    ///
+    /// The default implementation calls `find_entity` for each representation.
+    /// Override this (via `#[graphql(entity_batch)]` in the derive macro) to
+    /// provide efficient batched entity resolution.
+    #[cfg(feature = "boxed-trait")]
+    async fn find_entities(
+        &self,
+        ctx: &Context<'_>,
+        representations: &[Value],
+    ) -> ServerResult<Vec<Option<Value>>> {
+        crate::futures_util::future::try_join_all(
+            representations.iter().map(|rep| self.find_entity(ctx, rep)),
+        )
+        .await
+    }
+
+    /// Find multiple GraphQL entities from a batch of representations.
+    ///
+    /// The default implementation calls `find_entity` for each representation.
+    /// Override this (via `#[graphql(entity_batch)]` in the derive macro) to
+    /// provide efficient batched entity resolution.
+    #[cfg(not(feature = "boxed-trait"))]
+    fn find_entities(
+        &self,
+        ctx: &Context<'_>,
+        representations: &[Value],
+    ) -> impl Future<Output = ServerResult<Vec<Option<Value>>>> + Send {
+        async move {
+            crate::futures_util::future::try_join_all(
+                representations.iter().map(|rep| self.find_entity(ctx, rep)),
+            )
+            .await
+        }
+    }
 }
 
 #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
@@ -82,6 +118,14 @@ impl<T: ContainerType + ?Sized> ContainerType for &T {
 
     async fn find_entity(&self, ctx: &Context<'_>, params: &Value) -> ServerResult<Option<Value>> {
         T::find_entity(*self, ctx, params).await
+    }
+
+    async fn find_entities(
+        &self,
+        ctx: &Context<'_>,
+        representations: &[Value],
+    ) -> ServerResult<Vec<Option<Value>>> {
+        T::find_entities(*self, ctx, representations).await
     }
 }
 
@@ -94,6 +138,14 @@ impl<T: ContainerType + ?Sized> ContainerType for Arc<T> {
     async fn find_entity(&self, ctx: &Context<'_>, params: &Value) -> ServerResult<Option<Value>> {
         T::find_entity(self, ctx, params).await
     }
+
+    async fn find_entities(
+        &self,
+        ctx: &Context<'_>,
+        representations: &[Value],
+    ) -> ServerResult<Vec<Option<Value>>> {
+        T::find_entities(self, ctx, representations).await
+    }
 }
 
 #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
@@ -104,6 +156,14 @@ impl<T: ContainerType + ?Sized> ContainerType for Box<T> {
 
     async fn find_entity(&self, ctx: &Context<'_>, params: &Value) -> ServerResult<Option<Value>> {
         T::find_entity(self, ctx, params).await
+    }
+
+    async fn find_entities(
+        &self,
+        ctx: &Context<'_>,
+        representations: &[Value],
+    ) -> ServerResult<Vec<Option<Value>>> {
+        T::find_entities(self, ctx, representations).await
     }
 }
 
@@ -119,6 +179,17 @@ impl<T: ContainerType, E: Into<Error> + Send + Sync + Clone> ContainerType for R
     async fn find_entity(&self, ctx: &Context<'_>, params: &Value) -> ServerResult<Option<Value>> {
         match self {
             Ok(value) => T::find_entity(value, ctx, params).await,
+            Err(err) => Err(ctx.set_error_path(err.clone().into().into_server_error(ctx.item.pos))),
+        }
+    }
+
+    async fn find_entities(
+        &self,
+        ctx: &Context<'_>,
+        representations: &[Value],
+    ) -> ServerResult<Vec<Option<Value>>> {
+        match self {
+            Ok(value) => T::find_entities(value, ctx, representations).await,
             Err(err) => Err(ctx.set_error_path(err.clone().into().into_server_error(ctx.item.pos))),
         }
     }

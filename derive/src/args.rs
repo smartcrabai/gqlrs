@@ -368,6 +368,7 @@ pub struct Object {
 pub struct ObjectField {
     pub skip: bool,
     pub entity: bool,
+    pub entity_batch: bool,
     pub name: Option<String>,
     pub deprecation: Deprecation,
     pub cache_control: CacheControl,
