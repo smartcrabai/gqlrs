@@ -68,18 +68,18 @@ impl<'a> VisitorContext<'a> {
     }
 
     pub(crate) fn check_complexity_limit(&mut self, complexity: usize) {
-        if let Some(limit) = self.limit_complexity {
-            if complexity > limit {
-                self.exceeded_limit = true;
-            }
+        if let Some(limit) = self.limit_complexity
+            && complexity > limit
+        {
+            self.exceeded_limit = true;
         }
     }
 
     pub(crate) fn check_depth_limit(&mut self, depth: usize) {
-        if let Some(limit) = self.limit_depth {
-            if depth > limit {
-                self.exceeded_limit = true;
-            }
+        if let Some(limit) = self.limit_depth
+            && depth > limit
+        {
+            self.exceeded_limit = true;
         }
     }
 
