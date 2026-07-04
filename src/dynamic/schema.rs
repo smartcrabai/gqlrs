@@ -245,7 +245,7 @@ impl SchemaBuilder {
             if !entity_possible_types.is_empty() {
                 let entity = entity_possible_types
                     .into_iter()
-                    .fold(Union::new("_Entity"), |entity, ty| entity.possible_type(ty));
+                    .fold(Union::new("_Entity"), Union::possible_type);
                 self.types
                     .insert("_Entity".to_string(), Type::Union(entity));
             }
@@ -1172,6 +1172,40 @@ mod tests {
                         {"name": "ObjA"},
                         {"name": "ObjB"},
                     ],
+                },
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn federation_entity_interface_allows_empty_query_root() {
+        let obj = Object::new("Obj").implement("Node").field(Field::new(
+            "id",
+            TypeRef::named_nn(TypeRef::ID),
+            |_| FieldFuture::new(async { Ok(Some(Value::from("1"))) }),
+        ));
+
+        let interface = Interface::new("Node")
+            .field(InterfaceField::new("id", TypeRef::named_nn(TypeRef::ID)))
+            .key("id");
+
+        let schema = Schema::build("Query", None, None)
+            .register(Object::new("Query"))
+            .register(obj)
+            .register(interface)
+            .finish()
+            .unwrap();
+
+        assert_eq!(
+            schema
+                .execute(r#"{ __type(name: "_Entity") { possibleTypes { name } } }"#)
+                .await
+                .into_result()
+                .unwrap()
+                .data,
+            value!({
+                "__type": {
+                    "possibleTypes": [{"name": "Obj"}],
                 },
             })
         );

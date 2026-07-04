@@ -443,7 +443,6 @@ pub fn generate(
                         }
                     }
                 });
-                });
             } else if !method_args.skip {
                 let is_async = method.sig.asyncness.is_some();
                 let cfg_attrs = get_cfg_attrs(&method.attrs);
