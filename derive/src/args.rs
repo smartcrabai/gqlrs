@@ -235,6 +235,8 @@ pub struct SimpleObjectField {
     #[darling(default)]
     pub flatten: bool,
     #[darling(default)]
+    pub optional: bool,
+    #[darling(default)]
     pub secret: bool,
     #[darling(default, multiple, rename = "directive")]
     pub directives: Vec<Expr>,

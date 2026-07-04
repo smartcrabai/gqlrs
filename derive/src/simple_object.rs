@@ -360,10 +360,11 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
                     .push(quote!(field.requires_scopes = ::std::vec![ #(#requires_scopes),* ];));
             }
 
-            let field_type_info = match (&field.output_using, &output_using_arg_ty) {
-                (Some(output_using), Some(output_using_arg_ty)) => {
+            let field_type_info = match (&field.output_using, field.optional, &output_using_arg_ty) {
+                (Some(output_using), _, Some(output_using_arg_ty)) => {
                     inferred_output_type(&crate_name, output_using, output_using_arg_ty.clone())
                 }
+                (None, true, _) => create_output_type_info(&crate_name, ty, true),
                 _ => create_output_type_info(&crate_name, ty, field.nullable),
             };
             schema_fields.push(quote! {
@@ -389,12 +390,13 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
         };
         let guard = match field.guard.as_ref().or(object_args.guard.as_ref()) {
             Some(code) => {
-                let nullable = match (&field.output_using, &output_using_arg_ty) {
-                    (Some(output_using), Some(output_using_arg_ty)) => inferred_output_nullable(
+                let nullable = match (&field.output_using, field.optional, &output_using_arg_ty) {
+                    (Some(output_using), _, Some(output_using_arg_ty)) => inferred_output_nullable(
                         &crate_name,
                         output_using,
                         output_using_arg_ty.clone(),
                     ),
+                    (None, true, _) => quote!(true),
                     _ => nullable_field_check(&crate_name, ty, field.nullable),
                 };
                 let on_error = quote! {
@@ -478,6 +480,14 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
                     if ctx.item.node.name.node == #field_name {
                         #guard
                         #resolver_value
+                        return #crate_name::resolver_utils::resolve_simple_field_value(ctx, &obj).await;
+                    }
+                });
+            } else if field.optional {
+                resolvers.push(quote! {
+                    if ctx.item.node.name.node == #field_name {
+                        #guard
+                        let obj: ::std::option::Option<#ty> = ::std::option::Option::Some(#block);
                         return #crate_name::resolver_utils::resolve_simple_field_value(ctx, &obj).await;
                     }
                 });
