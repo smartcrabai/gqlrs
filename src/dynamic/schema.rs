@@ -6,7 +6,7 @@ use indexmap::IndexMap;
 
 use crate::{
     Data, ErrorFormatter, Executor, IntrospectionMode, QueryEnv, Request, Response,
-    SDLExportOptions, SchemaEnv, ServerError, ServerResult, ValidationMode,
+    SDLExportOptions, SchemaEnv, ServerError, ServerResult, ValidationMode, Value,
     dynamic::{
         DynamicRequest, FieldFuture, FieldValue, Object, ResolverContext, Scalar, SchemaError,
         Subscription, TypeRef, Union, field::BoxResolverFn, resolve::resolve_container,
@@ -205,10 +205,26 @@ impl SchemaBuilder {
         }
         update_interface_possible_types(&mut self.types, &mut registry);
 
-        // create system scalars
-        for ty in ["Int", "Float", "Boolean", "String", "ID"] {
-            self.types
-                .insert(ty.to_string(), Type::Scalar(Scalar::new(ty)));
+        // create system scalars with validators
+        let int_scalar = Scalar::new(TypeRef::INT)
+            .validator(|value| matches!(value, Value::Number(n) if n.is_i64()));
+        let float_scalar =
+            Scalar::new(TypeRef::FLOAT).validator(|value| matches!(value, Value::Number(_)));
+        let boolean_scalar =
+            Scalar::new(TypeRef::BOOLEAN).validator(|value| matches!(value, Value::Boolean(_)));
+        let string_scalar =
+            Scalar::new(TypeRef::STRING).validator(|value| matches!(value, Value::String(_)));
+        let id_scalar = Scalar::new(TypeRef::ID).validator(|value| {
+            matches!(value, Value::String(_)) || matches!(value, Value::Number(n) if n.is_i64())
+        });
+        for (name, scalar) in [
+            (TypeRef::INT, int_scalar),
+            (TypeRef::FLOAT, float_scalar),
+            (TypeRef::BOOLEAN, boolean_scalar),
+            (TypeRef::STRING, string_scalar),
+            (TypeRef::ID, id_scalar),
+        ] {
+            self.types.insert(name.to_string(), Type::Scalar(scalar));
         }
 
         // create introspection types
@@ -1240,6 +1256,222 @@ mod tests {
         assert_eq!(
             registry.directives["customDirective"].name,
             "customDirective"
+        );
+    }
+
+    #[tokio::test]
+    async fn builtin_scalar_response_validation() {
+        // String field returning an integer value should fail
+        let query = Object::new("Query").field(Field::new(
+            "value",
+            TypeRef::named_nn(TypeRef::STRING),
+            |_| FieldFuture::new(async { Ok(Some(Value::from(100))) }),
+        ));
+        let schema = Schema::build("Query", None, None)
+            .register(query)
+            .finish()
+            .unwrap();
+        assert_eq!(
+            schema.execute("{ value }").await.into_result().unwrap_err(),
+            vec![ServerError {
+                message:
+                    "internal: invalid value for scalar \"String\", expected \"FieldValue::Value\""
+                        .to_owned(),
+                source: None,
+                locations: vec![Pos { column: 3, line: 1 }],
+                path: vec![PathSegment::Field("value".to_owned())],
+                extensions: None,
+            }]
+        );
+
+        // String field returning a string value should succeed
+        let query = Object::new("Query").field(Field::new(
+            "value",
+            TypeRef::named_nn(TypeRef::STRING),
+            |_| FieldFuture::new(async { Ok(Some(Value::from("hello"))) }),
+        ));
+        let schema = Schema::build("Query", None, None)
+            .register(query)
+            .finish()
+            .unwrap();
+        assert_eq!(
+            schema
+                .execute("{ value }")
+                .await
+                .into_result()
+                .unwrap()
+                .data,
+            value!({ "value": "hello" })
+        );
+
+        // Nullable String field returning null should succeed
+        let query = Object::new("Query").field(Field::new(
+            "value",
+            TypeRef::named(TypeRef::STRING),
+            |_| FieldFuture::new(async { Ok(Some(FieldValue::NULL)) }),
+        ));
+        let schema = Schema::build("Query", None, None)
+            .register(query)
+            .finish()
+            .unwrap();
+        assert_eq!(
+            schema
+                .execute("{ value }")
+                .await
+                .into_result()
+                .unwrap()
+                .data,
+            value!({ "value": null })
+        );
+
+        // Non-null String field returning null should fail
+        let query = Object::new("Query").field(Field::new(
+            "value",
+            TypeRef::named_nn(TypeRef::STRING),
+            |_| FieldFuture::new(async { Ok(Some(FieldValue::NULL)) }),
+        ));
+        let schema = Schema::build("Query", None, None)
+            .register(query)
+            .finish()
+            .unwrap();
+        assert_eq!(
+            schema.execute("{ value }").await.into_result().unwrap_err(),
+            vec![ServerError {
+                message: "internal: non-null types require a return value".to_owned(),
+                source: None,
+                locations: vec![Pos { column: 3, line: 1 }],
+                path: vec![PathSegment::Field("value".to_owned())],
+                extensions: None,
+            }]
+        );
+
+        // Int field returning a string should fail
+        let query = Object::new("Query").field(Field::new(
+            "value",
+            TypeRef::named_nn(TypeRef::INT),
+            |_| FieldFuture::new(async { Ok(Some(Value::from("bad"))) }),
+        ));
+        let schema = Schema::build("Query", None, None)
+            .register(query)
+            .finish()
+            .unwrap();
+        assert_eq!(
+            schema.execute("{ value }").await.into_result().unwrap_err(),
+            vec![ServerError {
+                message:
+                    "internal: invalid value for scalar \"Int\", expected \"FieldValue::Value\""
+                        .to_owned(),
+                source: None,
+                locations: vec![Pos { column: 3, line: 1 }],
+                path: vec![PathSegment::Field("value".to_owned())],
+                extensions: None,
+            }]
+        );
+
+        // Float field returning a string should fail
+        let query = Object::new("Query").field(Field::new(
+            "value",
+            TypeRef::named_nn(TypeRef::FLOAT),
+            |_| FieldFuture::new(async { Ok(Some(Value::from("bad"))) }),
+        ));
+        let schema = Schema::build("Query", None, None)
+            .register(query)
+            .finish()
+            .unwrap();
+        assert_eq!(
+            schema.execute("{ value }").await.into_result().unwrap_err(),
+            vec![ServerError {
+                message:
+                    "internal: invalid value for scalar \"Float\", expected \"FieldValue::Value\""
+                        .to_owned(),
+                source: None,
+                locations: vec![Pos { column: 3, line: 1 }],
+                path: vec![PathSegment::Field("value".to_owned())],
+                extensions: None,
+            }]
+        );
+
+        // Boolean field returning an integer should fail
+        let query = Object::new("Query").field(Field::new(
+            "value",
+            TypeRef::named_nn(TypeRef::BOOLEAN),
+            |_| FieldFuture::new(async { Ok(Some(Value::from(1))) }),
+        ));
+        let schema = Schema::build("Query", None, None)
+            .register(query)
+            .finish()
+            .unwrap();
+        assert_eq!(
+            schema.execute("{ value }").await.into_result().unwrap_err(),
+            vec![ServerError {
+                message:
+                    "internal: invalid value for scalar \"Boolean\", expected \"FieldValue::Value\""
+                        .to_owned(),
+                source: None,
+                locations: vec![Pos { column: 3, line: 1 }],
+                path: vec![PathSegment::Field("value".to_owned())],
+                extensions: None,
+            }]
+        );
+
+        // ID field returning a string should succeed
+        let query =
+            Object::new("Query").field(Field::new("value", TypeRef::named_nn(TypeRef::ID), |_| {
+                FieldFuture::new(async { Ok(Some(Value::from("id-1"))) })
+            }));
+        let schema = Schema::build("Query", None, None)
+            .register(query)
+            .finish()
+            .unwrap();
+        assert_eq!(
+            schema
+                .execute("{ value }")
+                .await
+                .into_result()
+                .unwrap()
+                .data,
+            value!({ "value": "id-1" })
+        );
+
+        // ID field returning an integer should succeed
+        let query =
+            Object::new("Query").field(Field::new("value", TypeRef::named_nn(TypeRef::ID), |_| {
+                FieldFuture::new(async { Ok(Some(Value::from(42i64))) })
+            }));
+        let schema = Schema::build("Query", None, None)
+            .register(query)
+            .finish()
+            .unwrap();
+        assert_eq!(
+            schema
+                .execute("{ value }")
+                .await
+                .into_result()
+                .unwrap()
+                .data,
+            value!({ "value": 42 })
+        );
+
+        // ID field returning a boolean should fail
+        let query =
+            Object::new("Query").field(Field::new("value", TypeRef::named_nn(TypeRef::ID), |_| {
+                FieldFuture::new(async { Ok(Some(Value::from(true))) })
+            }));
+        let schema = Schema::build("Query", None, None)
+            .register(query)
+            .finish()
+            .unwrap();
+        assert_eq!(
+            schema.execute("{ value }").await.into_result().unwrap_err(),
+            vec![ServerError {
+                message:
+                    "internal: invalid value for scalar \"ID\", expected \"FieldValue::Value\""
+                        .to_owned(),
+                source: None,
+                locations: vec![Pos { column: 3, line: 1 }],
+                path: vec![PathSegment::Field("value".to_owned())],
+                extensions: None,
+            }]
         );
     }
 }
