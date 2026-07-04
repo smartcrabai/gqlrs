@@ -125,6 +125,7 @@ pin_project! {
         protocol: Protocols,
         last_msg_at: Instant,
         keepalive_timer: Option<Timer>,
+        ping_interval_timer: Option<Timer>,
         close: bool,
     }
 }
@@ -172,6 +173,7 @@ where
             protocol,
             last_msg_at: Instant::now(),
             keepalive_timer: None,
+            ping_interval_timer: None,
             close: false,
         }
     }
@@ -232,6 +234,7 @@ where
             protocol: self.protocol,
             last_msg_at: self.last_msg_at,
             keepalive_timer: self.keepalive_timer,
+            ping_interval_timer: self.ping_interval_timer,
             close: self.close,
         }
     }
@@ -263,6 +266,7 @@ where
             protocol: self.protocol,
             last_msg_at: self.last_msg_at,
             keepalive_timer: self.keepalive_timer,
+            ping_interval_timer: self.ping_interval_timer,
             close: self.close,
         }
     }
@@ -280,6 +284,30 @@ where
     {
         Self {
             keepalive_timer: timeout.into().map(|timeout| Timer::new(timer, timeout)),
+            ..self
+        }
+    }
+
+    /// Set an interval for the server to proactively send
+    /// [`Ping` messages](https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md#ping)
+    /// to the client.
+    ///
+    /// When set, the server will send a `Ping` message at this interval after
+    /// the connection has been acknowledged. The client is expected to respond
+    /// with a [`Pong` message](https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md#pong).
+    ///
+    /// This is useful for keeping the connection alive and detecting broken
+    /// connections from the server side, rather than relying on the client
+    /// to initiate pings.
+    ///
+    /// NOTE: Only used for the `graphql-ws` protocol.
+    #[must_use]
+    pub fn ping_interval<T>(self, timer: T, interval: impl Into<Option<Duration>>) -> Self
+    where
+        T: RtTimer,
+    {
+        Self {
+            ping_interval_timer: interval.into().map(|interval| Timer::new(timer, interval)),
             ..self
         }
     }
@@ -321,6 +349,19 @@ where
                     Poll::Ready(Some(WsMessage::Close(3008, "timeout".to_string())))
                 }
             };
+        }
+
+        // Send server-initiated pings at the configured interval.
+        // Only active after the connection has been acknowledged (data is set)
+        // and only for the graphql-ws protocol.
+        if this.data.is_some()
+            && *this.protocol == Protocols::GraphQLWS
+            && let Some(ping_interval_timer) = this.ping_interval_timer
+            && let Poll::Ready(Some(())) = ping_interval_timer.poll_next_unpin(cx)
+        {
+            return Poll::Ready(Some(WsMessage::Text(
+                serde_json::to_string(&ServerMessage::Ping { payload: None }).unwrap(),
+            )));
         }
 
         if this.init_fut.is_none() && this.ping_fut.is_none() {
@@ -429,6 +470,9 @@ where
                         let mut ctx_data = this.connection_data.take().unwrap_or_default();
                         ctx_data.merge(data);
                         *this.data = Some(Arc::new(ctx_data));
+                        if let Some(ping_interval_timer) = this.ping_interval_timer {
+                            ping_interval_timer.reset();
+                        }
                         Some(WsMessage::Text(
                             serde_json::to_string(&ServerMessage::ConnectionAck).unwrap(),
                         ))
@@ -624,7 +668,11 @@ enum ServerMessage<'a> {
         #[serde(skip_serializing_if = "Option::is_none")]
         payload: Option<serde_json::Value>,
     },
-    // Not used by this library
-    // #[serde(rename = "ka")]
-    // KeepAlive
+    /// Server-initiated ping message for keepalive.
+    ///
+    /// https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md#ping
+    Ping {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        payload: Option<serde_json::Value>,
+    },
 }

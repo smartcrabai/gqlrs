@@ -990,3 +990,74 @@ pub async fn test_on_ping() {
         }),
     );
 }
+
+#[tokio::test]
+pub async fn test_server_initiated_ping() {
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn value(&self) -> i32 {
+            10
+        }
+    }
+
+    struct Subscription;
+
+    #[Subscription]
+    impl Subscription {
+        async fn values(&self) -> impl Stream<Item = i32> {
+            futures_util::stream::iter(0..10)
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, Subscription);
+    let (mut tx, rx) = mpsc::unbounded();
+    let ping_interval = Duration::from_millis(50);
+    let mut stream = http::WebSocket::new(schema, rx, WebSocketProtocols::GraphQLWS)
+        .ping_interval(TokioTimer::default(), ping_interval);
+
+    tokio::time::sleep(Duration::from_millis(75)).await;
+
+    tx.send(
+        serde_json::to_string(&value!({
+            "type": "connection_init",
+        }))
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&stream.next().await.unwrap().unwrap_text())
+            .unwrap(),
+        serde_json::json!({
+            "type": "connection_ack",
+        }),
+    );
+
+    // The ping interval starts after the connection is acknowledged, not when
+    // the websocket is constructed.
+    assert!(
+        tokio::time::timeout(Duration::from_millis(20), stream.next())
+            .await
+            .is_err()
+    );
+
+    // Server should send ping messages at the configured interval.
+    for _ in 0..3 {
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(
+                &tokio::time::timeout(Duration::from_millis(200), stream.next())
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .unwrap_text(),
+            )
+            .unwrap(),
+            serde_json::json!({
+                "type": "ping",
+            }),
+        );
+    }
+}
