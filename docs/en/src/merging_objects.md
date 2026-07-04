@@ -63,6 +63,10 @@ let schema = Schema::new(
 
 > ⚠️ **MergedObject cannot be used in Interface.**
 
+**Tip:** splitting resolvers across crates/modules like this also helps incremental
+`cargo check`/rust-analyzer performance on large schemas — see
+[Compile times & rust-analyzer performance](compile_times.md).
+
 # Merging Subscriptions
 
 Along with `MergedObject`, you can derive `MergedSubscription` or use `#[MergedSubscription]` to merge separate `#[Subscription]` blocks.

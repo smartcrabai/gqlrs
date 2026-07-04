@@ -1045,126 +1045,180 @@ pub fn generate(
     let resolve_field_resolver_match = generate_field_match(resolvers)?;
 
     let expanded = if object_args.concretes.is_empty() {
-        quote! {
-            #item_impl
+        if cfg!(feature = "fast-check") {
+            // Fast-check mode: generate minimal implementations for faster cargo check
+            quote! {
+                #item_impl
 
-            #[doc(hidden)]
-            #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
-            const _: () = {
-                #[allow(clippy::all, clippy::pedantic, clippy::suspicious_else_formatting)]
-                #[allow(unused_braces, unused_variables, unused_parens, unused_mut)]
-                #boxed_trait
-                impl #impl_generics #crate_name::resolver_utils::ContainerType for #self_ty #where_clause {
-                    async fn resolve_field(&self, ctx: &#crate_name::Context<'_>) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
-                        #resolve_field_resolver_match
-                        #(#flattened_resolvers)*
-                        ::std::result::Result::Ok(::std::option::Option::None)
-                    }
-
-                    async fn find_entity(&self, ctx: &#crate_name::Context<'_>, params: &#crate_name::Value) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
-                        if let ::std::option::Option::Some((params, typename)) =
-                            #crate_name::resolver_utils::find_entity_params(ctx, params)?
-                        {
-                            #(#find_entities_iter)*
-                            #(#find_interface_entities_iter)*
-                        }
-                        ::std::result::Result::Ok(::std::option::Option::None)
-                    }
-
-                    async fn find_entities(
-                        &self,
-                        ctx: &#crate_name::Context<'_>,
-                        representations: &[#crate_name::Value],
-                    ) -> #crate_name::ServerResult<::std::vec::Vec<::std::option::Option<#crate_name::Value>>> {
-                        if !#has_batch_entities {
-                            // No batch resolvers, use default behavior
-                            let results = #crate_name::futures_util::future::try_join_all(
-                                ::std::iter::Iterator::map(representations.iter(), |rep| self.find_entity(ctx, rep)),
-                            )
-                            .await?;
-                            return ::std::result::Result::Ok(results);
+                #[doc(hidden)]
+                #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
+                const _: () = {
+                    #[allow(clippy::all, clippy::pedantic, clippy::suspicious_else_formatting)]
+                    #[allow(unused_braces, unused_variables, unused_parens, unused_mut)]
+                    #boxed_trait
+                    impl #impl_generics #crate_name::resolver_utils::ContainerType for #self_ty #where_clause {
+                        async fn resolve_field(&self, _ctx: &#crate_name::Context<'_>) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
+                            ::std::result::Result::Ok(::std::option::Option::None)
                         }
 
-                        // Group representations by __typename
-                        let mut results: ::std::vec::Vec<::std::option::Option<#crate_name::Value>> = ::std::vec::Vec::with_capacity(representations.len());
-                        results.resize_with(representations.len(), || ::std::option::Option::None);
+                        async fn find_entity(&self, _ctx: &#crate_name::Context<'_>, _params: &#crate_name::Value) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
+                            ::std::result::Result::Ok(::std::option::Option::None)
+                        }
 
-                        let mut type_groups: #crate_name::indexmap::IndexMap<::std::string::String, ::std::vec::Vec<usize>> = #crate_name::indexmap::IndexMap::new();
-                        let mut ungrouped_indices: ::std::vec::Vec<usize> = ::std::vec::Vec::new();
-                        for (idx, rep) in ::std::iter::Iterator::enumerate(representations.iter()) {
-                            match rep {
-                                #crate_name::Value::Object(params) => {
-                                    if let ::std::option::Option::Some(#crate_name::Value::String(typename)) = params.get("__typename") {
-                                        type_groups.entry(::std::clone::Clone::clone(typename)).or_default().push(idx);
-                                    } else {
-                                        ungrouped_indices.push(idx);
+                        async fn find_entities(
+                            &self,
+                            _ctx: &#crate_name::Context<'_>,
+                            _representations: &[#crate_name::Value],
+                        ) -> #crate_name::ServerResult<::std::vec::Vec<::std::option::Option<#crate_name::Value>>> {
+                            ::std::result::Result::Ok(::std::vec::Vec::new())
+                        }
+                    }
+
+                    #[allow(clippy::all, clippy::pedantic)]
+                    impl #impl_generics #crate_name::OutputTypeMarker for #self_ty #where_clause {
+                        fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
+                            #gql_typename
+                        }
+
+                        fn create_type_info(_registry: &mut #crate_name::registry::Registry) -> ::std::string::String {
+                            ::std::string::String::new()
+                        }
+                    }
+
+                    #[allow(clippy::all, clippy::pedantic)]
+                    #boxed_trait
+                    impl #impl_generics #crate_name::OutputType for #self_ty #where_clause {
+                        async fn resolve(
+                            &self,
+                            _ctx: &#crate_name::ContextSelectionSet<'_>,
+                            _field: &#crate_name::Positioned<#crate_name::parser::types::Field>
+                        ) -> #crate_name::ServerResult<#crate_name::Value> {
+                            ::std::result::Result::Ok(#crate_name::Value::Null)
+                        }
+                    }
+
+                    impl #impl_generics #crate_name::ObjectType for #self_ty #where_clause {}
+                };
+            }
+        } else {
+            quote! {
+                #item_impl
+
+                #[doc(hidden)]
+                #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
+                const _: () = {
+                    #[allow(clippy::all, clippy::pedantic, clippy::suspicious_else_formatting)]
+                    #[allow(unused_braces, unused_variables, unused_parens, unused_mut)]
+                    #boxed_trait
+                    impl #impl_generics #crate_name::resolver_utils::ContainerType for #self_ty #where_clause {
+                        async fn resolve_field(&self, ctx: &#crate_name::Context<'_>) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
+                            #resolve_field_resolver_match
+                            #(#flattened_resolvers)*
+                            ::std::result::Result::Ok(::std::option::Option::None)
+                        }
+
+                        async fn find_entity(&self, ctx: &#crate_name::Context<'_>, params: &#crate_name::Value) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
+                            if let ::std::option::Option::Some((params, typename)) =
+                                #crate_name::resolver_utils::find_entity_params(ctx, params)?
+                            {
+                                #(#find_entities_iter)*
+                                #(#find_interface_entities_iter)*
+                            }
+                            ::std::result::Result::Ok(::std::option::Option::None)
+                        }
+
+                        async fn find_entities(
+                            &self,
+                            ctx: &#crate_name::Context<'_>,
+                            representations: &[#crate_name::Value],
+                        ) -> #crate_name::ServerResult<::std::vec::Vec<::std::option::Option<#crate_name::Value>>> {
+                            if !#has_batch_entities {
+                                let results = #crate_name::futures_util::future::try_join_all(
+                                    ::std::iter::Iterator::map(representations.iter(), |rep| self.find_entity(ctx, rep)),
+                                )
+                                .await?;
+                                return ::std::result::Result::Ok(results);
+                            }
+
+                            let mut results: ::std::vec::Vec<::std::option::Option<#crate_name::Value>> = ::std::vec::Vec::with_capacity(representations.len());
+                            results.resize_with(representations.len(), || ::std::option::Option::None);
+
+                            let mut type_groups: #crate_name::indexmap::IndexMap<::std::string::String, ::std::vec::Vec<usize>> = #crate_name::indexmap::IndexMap::new();
+                            let mut ungrouped_indices: ::std::vec::Vec<usize> = ::std::vec::Vec::new();
+                            for (idx, rep) in ::std::iter::Iterator::enumerate(representations.iter()) {
+                                match rep {
+                                    #crate_name::Value::Object(params) => {
+                                        if let ::std::option::Option::Some(#crate_name::Value::String(typename)) = params.get("__typename") {
+                                            type_groups.entry(::std::clone::Clone::clone(typename)).or_default().push(idx);
+                                        } else {
+                                            ungrouped_indices.push(idx);
+                                        }
+                                    }
+                                    _ => ungrouped_indices.push(idx),
+                                }
+                            }
+
+                            for (typename, batch_indices) in &type_groups {
+                                let typename_ref = typename.as_str();
+                                #(#find_entities_batch_iter)*
+
+                                for &idx in batch_indices {
+                                    if results[idx].is_none() {
+                                        results[idx] = self.find_entity(ctx, &representations[idx]).await?;
                                     }
                                 }
-                                _ => ungrouped_indices.push(idx),
                             }
-                        }
 
-                        for (typename, batch_indices) in &type_groups {
-                            let typename_ref = typename.as_str();
-                            #(#find_entities_batch_iter)*
-
-                            // No batch resolver matched, fall back to individual find_entity
-                            for &idx in batch_indices {
+                            for idx in ungrouped_indices {
                                 if results[idx].is_none() {
                                     results[idx] = self.find_entity(ctx, &representations[idx]).await?;
                                 }
                             }
+
+                            ::std::result::Result::Ok(results)
+                        }
+                    }
+
+                    #[allow(clippy::all, clippy::pedantic)]
+                    impl #impl_generics #crate_name::OutputTypeMarker for #self_ty #where_clause {
+                        fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
+                            #gql_typename
                         }
 
-                        for idx in ungrouped_indices {
-                            if results[idx].is_none() {
-                                results[idx] = self.find_entity(ctx, &representations[idx]).await?;
-                            }
+                        fn create_type_info(registry: &mut #crate_name::registry::Registry) -> ::std::string::String {
+                            let ty = registry.create_output_type::<Self, _>(#crate_name::registry::MetaTypeId::Object, |registry| {
+                                #crate_name::registry::ObjectBuilder::new(
+                                    #gql_typename_string,
+                                    {
+                                        let mut fields = #crate_name::indexmap::IndexMap::with_capacity(#field_count);
+                                        #(#schema_fields)*
+                                        fields
+                                    },
+                                )
+                                #(#object_builder)*
+                                .build()
+                            });
+                            #(#create_entity_types)*
+                            #(#add_keys)*
+                            ty
                         }
-
-                        ::std::result::Result::Ok(results)
-                    }
-                }
-
-                #[allow(clippy::all, clippy::pedantic)]
-                impl #impl_generics #crate_name::OutputTypeMarker for #self_ty #where_clause {
-                    fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
-                        #gql_typename
                     }
 
-                    fn create_type_info(registry: &mut #crate_name::registry::Registry) -> ::std::string::String {
-                        let ty = registry.create_output_type::<Self, _>(#crate_name::registry::MetaTypeId::Object, |registry| {
-                            #crate_name::registry::ObjectBuilder::new(
-                                #gql_typename_string,
-                                {
-                                    let mut fields = #crate_name::indexmap::IndexMap::with_capacity(#field_count);
-                                    #(#schema_fields)*
-                                    fields
-                                },
-                            )
-                            #(#object_builder)*
-                            .build()
-                        });
-                        #(#create_entity_types)*
-                        #(#add_keys)*
-                        ty
+                    #[allow(clippy::all, clippy::pedantic)]
+                    #boxed_trait
+                    impl #impl_generics #crate_name::OutputType for #self_ty #where_clause {
+                        async fn resolve(
+                            &self,
+                            ctx: &#crate_name::ContextSelectionSet<'_>,
+                            _field: &#crate_name::Positioned<#crate_name::parser::types::Field>
+                        ) -> #crate_name::ServerResult<#crate_name::Value> {
+                            #resolve_container
+                        }
                     }
-                }
 
-                #[allow(clippy::all, clippy::pedantic)]
-                #boxed_trait
-                impl #impl_generics #crate_name::OutputType for #self_ty #where_clause {
-                    async fn resolve(
-                        &self,
-                        ctx: &#crate_name::ContextSelectionSet<'_>,
-                        _field: &#crate_name::Positioned<#crate_name::parser::types::Field>
-                    ) -> #crate_name::ServerResult<#crate_name::Value> {
-                        #resolve_container
-                    }
-                }
-
-                impl #impl_generics #crate_name::ObjectType for #self_ty #where_clause {}
-            };
+                    impl #impl_generics #crate_name::ObjectType for #self_ty #where_clause {}
+                };
+            }
         }
     } else {
         let mut codes = Vec::new();
@@ -1176,7 +1230,7 @@ pub fn generate(
             #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
             const _: () = {
                 impl #impl_generics #self_ty #where_clause {
-                    fn __internal_create_type_info(registry: &mut #crate_name::registry::Registry, name: &str) -> ::std::string::String  where Self: #crate_name::OutputType {
+                    fn __internal_create_type_info(registry: &mut #crate_name::registry::Registry, name: &str) -> ::std::string::String  where Self: #crate_name::OutputTypeMarker {
                         let ty = registry.create_output_type::<Self, _>(#crate_name::registry::MetaTypeId::Object, |registry| {
                             #crate_name::registry::ObjectBuilder::new(
                                 ::std::string::ToString::to_string(name),

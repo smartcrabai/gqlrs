@@ -16,6 +16,7 @@ proc-macro = true
 
 [features]
 boxed-trait = []
+fast-check = []
 
 [dependencies]
 async-graphql-parser.workspace = true
