@@ -219,7 +219,8 @@ pub use context::*;
 pub use custom_directive::{CustomDirective, CustomDirectiveFactory, TypeDirective};
 pub use error::{
     Error, ErrorExtensionValues, ErrorExtensions, ErrorFormatter, InputValueError,
-    InputValueResult, ParseRequestError, PathSegment, Result, ResultExt, ServerError, ServerResult,
+    InputValueResult, IntoError, ParseRequestError, PathSegment, Result, ResultExt, ServerError,
+    ServerResult,
 };
 pub use executor::Executor;
 pub use extensions::ResolveFut;

@@ -185,8 +185,177 @@ pub async fn test_failure2() {
 
     #[Object]
     impl Query {
-        async fn failure(&self) -> Result<i32, MyError> {
-            Err(MyError::Error1)
+        async fn failure(&self) -> Result<i32> {
+            Err(Error::new_with_source(MyError::Error1))
         }
     }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    let err = schema
+        .execute("{ failure }")
+        .await
+        .into_result()
+        .unwrap_err()
+        .remove(0);
+    assert_eq!(err.source::<MyError>().unwrap(), &MyError::Error1);
+}
+
+/// Test that custom error types can supply extensions automatically via
+/// `IntoError`.
+#[tokio::test]
+pub async fn test_into_error_with_extensions() {
+    #[derive(Debug)]
+    enum AppError {
+        NotFound { entity: String, id: String },
+        Unauthorized,
+    }
+
+    impl std::fmt::Display for AppError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                AppError::NotFound { entity, id } => {
+                    write!(f, "{} with id '{}' not found", entity, id)
+                }
+                AppError::Unauthorized => write!(f, "Unauthorized access"),
+            }
+        }
+    }
+
+    impl IntoError for AppError {
+        fn into_error(self) -> Error {
+            let (message, extensions) = match &self {
+                AppError::NotFound { entity, id } => {
+                    let mut ext = ErrorExtensionValues::default();
+                    ext.set("code", "NOT_FOUND");
+                    ext.set("entity", entity.clone());
+                    ext.set("entityId", id.clone());
+                    (format!("{} with id '{}' not found", entity, id), Some(ext))
+                }
+                AppError::Unauthorized => {
+                    let mut ext = ErrorExtensionValues::default();
+                    ext.set("code", "UNAUTHORIZED");
+                    ("Unauthorized access".to_string(), Some(ext))
+                }
+            };
+            Error {
+                message,
+                source: Some(std::sync::Arc::new(self)),
+                extensions,
+            }
+        }
+    }
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn find_user(&self) -> Result<String, AppError> {
+            Err(AppError::NotFound {
+                entity: "User".to_string(),
+                id: "123".to_string(),
+            })
+        }
+
+        async fn secret(&self) -> Result<String, AppError> {
+            Err(AppError::Unauthorized)
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+
+    // Test NotFound error with extensions
+    let result = schema.execute("{ findUser }").await;
+    assert_eq!(
+        serde_json::to_value(&result).unwrap(),
+        serde_json::json!({
+            "data": {"findUser": null},
+            "errors": [{
+                "message": "User with id '123' not found",
+                "locations": [{ "column": 3, "line": 1 }],
+                "path": ["findUser"],
+                "extensions": {
+                    "code": "NOT_FOUND",
+                    "entity": "User",
+                    "entityId": "123"
+                }
+            }]
+        })
+    );
+
+    // Test Unauthorized error with extensions
+    let result = schema.execute("{ secret }").await;
+    assert_eq!(
+        serde_json::to_value(&result).unwrap(),
+        serde_json::json!({
+            "data": {"secret": null},
+            "errors": [{
+                "message": "Unauthorized access",
+                "locations": [{ "column": 3, "line": 1 }],
+                "path": ["secret"],
+                "extensions": {
+                    "code": "UNAUTHORIZED"
+                }
+            }]
+        })
+    );
+}
+
+/// Test that `IntoError` errors can be used with `?` operator in resolvers.
+#[tokio::test]
+pub async fn test_into_error_with_question_mark() {
+    #[derive(Debug)]
+    enum ServiceError {
+        DatabaseError(String),
+    }
+
+    impl std::fmt::Display for ServiceError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                ServiceError::DatabaseError(msg) => write!(f, "Database error: {}", msg),
+            }
+        }
+    }
+
+    impl IntoError for ServiceError {
+        fn into_error(self) -> Error {
+            let mut ext = ErrorExtensionValues::default();
+            ext.set("code", "DATABASE_ERROR");
+            match &self {
+                ServiceError::DatabaseError(msg) => {
+                    ext.set("details", msg.clone());
+                }
+            }
+            Error {
+                message: self.to_string(),
+                source: Some(std::sync::Arc::new(self)),
+                extensions: Some(ext),
+            }
+        }
+    }
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn data(&self) -> Result<String> {
+            // Using ? operator - extensions are automatically included
+            Err(ServiceError::DatabaseError(
+                "connection timeout".to_string(),
+            ))?
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    let result = schema.execute("{ data }").await;
+
+    let err = result.into_result().unwrap_err().remove(0);
+    assert_eq!(err.message, "Database error: connection timeout");
+    assert!(err.source::<ServiceError>().is_some());
+
+    let extensions = err.extensions.unwrap();
+    assert_eq!(extensions.get("code"), Some(&Value::from("DATABASE_ERROR")));
+    assert_eq!(
+        extensions.get("details"),
+        Some(&Value::from("connection timeout"))
+    );
 }
