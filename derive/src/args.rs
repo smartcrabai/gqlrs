@@ -748,6 +748,8 @@ pub struct Interface {
     #[darling(default, multiple, rename = "field")]
     pub fields: Vec<InterfaceField>,
     #[darling(default)]
+    pub complex: bool,
+    #[darling(default)]
     pub extends: bool,
     #[darling(default)]
     pub visible: Option<Visible>,
@@ -1111,6 +1113,23 @@ pub struct ComplexObjectField {
     pub semantic_non_null: Option<bool>,
     #[darling(default)]
     pub nullable: bool,
+}
+
+#[derive(FromMeta, Default)]
+#[darling(default)]
+pub struct ComplexInterface {
+    pub internal: bool,
+    pub rename_fields: Option<RenameRule>,
+    pub rename_args: Option<RenameRule>,
+    #[darling(rename = "crate")]
+    pub crate_path: Option<Path>,
+}
+
+#[derive(FromMeta, Default)]
+#[darling(default)]
+pub struct ComplexInterfaceField {
+    pub skip: bool,
+    pub name: Option<String>,
 }
 
 #[derive(FromMeta, Default)]

@@ -70,6 +70,7 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
         }
     };
     let extends = interface_args.extends;
+    let is_complex = interface_args.complex;
     let mut enum_names = Vec::new();
     let mut enum_items = HashSet::new();
     let mut type_into_impls = Vec::new();
@@ -428,16 +429,20 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
             OutputType::Result(_) => quote!(true),
         };
 
-        methods.push(quote! {
-            #[allow(missing_docs)]
-            #[inline]
-            pub async fn #method_name<'ctx>(&self, #(#decl_params),*) -> #crate_name::Result<#ty> {
-                #option_field_value_trait
-                match self {
-                    #(#calls,)*
+        // Only generate methods when complex is false
+        // When complex is true, ComplexInterface will provide the methods
+        if !is_complex {
+            methods.push(quote! {
+                #[allow(missing_docs)]
+                #[inline]
+                pub async fn #method_name<'ctx>(&self, #(#decl_params),*) -> #crate_name::Result<#ty> {
+                    #option_field_value_trait
+                    match self {
+                        #(#calls,)*
+                    }
                 }
-            }
-        });
+            });
+        }
 
         let has_visible = !matches!(visible, None | Some(args::Visible::None));
         let visible = visible_fn(visible);
@@ -525,35 +530,39 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
             fields.insert(::std::string::ToString::to_string(#name), field);
         });
 
-        let resolve_obj = match &oty {
-            OutputType::Value(_) => quote! {
-                self.#method_name(#(#use_params),*)
-                    .await
-                    .map_err(|err| ::std::convert::Into::<#crate_name::Error>::into(err).into_server_error(ctx.item.pos))?
-            },
-            OutputType::Result(_) => quote! {
-                match self.#method_name(#(#use_params),*).await {
-                    ::std::result::Result::Ok(value) => value,
-                    ::std::result::Result::Err(err) => {
-                        let err = ::std::convert::Into::<#crate_name::Error>::into(err)
-                            .into_server_error(ctx.item.pos);
-                        ctx.add_error(ctx.set_error_path(err));
-                        return ::std::result::Result::Ok(::std::option::Option::Some(#crate_name::Value::Null));
+        // Only generate resolvers when complex is false
+        // When complex is true, ComplexInterface handles all fields
+        if !is_complex {
+            let resolve_obj = match &oty {
+                OutputType::Value(_) => quote! {
+                    self.#method_name(#(#use_params),*)
+                        .await
+                        .map_err(|err| ::std::convert::Into::<#crate_name::Error>::into(err).into_server_error(ctx.item.pos))?
+                },
+                OutputType::Result(_) => quote! {
+                    match self.#method_name(#(#use_params),*).await {
+                        ::std::result::Result::Ok(value) => value,
+                        ::std::result::Result::Err(err) => {
+                            let err = ::std::convert::Into::<#crate_name::Error>::into(err)
+                                .into_server_error(ctx.item.pos);
+                            ctx.add_error(ctx.set_error_path(err));
+                            return ::std::result::Result::Ok(::std::option::Option::Some(#crate_name::Value::Null));
+                        }
                     }
-                }
-            },
-        };
+                },
+            };
 
-        resolvers.push(quote! {
-            if ctx.item.node.name.node == #name {
-                #(#get_params)*
-                if #result_nullable {
-                    return #crate_name::resolver_utils::resolve_nullable_field_value(ctx, &#resolve_obj).await;
+            resolvers.push(quote! {
+                if ctx.item.node.name.node == #name {
+                    #(#get_params)*
+                    if #result_nullable {
+                        return #crate_name::resolver_utils::resolve_nullable_field_value(ctx, &#resolve_obj).await;
+                    }
+                    let ctx_obj = ctx.with_selection_set(&ctx.item.node.selection_set);
+                    return #crate_name::OutputType::resolve(&#resolve_obj, &ctx_obj, ctx.item).await.map(::std::option::Option::Some);
                 }
-                let ctx_obj = ctx.with_selection_set(&ctx.item.node.selection_set);
-                return #crate_name::OutputType::resolve(&#resolve_obj, &ctx_obj, ctx.item).await.map(::std::option::Option::Some);
-            }
-        });
+            });
+        }
     }
 
     let introspection_type_name = if get_introspection_typename.is_empty() {
@@ -568,6 +577,18 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
 
     let visible = visible_fn(&interface_args.visible);
     let field_count = schema_fields.len();
+
+    let complex_resolver = if is_complex {
+        quote! {
+            // Try to resolve via ComplexObject first if complex is enabled
+            if let ::std::option::Option::Some(value) = <Self as #crate_name::ComplexObject>::resolve_field(self, ctx).await? {
+                return ::std::result::Result::Ok(::std::option::Option::Some(value));
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     let expanded = quote! {
         #(#type_into_impls)*
 
@@ -580,6 +601,7 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
         #boxed_trait
         impl #impl_generics #crate_name::resolver_utils::ContainerType for #ident #ty_generics #where_clause {
             async fn resolve_field(&self, ctx: &#crate_name::Context<'_>) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
+                #complex_resolver
                 #(#resolvers)*
                 ::std::result::Result::Ok(::std::option::Option::None)
             }
