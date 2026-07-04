@@ -12,10 +12,10 @@ use crate::{
     args::{self, RenameRuleExt, RenameTarget, Resolvability, TypeDirectiveLocation},
     output_type::OutputType,
     utils::{
-        GeneratorResult, extract_input_args, gen_boxed_trait, gen_deprecation, gen_directive_calls,
-        generate_default, generate_guards, get_cfg_attrs, get_crate_path, get_rustdoc,
-        get_type_path_and_name, nullable_output_type_create_type_info, nullable_type_check,
-        output_type_create_type_info, parse_complexity_expr, parse_graphql_attrs,
+        GeneratorResult, create_output_type_info, extract_input_args, gen_boxed_trait,
+        gen_deprecation, gen_directive_calls, generate_default, generate_guards, get_cfg_attrs,
+        get_crate_path, get_rustdoc, get_type_path_and_name, nullable_field_check,
+        nullable_output_type_create_type_info, parse_complexity_expr, parse_graphql_attrs,
         remove_graphql_attrs, unwrap_type, visible_fn,
     },
     validators::Validators,
@@ -567,18 +567,27 @@ pub fn generate(
                     }
                 };
                 let schema_ty = ty.value_type();
-                let field_type = match &ty {
-                    OutputType::Value(_) => output_type_create_type_info(&crate_name, &schema_ty),
+                let nullable_attr = method_args.nullable;
+                let field_type_info = match &ty {
+                    OutputType::Value(_) => {
+                        create_output_type_info(&crate_name, &schema_ty, nullable_attr)
+                    }
                     OutputType::Result(_) => {
-                        nullable_output_type_create_type_info(&crate_name, &schema_ty)
+                        if nullable_attr {
+                            create_output_type_info(&crate_name, &schema_ty, true)
+                        } else {
+                            nullable_output_type_create_type_info(&crate_name, &schema_ty)
+                        }
                     }
                 };
                 let field_nullable = match &ty {
-                    OutputType::Value(_) => nullable_type_check(&crate_name, &schema_ty),
+                    OutputType::Value(_) => {
+                        nullable_field_check(&crate_name, &schema_ty, nullable_attr)
+                    }
                     OutputType::Result(_) => quote!(true),
                 };
                 let result_nullable = match &ty {
-                    OutputType::Value(_) => quote!(false),
+                    OutputType::Value(_) => quote!(#nullable_attr),
                     OutputType::Result(_) => quote!(true),
                 };
                 let visible = visible_fn(&method_args.visible);
@@ -691,7 +700,7 @@ pub fn generate(
                     {
                         let mut field = #crate_name::registry::MetaField::new(
                             ::std::string::ToString::to_string(#field_name),
-                            #field_type,
+                            #field_type_info,
                         );
                         #(#schema_args)*
                         #(#field_sets)*
