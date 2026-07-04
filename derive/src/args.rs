@@ -241,6 +241,7 @@ pub struct SimpleObjectField {
     #[darling(default, multiple, rename = "directive")]
     pub directives: Vec<Expr>,
     pub complexity: Option<Expr>,
+    pub depth_cost: Option<usize>,
     #[darling(default, multiple)]
     pub requires_scopes: Vec<String>,
     #[darling(default)]
@@ -383,6 +384,7 @@ pub struct ObjectField {
     pub guard: Option<Expr>,
     pub visible: Option<Visible>,
     pub complexity: Option<Expr>,
+    pub depth_cost: Option<usize>,
     #[darling(default, multiple)]
     pub derived: Vec<DerivedField>,
     pub flatten: bool,
@@ -702,6 +704,7 @@ pub struct InterfaceField {
     pub requires: Option<String>,
     #[darling(default)]
     pub visible: Option<Visible>,
+    pub depth_cost: Option<usize>,
     #[darling(default)]
     pub inaccessible: bool,
     #[darling(default, multiple, rename = "tag")]
@@ -833,6 +836,7 @@ pub struct SubscriptionField {
     pub guard: Option<Expr>,
     pub visible: Option<Visible>,
     pub complexity: Option<Expr>,
+    pub depth_cost: Option<usize>,
     #[darling(default, multiple, rename = "directive")]
     pub directives: Vec<Expr>,
     pub semantic_non_null: Option<bool>,
@@ -1095,6 +1099,7 @@ pub struct ComplexObjectField {
     pub guard: Option<Expr>,
     pub visible: Option<Visible>,
     pub complexity: Option<Expr>,
+    pub depth_cost: Option<usize>,
     #[darling(multiple)]
     pub derived: Vec<DerivedField>,
     pub flatten: bool,

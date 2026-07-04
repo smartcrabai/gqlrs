@@ -294,6 +294,7 @@ pub fn generate(
             };
 
             let has_complexity = field.complexity.is_some();
+            let has_depth_cost = field.depth_cost.is_some();
             let has_directives = !field.directives.is_empty();
             let has_semantic_non_null = field
                 .semantic_non_null
@@ -316,6 +317,10 @@ pub fn generate(
             }
             if has_complexity {
                 field_sets.push(quote!(field.compute_complexity = #complexity;));
+            }
+            if has_depth_cost {
+                let depth_cost = field.depth_cost.unwrap();
+                field_sets.push(quote!(field.depth_cost = #depth_cost;));
             }
             if has_directives {
                 field_sets

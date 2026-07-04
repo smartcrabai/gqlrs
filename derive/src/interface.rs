@@ -210,6 +210,7 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
         provides,
         requires,
         visible,
+        depth_cost,
         shareable,
         inaccessible,
         tags,
@@ -495,6 +496,9 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
         }
         if has_visible {
             field_sets.push(quote!(field.visible = #visible;));
+        }
+        if let Some(depth_cost) = depth_cost {
+            field_sets.push(quote!(field.depth_cost = #depth_cost;));
         }
         if has_directives {
             field_sets.push(quote!(field.directive_invocations = ::std::vec![ #(#directives),* ];));

@@ -836,7 +836,12 @@ fn visit_fragment_spread<'a, V: Visitor<'a>>(
             .fragments
             .get(fragment_spread.node.fragment_name.node.as_str())
     {
-        visit_selection_set(v, ctx, &fragment.node.selection_set);
+        ctx.with_type(
+            ctx.registry
+                .types
+                .get(fragment.node.type_condition.node.on.node.as_str()),
+            |ctx| visit_selection_set(v, ctx, &fragment.node.selection_set),
+        );
     }
     v.exit_fragment_spread(ctx, fragment_spread);
 }

@@ -53,6 +53,7 @@ pub struct SubscriptionField {
     pub(crate) resolver_fn: BoxResolverFn,
     pub(crate) deprecation: Deprecation,
     pub(crate) semantic_nullability: SemanticNullability,
+    pub(crate) depth_cost: usize,
 }
 
 impl SubscriptionField {
@@ -71,12 +72,14 @@ impl SubscriptionField {
             resolver_fn: Arc::new(resolver_fn),
             deprecation: Deprecation::NoDeprecated,
             semantic_nullability: SemanticNullability::None,
+            depth_cost: 1,
         }
     }
 
     impl_set_description!();
     impl_set_deprecation!();
     impl_set_semantic_nullability!();
+    impl_set_depth_cost!();
 
     /// Add an argument to the subscription field
     #[inline]
@@ -168,6 +171,7 @@ impl Subscription {
                     directive_invocations: vec![],
                     requires_scopes: vec![],
                     semantic_nullability: field.semantic_nullability,
+                    depth_cost: field.depth_cost,
                 },
             );
         }

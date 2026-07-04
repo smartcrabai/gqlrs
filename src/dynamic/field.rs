@@ -366,6 +366,7 @@ pub struct Field {
     pub(crate) directives: Vec<Directive>,
     pub(crate) requires_scopes: Vec<String>,
     pub(crate) semantic_nullability: SemanticNullability,
+    pub(crate) depth_cost: usize,
 }
 
 impl Debug for Field {
@@ -407,6 +408,7 @@ impl Field {
             directives: Vec::new(),
             requires_scopes: Vec::new(),
             semantic_nullability: SemanticNullability::None,
+            depth_cost: 1,
         }
     }
 
@@ -420,6 +422,7 @@ impl Field {
     impl_set_tags!();
     impl_set_override_from!();
     impl_set_semantic_nullability!();
+    impl_set_depth_cost!();
     impl_directive!();
 
     /// Add an argument to the field
