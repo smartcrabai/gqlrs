@@ -144,7 +144,7 @@ pub fn generate(object_args: &args::MergedObject) -> GeneratorResult<TokenStream
             let n = LitInt::new(&format!("{}", i), Span::call_site());
             quote! {
                 let member_results = self.#n.find_entities(ctx, representations).await?;
-                for (idx, val) in member_results.into_iter().enumerate() {
+                for (idx, val) in ::std::iter::Iterator::enumerate(::std::iter::IntoIterator::into_iter(member_results)) {
                     if val.is_some() && results[idx].is_none() {
                         results[idx] = val;
                     }

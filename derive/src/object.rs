@@ -1058,7 +1058,7 @@ pub fn generate(
                         if !#has_batch_entities {
                             // No batch resolvers, use default behavior
                             let results = #crate_name::futures_util::future::try_join_all(
-                                representations.iter().map(|rep| self.find_entity(ctx, rep)),
+                                ::std::iter::Iterator::map(representations.iter(), |rep| self.find_entity(ctx, rep)),
                             )
                             .await?;
                             return ::std::result::Result::Ok(results);
@@ -1070,11 +1070,11 @@ pub fn generate(
 
                         let mut type_groups: #crate_name::indexmap::IndexMap<::std::string::String, ::std::vec::Vec<usize>> = #crate_name::indexmap::IndexMap::new();
                         let mut ungrouped_indices: ::std::vec::Vec<usize> = ::std::vec::Vec::new();
-                        for (idx, rep) in representations.iter().enumerate() {
+                        for (idx, rep) in ::std::iter::Iterator::enumerate(representations.iter()) {
                             match rep {
                                 #crate_name::Value::Object(params) => {
                                     if let ::std::option::Option::Some(#crate_name::Value::String(typename)) = params.get("__typename") {
-                                        type_groups.entry(typename.clone()).or_default().push(idx);
+                                        type_groups.entry(::std::clone::Clone::clone(typename)).or_default().push(idx);
                                     } else {
                                         ungrouped_indices.push(idx);
                                     }
@@ -1195,9 +1195,10 @@ pub fn generate(
                     ) -> #crate_name::ServerResult<::std::vec::Vec<::std::option::Option<#crate_name::Value>>> {
                         if !#has_batch_entities {
                             let results = #crate_name::futures_util::future::try_join_all(
-                                representations
-                                    .iter()
-                                    .map(|rep| self.__internal_find_entity(ctx, rep)),
+                                ::std::iter::Iterator::map(
+                                    representations.iter(),
+                                    |rep| self.__internal_find_entity(ctx, rep),
+                                ),
                             )
                             .await?;
                             return ::std::result::Result::Ok(results);
@@ -1208,11 +1209,11 @@ pub fn generate(
 
                         let mut type_groups: #crate_name::indexmap::IndexMap<::std::string::String, ::std::vec::Vec<usize>> = #crate_name::indexmap::IndexMap::new();
                         let mut ungrouped_indices: ::std::vec::Vec<usize> = ::std::vec::Vec::new();
-                        for (idx, rep) in representations.iter().enumerate() {
+                        for (idx, rep) in ::std::iter::Iterator::enumerate(representations.iter()) {
                             match rep {
                                 #crate_name::Value::Object(params) => {
                                     if let ::std::option::Option::Some(#crate_name::Value::String(typename)) = params.get("__typename") {
-                                        type_groups.entry(typename.clone()).or_default().push(idx);
+                                        type_groups.entry(::std::clone::Clone::clone(typename)).or_default().push(idx);
                                     } else {
                                         ungrouped_indices.push(idx);
                                     }
