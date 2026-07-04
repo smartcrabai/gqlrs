@@ -166,13 +166,13 @@ pub async fn test_complex_object() {
 #[tokio::test]
 pub async fn test_complex_object_with_generic_context_data() {
     trait MyData: Send + Sync {
-        fn answer(&self) -> i64;
+        fn answer(&self) -> i32;
     }
 
     struct DefaultMyData {}
 
     impl MyData for DefaultMyData {
-        fn answer(&self) -> i64 {
+        fn answer(&self) -> i32 {
             42
         }
     }
@@ -201,7 +201,7 @@ pub async fn test_complex_object_with_generic_context_data() {
     #[derive(SimpleObject, Debug, Clone, Hash, Eq, PartialEq)]
     #[graphql(complex)]
     struct MyObject<D: MyData> {
-        my_val: i64,
+        my_val: i32,
         #[graphql(skip)]
         marker: PhantomData<D>,
     }
@@ -209,7 +209,7 @@ pub async fn test_complex_object_with_generic_context_data() {
     #[ComplexObject]
     impl<D: MyData> MyObject<D> {
         #[graphql(skip)]
-        pub fn new(my_val: i64) -> Self {
+        pub fn new(my_val: i32) -> Self {
             Self {
                 my_val,
                 marker: PhantomData,
@@ -239,7 +239,7 @@ pub async fn test_complex_object_with_generic_context_data() {
 pub async fn test_complex_object_with_generic_concrete_type() {
     #[derive(SimpleObject)]
     #[graphql(concrete(name = "MyObjIntString", params(i32, String)))]
-    #[graphql(concrete(name = "MyObji64f32", params(i64, u8)))]
+    #[graphql(concrete(name = "MyObji16u8", params(i16, u8)))]
     #[graphql(complex)]
     struct MyObj<A: OutputType, B: OutputType> {
         a: A,
@@ -254,9 +254,9 @@ pub async fn test_complex_object_with_generic_concrete_type() {
     }
 
     #[ComplexObject]
-    impl MyObj<i64, u8> {
+    impl MyObj<i16, u8> {
         async fn value_b(&self) -> String {
-            format!("i64,u8 {},{}", self.a, self.b)
+            format!("i16,u8 {},{}", self.a, self.b)
         }
     }
 
@@ -271,7 +271,7 @@ pub async fn test_complex_object_with_generic_concrete_type() {
             }
         }
 
-        async fn q2(&self) -> MyObj<i64, u8> {
+        async fn q2(&self) -> MyObj<i16, u8> {
             MyObj { a: 100, b: 28 }
         }
     }
@@ -289,7 +289,7 @@ pub async fn test_complex_object_with_generic_concrete_type() {
             "q2": {
                 "a": 100,
                 "b": 28,
-                "valueB": "i64,u8 100,28",
+                "valueB": "i16,u8 100,28",
             }
         })
     );
@@ -332,7 +332,7 @@ pub async fn test_complex_object_with_generic_concrete_type() {
 
     assert_eq!(
         schema
-            .execute(r#"{ __type(name: "MyObji64f32") { fields { name type { kind ofType { name } } } } }"#)
+            .execute(r#"{ __type(name: "MyObji16u8") { fields { name type { kind ofType { name } } } } }"#)
             .await
             .into_result()
             .unwrap()
@@ -389,7 +389,7 @@ pub async fn test_complex_object_with_generic_concrete_type() {
                         "name": "q2",
                         "type": {
                             "kind": "NON_NULL",
-                            "ofType": { "name": "MyObji64f32" },
+                            "ofType": { "name": "MyObji16u8" },
                         },
                     },
                 ]

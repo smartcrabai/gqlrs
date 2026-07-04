@@ -279,7 +279,7 @@ async fn test_oneof_object_vec() {
     #[derive(OneofObject)]
     pub enum UserBy {
         Email(String),
-        RegistrationNumber(i64),
+        RegistrationNumber(i32),
     }
 
     pub struct Query;

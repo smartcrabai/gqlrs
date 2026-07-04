@@ -1023,11 +1023,11 @@ pub async fn test_entity_requires_scopes() {
 pub async fn test_interface_object() {
     #[derive(SimpleObject)]
     struct VariantA {
-        pub id: u64,
+        pub id: i32,
     }
 
     #[derive(Interface)]
-    #[graphql(field(name = "id", ty = "&u64"))]
+    #[graphql(field(name = "id", ty = "&i32"))]
     enum MyInterface {
         VariantA(VariantA),
     }
@@ -1035,14 +1035,14 @@ pub async fn test_interface_object() {
     #[derive(SimpleObject)]
     #[graphql(interface_object)]
     struct MyInterfaceObject1 {
-        pub id: u64,
+        pub id: i32,
     }
 
     struct MyInterfaceObject2;
 
     #[Object(interface_object)]
     impl MyInterfaceObject2 {
-        pub async fn id(&self) -> u64 {
+        pub async fn id(&self) -> i32 {
             todo!()
         }
     }
@@ -1052,17 +1052,17 @@ pub async fn test_interface_object() {
     #[Object(extends)]
     impl Query {
         #[graphql(entity)]
-        async fn my_interface(&self, _id: u64) -> MyInterface {
+        async fn my_interface(&self, _id: i32) -> MyInterface {
             todo!()
         }
 
         #[graphql(entity)]
-        async fn my_interface_object1(&self, _id: u64) -> MyInterfaceObject1 {
+        async fn my_interface_object1(&self, _id: i32) -> MyInterfaceObject1 {
             todo!()
         }
 
         #[graphql(entity)]
-        async fn my_interface_object2(&self, _id: u64) -> MyInterfaceObject2 {
+        async fn my_interface_object2(&self, _id: i32) -> MyInterfaceObject2 {
             todo!()
         }
     }
@@ -1082,19 +1082,19 @@ pub async fn test_interface_object() {
 pub async fn test_unresolvable_entity() {
     #[derive(SimpleObject)]
     struct ResolvableObject {
-        id: u64,
+        id: i32,
     }
 
     #[derive(SimpleObject)]
     #[graphql(unresolvable = "id")]
     struct SimpleExplicitUnresolvable {
-        id: u64,
+        id: i32,
     }
 
     #[derive(SimpleObject)]
     #[graphql(unresolvable)]
     struct SimpleImplicitUnresolvable {
-        a: u64,
+        a: i32,
         #[graphql(skip)]
         _skipped: bool,
     }
@@ -1103,11 +1103,11 @@ pub async fn test_unresolvable_entity() {
 
     #[Object(unresolvable = "id1 id2")]
     impl ExplicitUnresolvable {
-        async fn id1(&self) -> u64 {
+        async fn id1(&self) -> i32 {
             todo!()
         }
 
-        async fn id2(&self) -> u64 {
+        async fn id2(&self) -> i32 {
             todo!()
         }
     }
@@ -1132,15 +1132,15 @@ pub async fn test_unresolvable_entity() {
 
     #[Object]
     impl Query {
-        async fn simple_explicit_reference(&self, _id: u64) -> SimpleExplicitUnresolvable {
+        async fn simple_explicit_reference(&self, _id: i32) -> SimpleExplicitUnresolvable {
             todo!()
         }
 
-        async fn simple_implicit_reference(&self, _a: u64) -> SimpleImplicitUnresolvable {
+        async fn simple_implicit_reference(&self, _a: i32) -> SimpleImplicitUnresolvable {
             todo!()
         }
 
-        async fn explicit_reference(&self, _id1: u64, _id2: u64) -> ExplicitUnresolvable {
+        async fn explicit_reference(&self, _id1: i32, _id2: i32) -> ExplicitUnresolvable {
             todo!()
         }
 
@@ -1149,7 +1149,7 @@ pub async fn test_unresolvable_entity() {
         }
 
         #[graphql(entity)]
-        async fn object_entity(&self, _id: u64) -> ResolvableObject {
+        async fn object_entity(&self, _id: i32) -> ResolvableObject {
             todo!()
         }
     }

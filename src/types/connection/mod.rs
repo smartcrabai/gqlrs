@@ -263,7 +263,7 @@ where
 ///
 /// #[derive(SimpleObject)]
 /// struct MyEdge {
-///     cursor: usize,
+///     cursor: i32,
 ///     node: i32,
 ///     diff: i32,
 /// }
@@ -299,7 +299,7 @@ where
 ///             }
 ///             let connection = MyConnection {
 ///                 edges: (start..end).into_iter().map(|n| MyEdge {
-///                     cursor: n,
+///                     cursor: n as i32,
 ///                     node: n as i32,
 ///                     diff: (10000 - n) as i32,
 ///                 }).collect(),

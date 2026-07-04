@@ -152,7 +152,7 @@ pub async fn test_input_object_generic() {
 pub async fn test_generic_simple_object() {
     #[derive(SimpleObject)]
     #[graphql(concrete(name = "MyObjIntString", params(i32, String)))]
-    #[graphql(concrete(name = "MyObji64f32", params(i64, u8)))]
+    #[graphql(concrete(name = "MyObji16u8", params(i16, u8)))]
     struct MyObj<A: OutputType, B: OutputType> {
         a: A,
         b: B,
@@ -169,7 +169,7 @@ pub async fn test_generic_simple_object() {
             }
         }
 
-        async fn q2(&self) -> MyObj<i64, u8> {
+        async fn q2(&self) -> MyObj<i16, u8> {
             MyObj { a: 100, b: 28 }
         }
     }
@@ -242,7 +242,7 @@ pub async fn test_generic_simple_object() {
                         "name": "q2",
                         "type": {
                             "kind": "NON_NULL",
-                            "ofType": { "name": "MyObji64f32" },
+                            "ofType": { "name": "MyObji16u8" },
                         },
                     },
                 ]
@@ -297,7 +297,7 @@ pub async fn test_concrete_object() {
     struct GbObject<A, B>(A, B);
 
     #[Object(
-        concrete(name = "Obj_i32i64", params(i32, i64)),
+        concrete(name = "Obj_i32i16", params(i32, i16)),
         concrete(name = "Obj_f32f64", params(f32, f64))
     )]
     impl<A: OutputType, B: OutputType> GbObject<A, B> {
@@ -310,14 +310,14 @@ pub async fn test_concrete_object() {
         }
     }
 
-    assert_eq!(GbObject::<i32, i64>::type_name(), "Obj_i32i64");
+    assert_eq!(GbObject::<i32, i16>::type_name(), "Obj_i32i16");
     assert_eq!(GbObject::<f32, f64>::type_name(), "Obj_f32f64");
 
     struct Query;
 
     #[Object]
     impl Query {
-        async fn a(&self) -> GbObject<i32, i64> {
+        async fn a(&self) -> GbObject<i32, i16> {
             GbObject(10, 20)
         }
 
@@ -336,7 +336,7 @@ pub async fn test_concrete_object() {
             .data,
         value!({
             "a": {
-                "__typename": "Obj_i32i64",
+                "__typename": "Obj_i32i16",
                 "a": 10,
                 "b": 20,
             },
@@ -353,7 +353,7 @@ pub async fn test_concrete_object() {
 pub async fn test_concrete_object_with_lifetime() {
     #[derive(SimpleObject)]
     #[graphql(concrete(name = "Bar0", params(i32)))]
-    #[graphql(concrete(name = "Bar1", params(i64)))]
+    #[graphql(concrete(name = "Bar1", params(i16)))]
     struct Foo<'a, T>
     where
         T: Sync + OutputType + 'a,
@@ -363,7 +363,7 @@ pub async fn test_concrete_object_with_lifetime() {
 
     struct Query {
         value1: i32,
-        value2: i64,
+        value2: i16,
     }
 
     #[Object]
@@ -372,7 +372,7 @@ pub async fn test_concrete_object_with_lifetime() {
             Foo { data: &self.value1 }
         }
 
-        async fn b(&self) -> Foo<'_, i64> {
+        async fn b(&self) -> Foo<'_, i16> {
             Foo { data: &self.value2 }
         }
 

@@ -38,6 +38,7 @@ tracing = ["dep:tracing", "dep:tracing-futures"]
 tracing-otel = ["tracing"]
 url = ["dep:url"]
 uuid = ["dep:uuid"]
+wide-integer-scalars = []
 
 [[bench]]
 harness = false

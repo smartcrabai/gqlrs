@@ -48,14 +48,18 @@ pub async fn test_scalar() {
     macro_rules! test_data {
         ($test_name:ident) => {
             #[derive(Debug, Clone)]
-            pub struct $test_name(i64);
+            pub struct $test_name(i32);
 
             #[gqlrs::Scalar]
             impl gqlrs::ScalarType for $test_name {
                 fn parse(value: gqlrs::Value) -> gqlrs::InputValueResult<Self> {
                     match value {
                         gqlrs::Value::Number(n) if n.is_i64() => {
-                            Ok($test_name(n.as_i64().unwrap()))
+                            let value = n.as_i64().unwrap();
+                            if value < i32::MIN as i64 || value > i32::MAX as i64 {
+                                return Err(gqlrs::InputValueError::from("Invalid number"));
+                            }
+                            Ok($test_name(value as i32))
                         }
                         _ => Err(gqlrs::InputValueError::expected_type(value)),
                     }

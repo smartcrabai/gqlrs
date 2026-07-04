@@ -295,7 +295,7 @@ pub async fn test_includes_one_of_directive() {
     #[derive(OneofObject)]
     enum AB {
         A(String),
-        B(i64),
+        B(i32),
     }
 
     struct Query;

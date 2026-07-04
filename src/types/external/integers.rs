@@ -94,6 +94,11 @@ impl ScalarType for i32 {
 }
 
 /// The `Int` scalar type represents non-fractional whole numeric values.
+///
+/// Note: GraphQL's Int scalar is a signed 32-bit integer. Using i64 may cause
+/// runtime errors for values outside the i32 range. Enable the
+/// `wide-integer-scalars` feature to use this type.
+#[cfg(feature = "wide-integer-scalars")]
 #[Scalar(internal, name = "Int")]
 impl ScalarType for i64 {
     fn parse(value: Value) -> InputValueResult<Self> {
@@ -180,6 +185,11 @@ impl ScalarType for u16 {
 }
 
 /// The `Int` scalar type represents non-fractional whole numeric values.
+///
+/// Note: GraphQL's Int scalar is a signed 32-bit integer. Using u32 may cause
+/// runtime errors for values outside the i32 range. Enable the
+/// `wide-integer-scalars` feature to use this type.
+#[cfg(feature = "wide-integer-scalars")]
 #[Scalar(internal, name = "Int")]
 impl ScalarType for u32 {
     fn parse(value: Value) -> InputValueResult<Self> {
@@ -211,6 +221,11 @@ impl ScalarType for u32 {
 }
 
 /// The `Int` scalar type represents non-fractional whole numeric values.
+///
+/// Note: GraphQL's Int scalar is a signed 32-bit integer. Using u64 may cause
+/// runtime errors for values outside the i32 range. Enable the
+/// `wide-integer-scalars` feature to use this type.
+#[cfg(feature = "wide-integer-scalars")]
 #[Scalar(internal, name = "Int")]
 impl ScalarType for u64 {
     fn parse(value: Value) -> InputValueResult<Self> {
@@ -235,6 +250,11 @@ impl ScalarType for u64 {
 }
 
 /// The `Int` scalar type represents non-fractional whole numeric values.
+///
+/// Note: GraphQL's Int scalar is a signed 32-bit integer. Using usize may cause
+/// runtime errors for values outside the i32 range. Enable the
+/// `wide-integer-scalars` feature to use this type.
+#[cfg(feature = "wide-integer-scalars")]
 #[Scalar(internal, name = "Int")]
 impl ScalarType for usize {
     fn parse(value: Value) -> InputValueResult<Self> {
@@ -266,6 +286,11 @@ impl ScalarType for usize {
 }
 
 /// The `Int` scalar type represents non-fractional whole numeric values.
+///
+/// Note: GraphQL's Int scalar is a signed 32-bit integer. Using isize may cause
+/// runtime errors for values outside the i32 range. Enable the
+/// `wide-integer-scalars` feature to use this type.
+#[cfg(feature = "wide-integer-scalars")]
 #[Scalar(internal, name = "Int")]
 impl ScalarType for isize {
     fn parse(value: Value) -> InputValueResult<Self> {
