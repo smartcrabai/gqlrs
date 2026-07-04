@@ -232,7 +232,7 @@ impl<T> DataLoader<T, NoCache> {
                 loader,
             }),
             cache_factory: NoCache,
-            delay: Duration::from_millis(1),
+            delay: Duration::ZERO,
             max_batch_size: 1000,
             disable_cache: false.into(),
             spawner: Box::new(spawner),
@@ -254,7 +254,7 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
                 loader,
             }),
             cache_factory,
-            delay: Duration::from_millis(1),
+            delay: Duration::ZERO,
             max_batch_size: 1000,
             disable_cache: false.into(),
             spawner: Box::new(spawner),
@@ -262,7 +262,8 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
         }
     }
 
-    /// Specify the delay time for loading data, the default is `1ms`.
+    /// Specify the delay time for loading data, the default is `0ms` (no
+    /// delay).
     #[must_use]
     pub fn delay(self, delay: Duration) -> Self {
         Self { delay, ..self }
@@ -549,6 +550,8 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
     use rustc_hash::FxBuildHasher;
 
     use super::*;
@@ -861,5 +864,46 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(500)).await;
         handle.abort();
         loader.load_many(vec![4, 5, 6]).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_dataloader_zero_delay() {
+        struct CountingLoader {
+            calls: Arc<AtomicUsize>,
+        }
+
+        #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+        impl Loader<i32> for CountingLoader {
+            type Value = i32;
+            type Error = ();
+
+            async fn load(&self, keys: &[i32]) -> Result<HashMap<i32, Self::Value>, Self::Error> {
+                self.calls.fetch_add(1, Ordering::SeqCst);
+                Ok(keys.iter().copied().map(|k| (k, k)).collect())
+            }
+        }
+
+        // Verify that the default zero delay still batches concurrent requests.
+        let calls = Arc::new(AtomicUsize::new(0));
+        let loader = Arc::new(DataLoader::new(
+            CountingLoader {
+                calls: calls.clone(),
+            },
+            TokioSpawner::current(),
+            TokioTimer::default(),
+        ));
+        assert_eq!(
+            futures_util::future::try_join_all((0..10i32).map({
+                let loader = loader.clone();
+                move |n| {
+                    let loader = loader.clone();
+                    async move { loader.load_one(n).await }
+                }
+            }))
+            .await
+            .unwrap(),
+            (0..10).map(Option::Some).collect::<Vec<_>>()
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
 }
