@@ -360,11 +360,47 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
             });
         }
 
+        let is_option_ty = matches!(ty, Type::Path(tp) if tp.path.segments.last().is_some_and(|s| s.ident == "Option"));
+        let option_field_value_trait = if is_option_ty {
+            quote! {
+                trait __GqlrsInterfaceOptionFieldValue<T> {
+                    fn __gqlrs_into_option_field_value(self) -> T;
+                }
+
+                impl<T, U> __GqlrsInterfaceOptionFieldValue<::std::option::Option<T>> for ::std::option::Option<U>
+                where
+                    U: ::std::convert::Into<T>,
+                {
+                    #[inline]
+                    fn __gqlrs_into_option_field_value(self) -> ::std::option::Option<T> {
+                        self.map(::std::convert::Into::into)
+                    }
+                }
+
+                impl<T, U> __GqlrsInterfaceOptionFieldValue<::std::option::Option<T>> for &::std::option::Option<U>
+                where
+                    U: ::std::clone::Clone + ::std::convert::Into<T>,
+                {
+                    #[inline]
+                    fn __gqlrs_into_option_field_value(self) -> ::std::option::Option<T> {
+                        self.as_ref().cloned().map(::std::convert::Into::into)
+                    }
+                }
+            }
+        } else {
+            quote! {}
+        };
+
         for enum_name in &enum_names {
+            let into_expr = if is_option_ty {
+                quote! { .map(|__v| __GqlrsInterfaceOptionFieldValue::__gqlrs_into_option_field_value(__v)) }
+            } else {
+                quote! { .map(::std::convert::Into::into) }
+            };
             calls.push(quote! {
                 #ident::#enum_name(obj) => obj.#method_name(#(#use_params),*)
                     .await.map_err(|err| ::std::convert::Into::<#crate_name::Error>::into(err))
-                    .map(::std::convert::Into::into)
+                    #into_expr
             });
         }
 
@@ -395,6 +431,7 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
             #[allow(missing_docs)]
             #[inline]
             pub async fn #method_name<'ctx>(&self, #(#decl_params),*) -> #crate_name::Result<#ty> {
+                #option_field_value_trait
                 match self {
                     #(#calls,)*
                 }

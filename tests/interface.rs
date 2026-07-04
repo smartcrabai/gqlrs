@@ -628,3 +628,122 @@ pub mod test_interface_docs {
         MyObj(MyObj),
     }
 }
+
+#[tokio::test]
+pub async fn test_interface_option_string_field() {
+    #[derive(SimpleObject)]
+    struct MyObjA {
+        id: i32,
+        name: Option<String>,
+    }
+
+    #[derive(SimpleObject)]
+    struct MyObjB {
+        id: i32,
+        name: Option<String>,
+    }
+
+    #[derive(Interface)]
+    #[graphql(field(name = "name", ty = "Option<String>"))]
+    enum NamedObj {
+        MyObjA(MyObjA),
+        MyObjB(MyObjB),
+    }
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn named_obj_a(&self) -> NamedObj {
+            MyObjA {
+                id: 1,
+                name: Some("Alice".to_string()),
+            }
+            .into()
+        }
+
+        async fn named_obj_b(&self) -> NamedObj {
+            MyObjB { id: 2, name: None }.into()
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    let query = r#"{
+        namedObjA {
+            name
+            ... on MyObjA {
+                id
+            }
+        }
+        namedObjB {
+            name
+            ... on MyObjB {
+                id
+            }
+        }
+    }"#;
+    let result = schema.execute(query).await.into_result().unwrap().data;
+    assert_eq!(
+        result,
+        value!({
+            "namedObjA": {
+                "name": "Alice",
+                "id": 1,
+            },
+            "namedObjB": {
+                "name": null,
+                "id": 2,
+            }
+        })
+    );
+}
+
+#[tokio::test]
+pub async fn test_interface_owned_option_object_field() {
+    #[derive(SimpleObject)]
+    struct Child {
+        value: i32,
+    }
+
+    struct MyObj;
+
+    #[Object]
+    impl MyObj {
+        async fn child(&self) -> Option<Child> {
+            Some(Child { value: 7 })
+        }
+    }
+
+    #[derive(Interface)]
+    #[graphql(field(name = "child", ty = "Option<Child>"))]
+    enum HasChild {
+        MyObj(MyObj),
+    }
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn has_child(&self) -> HasChild {
+            MyObj.into()
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    let result = schema
+        .execute("{ hasChild { child { value } } }")
+        .await
+        .into_result()
+        .unwrap()
+        .data;
+    assert_eq!(
+        result,
+        value!({
+            "hasChild": {
+                "child": {
+                    "value": 7,
+                },
+            }
+        })
+    );
+}
