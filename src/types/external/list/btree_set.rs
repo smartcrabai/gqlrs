@@ -18,8 +18,8 @@ impl<T: InputType + Ord> InputType for BTreeSet<T> {
     }
 
     fn create_type_info(registry: &mut registry::Registry) -> String {
-        T::create_type_info(registry);
-        Self::qualified_type_name()
+        let ty = T::create_type_info(registry);
+        format!("[{ty}]!")
     }
 
     fn parse(value: Option<Value>) -> InputValueResult<Self> {
