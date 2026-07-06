@@ -15,6 +15,7 @@ version = "8.0.0-rc.5"
 
 [features]
 apollo_persisted_queries = ["dep:scc", "dep:sha2"]
+relay_persisted_queries = ["dep:scc", "dep:sha2"]
 apollo_tracing = ["dep:chrono"]
 chrono = ["dep:chrono"]
 chrono-duration = ["dep:chrono", "dep:iso8601"]
