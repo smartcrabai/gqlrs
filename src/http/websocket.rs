@@ -126,6 +126,7 @@ pin_project! {
         last_msg_at: Instant,
         keepalive_timer: Option<Timer>,
         ping_interval_timer: Option<Timer>,
+        waiting_for_pong: bool,
         close: bool,
     }
 }
@@ -174,6 +175,7 @@ where
             last_msg_at: Instant::now(),
             keepalive_timer: None,
             ping_interval_timer: None,
+            waiting_for_pong: false,
             close: false,
         }
     }
@@ -235,6 +237,7 @@ where
             last_msg_at: self.last_msg_at,
             keepalive_timer: self.keepalive_timer,
             ping_interval_timer: self.ping_interval_timer,
+            waiting_for_pong: self.waiting_for_pong,
             close: self.close,
         }
     }
@@ -267,6 +270,7 @@ where
             last_msg_at: self.last_msg_at,
             keepalive_timer: self.keepalive_timer,
             ping_interval_timer: self.ping_interval_timer,
+            waiting_for_pong: self.waiting_for_pong,
             close: self.close,
         }
     }
@@ -295,6 +299,10 @@ where
     /// When set, the server will send a `Ping` message at this interval after
     /// the connection has been acknowledged. The client is expected to respond
     /// with a [`Pong` message](https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md#pong).
+    ///
+    /// If [`keepalive_timeout`](Self::keepalive_timeout) is also set, the
+    /// client must respond with a Pong message within that timeout or the
+    /// connection will be closed.
     ///
     /// This is useful for keeping the connection alive and detecting broken
     /// connections from the server side, rather than relying on the client
@@ -331,34 +339,46 @@ where
             return Poll::Ready(None);
         }
 
+        let server_pings_enabled =
+            *this.protocol == Protocols::GraphQLWS && this.ping_interval_timer.is_some();
+
         if let Some(keepalive_timer) = this.keepalive_timer
             && let Poll::Ready(Some(())) = keepalive_timer.poll_next_unpin(cx)
         {
-            return match this.protocol {
-                Protocols::SubscriptionsTransportWS => {
-                    *this.close = true;
-                    Poll::Ready(Some(WsMessage::Text(
-                        serde_json::to_string(&ServerMessage::ConnectionError {
-                            payload: Error::new("timeout"),
-                        })
-                        .unwrap(),
-                    )))
-                }
-                Protocols::GraphQLWS => {
-                    *this.close = true;
-                    Poll::Ready(Some(WsMessage::Close(3008, "timeout".to_string())))
-                }
-            };
+            // Without server-initiated pings, keep the existing idle timeout
+            // behavior. When pings are enabled, the timer is the deadline for
+            // the outstanding Ping to be acknowledged with a Pong.
+            if !server_pings_enabled || *this.waiting_for_pong {
+                return match this.protocol {
+                    Protocols::SubscriptionsTransportWS => {
+                        *this.close = true;
+                        Poll::Ready(Some(WsMessage::Text(
+                            serde_json::to_string(&ServerMessage::ConnectionError {
+                                payload: Error::new("timeout"),
+                            })
+                            .unwrap(),
+                        )))
+                    }
+                    Protocols::GraphQLWS => {
+                        *this.close = true;
+                        Poll::Ready(Some(WsMessage::Close(3008, "timeout".to_string())))
+                    }
+                };
+            }
         }
 
-        // Send server-initiated pings at the configured interval.
-        // Only active after the connection has been acknowledged (data is set)
-        // and only for the graphql-ws protocol.
-        if this.data.is_some()
-            && *this.protocol == Protocols::GraphQLWS
+        // Send periodic Ping to client (graphql-ws protocol only)
+        // Only send a new Ping if we're not already waiting for a Pong
+        if server_pings_enabled
+            && !*this.waiting_for_pong
             && let Some(ping_interval_timer) = this.ping_interval_timer
             && let Poll::Ready(Some(())) = ping_interval_timer.poll_next_unpin(cx)
         {
+            // Reset keepalive timer to wait for Pong response
+            if let Some(keepalive_timer) = this.keepalive_timer {
+                *this.waiting_for_pong = true;
+                keepalive_timer.reset();
+            }
             return Poll::Ready(Some(WsMessage::Text(
                 serde_json::to_string(&ServerMessage::Ping { payload: None }).unwrap(),
             )));
@@ -380,7 +400,9 @@ where
                 };
 
                 *this.last_msg_at = Instant::now();
-                if let Some(keepalive_timer) = this.keepalive_timer {
+                if (!server_pings_enabled || !*this.waiting_for_pong)
+                    && let Some(keepalive_timer) = this.keepalive_timer
+                {
                     keepalive_timer.reset();
                 }
 
@@ -456,7 +478,12 @@ where
                         break;
                     }
                     ClientMessage::Pong { .. } => {
-                        // Do nothing...
+                        // Acknowledgement of a server-initiated Ping
+                        *this.waiting_for_pong = false;
+                        // Reset keepalive timer since client is responsive
+                        if let Some(keepalive_timer) = this.keepalive_timer {
+                            keepalive_timer.reset();
+                        }
                     }
                 }
             }
@@ -470,6 +497,7 @@ where
                         let mut ctx_data = this.connection_data.take().unwrap_or_default();
                         ctx_data.merge(data);
                         *this.data = Some(Arc::new(ctx_data));
+                        // Reset ping interval timer after successful init
                         if let Some(ping_interval_timer) = this.ping_interval_timer {
                             ping_interval_timer.reset();
                         }
@@ -675,4 +703,7 @@ enum ServerMessage<'a> {
         #[serde(skip_serializing_if = "Option::is_none")]
         payload: Option<serde_json::Value>,
     },
+    // Not used by this library
+    // #[serde(rename = "ka")]
+    // KeepAlive
 }
