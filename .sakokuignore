@@ -1,0 +1,13 @@
+# Chinese (zh-CN) translation of the mdBook documentation
+docs/zh-CN/
+
+# Files containing text referencing/linking to the Chinese docs translation
+README.md
+src/lib.rs
+docs/index.html
+docs/en/src/dataloader.md
+docs/en/src/cursor_connections.md
+
+# Test fixtures that validate character-length counting against CJK strings
+src/validators/chars_min_length.rs
+src/validators/chars_max_length.rs
