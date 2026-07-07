@@ -330,3 +330,59 @@ async fn test_optional_output_with_try() {
         })
     );
 }
+
+#[tokio::test]
+async fn test_flatten_only_field() {
+    #[derive(SimpleObject)]
+    struct Inner {
+        a: i32,
+        b: i32,
+    }
+
+    struct Outer;
+
+    #[Object]
+    impl Outer {
+        #[graphql(flatten)]
+        async fn inner(&self) -> Inner {
+            Inner { a: 100, b: 200 }
+        }
+    }
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn obj(&self) -> Outer {
+            Outer
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+
+    // Check that the schema type has the flattened fields
+    let query = "{ __type(name: \"Outer\") { fields { name } } }";
+    assert_eq!(
+        schema.execute(query).await.data,
+        value!({
+            "__type": {
+                "fields": [
+                    {"name": "a"},
+                    {"name": "b"}
+                ]
+            }
+        })
+    );
+
+    // Check that the flattened fields resolve correctly
+    let query = "{ obj { a b } }";
+    assert_eq!(
+        schema.execute(query).await.data,
+        value!({
+            "obj": {
+                "a": 100,
+                "b": 200,
+            }
+        })
+    );
+}
