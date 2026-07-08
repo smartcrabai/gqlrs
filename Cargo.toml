@@ -71,6 +71,9 @@ serde_urlencoded = "0.7.1"
 static_assertions_next = "1.1.2"
 thiserror.workspace = true
 
+# Always-on dependencies
+web-time = "1.1.0"
+
 # Feature optional dependencies
 chrono = { version = "0.4.37", optional = true, default-features = false, features = [
   "clock",
