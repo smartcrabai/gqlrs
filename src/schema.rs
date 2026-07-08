@@ -1,5 +1,6 @@
 use std::{
     any::{Any, TypeId},
+    borrow::Cow,
     collections::{HashMap, HashSet},
     ops::Deref,
     sync::Arc,
@@ -190,17 +191,23 @@ impl<Query, Mutation, Subscription> SchemaBuilder<Query, Mutation, Subscription>
         self
     }
 
-    /// Override the name of the specified input type.
+    /// Override the description of the specified input type.
     #[must_use]
-    pub fn override_input_type_description<T: InputType>(mut self, desc: &'static str) -> Self {
-        self.registry.set_description(&*T::type_name(), desc);
+    pub fn override_input_type_description<T: InputType>(
+        mut self,
+        desc: impl Into<Cow<'static, str>>,
+    ) -> Self {
+        self.registry.set_description(&*T::type_name(), desc.into());
         self
     }
 
-    /// Override the name of the specified output type.
+    /// Override the description of the specified output type.
     #[must_use]
-    pub fn override_output_type_description<T: OutputType>(mut self, desc: &'static str) -> Self {
-        self.registry.set_description(&*T::type_name(), desc);
+    pub fn override_output_type_description<T: OutputType>(
+        mut self,
+        desc: impl Into<Cow<'static, str>>,
+    ) -> Self {
+        self.registry.set_description(&*T::type_name(), desc.into());
         self
     }
 

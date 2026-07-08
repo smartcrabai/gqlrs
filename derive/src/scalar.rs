@@ -37,7 +37,7 @@ pub fn generate(
     };
 
     let desc = if scalar_args.use_type_description {
-        quote! { ::std::option::Option::Some(::std::string::ToString::to_string(<Self as #crate_name::Description>::description())) }
+        quote! { ::std::option::Option::Some(::std::borrow::Cow::into_owned(<Self as #crate_name::Description>::description())) }
     } else {
         get_rustdoc(&item_impl.attrs)?
             .map(|s| quote!(::std::option::Option::Some(::std::string::ToString::to_string(#s))))
