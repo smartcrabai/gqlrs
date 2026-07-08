@@ -71,7 +71,7 @@ pub fn nullable_type_check(crate_name: &syn::Path, ty: &Type) -> TokenStream {
     if is_output_type_nullable(ty) {
         quote!(true)
     } else {
-        quote!(!<#ty as #crate_name::OutputType>::qualified_type_name().ends_with('!'))
+        quote!(!<#ty as #crate_name::OutputTypeMarker>::qualified_type_name().ends_with('!'))
     }
 }
 

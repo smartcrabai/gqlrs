@@ -211,7 +211,7 @@ pub use async_graphql_value::{
 pub use async_trait;
 pub use base::{
     ComplexObject, Description, InputObjectType, InputType, InterfaceType, ObjectType,
-    OneofObjectType, OutputType, TypeName, UnionType,
+    OneofObjectType, OutputType, OutputTypeMarker, TypeName, UnionType,
 };
 #[doc(hidden)]
 pub use context::ContextSelectionSet;

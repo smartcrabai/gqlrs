@@ -84,7 +84,7 @@ struct Bag<T: OutputType> {
 
 impl<T: OutputType> TypeName for Bag<T> {
     fn type_name() -> Cow<'static, str> {
-        format!("{}Bag", <T as OutputType>::type_name()).into()
+        format!("{}Bag", <T as OutputTypeMarker>::type_name()).into()
     }
 }
 ```

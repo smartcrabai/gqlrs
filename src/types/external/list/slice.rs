@@ -1,12 +1,12 @@
 use std::{borrow::Cow, sync::Arc};
 
 use crate::{
-    ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType, Positioned,
-    ServerResult, Value, parser::types::Field, registry, resolver_utils::resolve_list,
+    ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType,
+    OutputTypeMarker, Positioned, ServerResult, Value, parser::types::Field, registry,
+    resolver_utils::resolve_list,
 };
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-impl<'a, T: OutputType + 'a> OutputType for &'a [T] {
+impl<'a, T: OutputTypeMarker + 'a> OutputTypeMarker for &'a [T] {
     fn type_name() -> Cow<'static, str> {
         Cow::Owned(format!("[{}]", T::qualified_type_name()))
     }
@@ -19,7 +19,10 @@ impl<'a, T: OutputType + 'a> OutputType for &'a [T] {
         T::create_type_info(registry);
         Self::qualified_type_name()
     }
+}
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+impl<'a, T: OutputType + 'a> OutputType for &'a [T] {
     async fn resolve(
         &self,
         ctx: &ContextSelectionSet<'_>,
@@ -29,10 +32,9 @@ impl<'a, T: OutputType + 'a> OutputType for &'a [T] {
     }
 }
 
-macro_rules! impl_output_slice_for_smart_ptr {
+macro_rules! impl_output_marker_slice_for_smart_ptr {
     ($ty:ty) => {
-        #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-        impl<T: OutputType> OutputType for $ty {
+        impl<T: OutputTypeMarker> OutputTypeMarker for $ty {
             fn type_name() -> Cow<'static, str> {
                 Cow::Owned(format!("[{}]", T::qualified_type_name()))
             }
@@ -45,7 +47,14 @@ macro_rules! impl_output_slice_for_smart_ptr {
                 T::create_type_info(registry);
                 Self::qualified_type_name()
             }
+        }
+    };
+}
 
+macro_rules! impl_output_slice_for_smart_ptr {
+    ($ty:ty) => {
+        #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+        impl<T: OutputType> OutputType for $ty {
             async fn resolve(
                 &self,
                 ctx: &ContextSelectionSet<'_>,
@@ -57,6 +66,8 @@ macro_rules! impl_output_slice_for_smart_ptr {
     };
 }
 
+impl_output_marker_slice_for_smart_ptr!(Box<[T]>);
+impl_output_marker_slice_for_smart_ptr!(Arc<[T]>);
 impl_output_slice_for_smart_ptr!(Box<[T]>);
 impl_output_slice_for_smart_ptr!(Arc<[T]>);
 

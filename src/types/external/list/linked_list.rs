@@ -1,8 +1,9 @@
 use std::{borrow::Cow, collections::LinkedList};
 
 use crate::{
-    ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType, Positioned,
-    ServerResult, Value, parser::types::Field, registry, resolver_utils::resolve_list,
+    ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType,
+    OutputTypeMarker, Positioned, ServerResult, Value, parser::types::Field, registry,
+    resolver_utils::resolve_list,
 };
 
 impl<T: InputType> InputType for LinkedList<T> {
@@ -46,8 +47,7 @@ impl<T: InputType> InputType for LinkedList<T> {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-impl<T: OutputType> OutputType for LinkedList<T> {
+impl<T: OutputTypeMarker> OutputTypeMarker for LinkedList<T> {
     fn type_name() -> Cow<'static, str> {
         Cow::Owned(format!("[{}]", T::qualified_type_name()))
     }
@@ -60,7 +60,10 @@ impl<T: OutputType> OutputType for LinkedList<T> {
         T::create_type_info(registry);
         Self::qualified_type_name()
     }
+}
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+impl<T: OutputType> OutputType for LinkedList<T> {
     async fn resolve(
         &self,
         ctx: &ContextSelectionSet<'_>,

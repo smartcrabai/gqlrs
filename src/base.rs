@@ -64,9 +64,12 @@ pub trait InputType: Send + Sync + Sized {
     fn as_raw_value(&self) -> Option<&Self::RawValueType>;
 }
 
-/// Represents a GraphQL output type.
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-pub trait OutputType: Send + Sync {
+/// Marker trait for GraphQL output type metadata.
+///
+/// This trait contains the type-level metadata methods that were previously
+/// on `OutputType`. Splitting them out reduces monomorphization when
+/// `ContainerType` is used, leading to faster compile times.
+pub trait OutputTypeMarker: Send + Sync {
     /// Type the name.
     fn type_name() -> Cow<'static, str>;
 
@@ -93,7 +96,11 @@ pub trait OutputType: Send + Sync {
 
     /// Create type information in the registry and return qualified typename.
     fn create_type_info(registry: &mut registry::Registry) -> String;
+}
 
+/// Represents a GraphQL output type.
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+pub trait OutputType: OutputTypeMarker {
     /// Resolve an output value to `gqlrs::Value`.
     #[cfg(feature = "boxed-trait")]
     async fn resolve(
@@ -111,8 +118,7 @@ pub trait OutputType: Send + Sync {
     ) -> impl Future<Output = ServerResult<Value>> + Send;
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-impl<T: OutputType + ?Sized> OutputType for &T {
+impl<T: OutputTypeMarker + ?Sized> OutputTypeMarker for &T {
     fn type_name() -> Cow<'static, str> {
         T::type_name()
     }
@@ -124,7 +130,10 @@ impl<T: OutputType + ?Sized> OutputType for &T {
     fn create_type_info(registry: &mut Registry) -> String {
         T::create_type_info(registry)
     }
+}
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+impl<T: OutputType + ?Sized> OutputType for &T {
     #[allow(clippy::trivially_copy_pass_by_ref)]
     async fn resolve(
         &self,
@@ -135,8 +144,9 @@ impl<T: OutputType + ?Sized> OutputType for &T {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-impl<T: OutputType + Sync, E: Into<Error> + Send + Sync + Clone> OutputType for Result<T, E> {
+impl<T: OutputTypeMarker + Sync, E: Into<Error> + Send + Sync + Clone> OutputTypeMarker
+    for Result<T, E>
+{
     fn type_name() -> Cow<'static, str> {
         T::type_name()
     }
@@ -163,7 +173,10 @@ impl<T: OutputType + Sync, E: Into<Error> + Send + Sync + Clone> OutputType for 
             ty
         }
     }
+}
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+impl<T: OutputType + Sync, E: Into<Error> + Send + Sync + Clone> OutputType for Result<T, E> {
     async fn resolve(
         &self,
         ctx: &ContextSelectionSet<'_>,
@@ -189,7 +202,7 @@ impl<T: OutputType + Sync, E: Into<Error> + Send + Sync + Clone> OutputType for 
 }
 
 /// A GraphQL object.
-pub trait ObjectType: ContainerType {}
+pub trait ObjectType: ContainerType + OutputType {}
 
 impl<T: ObjectType> ObjectType for Result<T> {}
 
@@ -211,8 +224,7 @@ pub trait InputObjectType: InputType {}
 /// A GraphQL oneof input object.
 pub trait OneofObjectType: InputObjectType {}
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-impl<T: OutputType + ?Sized> OutputType for Box<T> {
+impl<T: OutputTypeMarker + ?Sized> OutputTypeMarker for Box<T> {
     fn type_name() -> Cow<'static, str> {
         T::type_name()
     }
@@ -224,7 +236,10 @@ impl<T: OutputType + ?Sized> OutputType for Box<T> {
     fn create_type_info(registry: &mut Registry) -> String {
         T::create_type_info(registry)
     }
+}
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+impl<T: OutputType + ?Sized> OutputType for Box<T> {
     #[cfg(feature = "boxed-trait")]
     async fn resolve(
         &self,
@@ -271,8 +286,7 @@ impl<T: InputType> InputType for Box<T> {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-impl<T: OutputType + ?Sized> OutputType for Arc<T> {
+impl<T: OutputTypeMarker + ?Sized> OutputTypeMarker for Arc<T> {
     fn type_name() -> Cow<'static, str> {
         T::type_name()
     }
@@ -284,7 +298,10 @@ impl<T: OutputType + ?Sized> OutputType for Arc<T> {
     fn create_type_info(registry: &mut Registry) -> String {
         T::create_type_info(registry)
     }
+}
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+impl<T: OutputType + ?Sized> OutputType for Arc<T> {
     #[allow(clippy::trivially_copy_pass_by_ref)]
     async fn resolve(
         &self,
@@ -321,10 +338,9 @@ impl<T: InputType> InputType for Arc<T> {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-impl<T: OutputType + ?Sized> OutputType for Weak<T> {
+impl<T: OutputTypeMarker + ?Sized> OutputTypeMarker for Weak<T> {
     fn type_name() -> Cow<'static, str> {
-        <Option<Arc<T>> as OutputType>::type_name()
+        <Option<Arc<T>> as OutputTypeMarker>::type_name()
     }
 
     fn semantic_nullability() -> SemanticNullability {
@@ -332,9 +348,12 @@ impl<T: OutputType + ?Sized> OutputType for Weak<T> {
     }
 
     fn create_type_info(registry: &mut Registry) -> String {
-        <Option<Arc<T>> as OutputType>::create_type_info(registry)
+        <Option<Arc<T>> as OutputTypeMarker>::create_type_info(registry)
     }
+}
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+impl<T: OutputType + ?Sized> OutputType for Weak<T> {
     async fn resolve(
         &self,
         ctx: &ContextSelectionSet<'_>,
