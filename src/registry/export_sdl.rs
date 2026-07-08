@@ -441,12 +441,10 @@ impl Registry {
                     }
                 }
 
-                if let Some(description) = description {
-                    write_description(sdl, options, 0, description);
-                }
-
                 if options.federation && *extends {
                     write!(sdl, "extend ").ok();
+                } else if let Some(description) = description {
+                    write_description(sdl, options, 0, description);
                 }
 
                 write!(sdl, "type {}", name).ok();
@@ -503,13 +501,12 @@ impl Registry {
                 requires_scopes,
                 ..
             } => {
-                if let Some(description) = description {
+                if options.federation && *extends {
+                    write!(sdl, "extend ").ok();
+                } else if let Some(description) = description {
                     write_description(sdl, options, 0, description);
                 }
 
-                if options.federation && *extends {
-                    write!(sdl, "extend ").ok();
-                }
                 write!(sdl, "interface {}", name).ok();
 
                 if options.federation {
@@ -916,6 +913,62 @@ schema {
         });
         registry.query_type = "Query".to_string();
         let sdl = registry.export_sdl(SDLExportOptions::new());
+        assert_eq!(sdl, expected)
+    }
+
+    #[test]
+    fn test_extended_object_with_description_federation() {
+        let expected = "extend type Example @key(fields: \"id\") {\n\tid: ID!\n}\n\nextend schema @link(\n\turl: \"https://specs.apollo.dev/federation/v2.5\",\n\timport: [\"@key\", \"@tag\", \"@shareable\", \"@inaccessible\", \"@override\", \"@external\", \"@provides\", \"@requires\", \"@composeDirective\", \"@interfaceObject\", \"@requiresScopes\"]\n)\n";
+        let mut registry = Registry::default();
+        registry.types.insert(
+            "Example".to_string(),
+            MetaType::Object {
+                name: "Example".to_string(),
+                description: Some("This should be omitted in federation extends".to_string()),
+                fields: [("id".to_string(), MetaField::new("id", "ID!"))].into(),
+                cache_control: Default::default(),
+                extends: true,
+                shareable: false,
+                resolvable: true,
+                keys: Some(vec!["id".to_string()]),
+                visible: None,
+                inaccessible: false,
+                interface_object: false,
+                tags: vec![],
+                is_subscription: false,
+                rust_typename: None,
+                directive_invocations: vec![],
+                requires_scopes: vec![],
+            },
+        );
+        registry.query_type = "Query".to_string();
+        let sdl = registry.export_sdl(SDLExportOptions::new().federation());
+        assert_eq!(sdl, expected)
+    }
+
+    #[test]
+    fn test_extended_interface_with_description_federation() {
+        let expected = "extend interface Node {\n\tid: ID!\n}\n\nextend schema @link(\n\turl: \"https://specs.apollo.dev/federation/v2.5\",\n\timport: [\"@key\", \"@tag\", \"@shareable\", \"@inaccessible\", \"@override\", \"@external\", \"@provides\", \"@requires\", \"@composeDirective\", \"@interfaceObject\", \"@requiresScopes\"]\n)\n";
+        let mut registry = Registry::default();
+        registry.types.insert(
+            "Node".to_string(),
+            MetaType::Interface {
+                name: "Node".to_string(),
+                description: Some("This should be omitted in federation extends".to_string()),
+                fields: [("id".to_string(), MetaField::new("id", "ID!"))].into(),
+                possible_types: Default::default(),
+                extends: true,
+                keys: None,
+                visible: None,
+                inaccessible: false,
+                tags: vec![],
+                rust_typename: None,
+                directive_invocations: vec![],
+                requires_scopes: vec![],
+            },
+        );
+        registry.query_type = "Query".to_string();
+        let sdl = registry.export_sdl(SDLExportOptions::new().federation());
         assert_eq!(sdl, expected)
     }
 }
