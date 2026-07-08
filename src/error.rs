@@ -277,6 +277,20 @@ impl Debug for Error {
     }
 }
 
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        // Note: source is stored as Arc<dyn Any + Send + Sync>,
+        // which does not implement std::error::Error.
+        None
+    }
+}
+
 impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {
         self.message.eq(&other.message) && self.extensions.eq(&other.extensions)
@@ -316,11 +330,21 @@ impl Error {
     }
 }
 
-impl<T: Display + Send + Sync + 'static> From<T> for Error {
-    fn from(e: T) -> Self {
+impl From<String> for Error {
+    fn from(s: String) -> Self {
         Self {
-            message: e.to_string(),
-            source: Some(Arc::new(e)),
+            message: s.clone(),
+            source: Some(Arc::new(s)),
+            extensions: None,
+        }
+    }
+}
+
+impl From<&str> for Error {
+    fn from(s: &str) -> Self {
+        Self {
+            message: s.to_string(),
+            source: None,
             extensions: None,
         }
     }
