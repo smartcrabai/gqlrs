@@ -330,31 +330,95 @@ impl Error {
     }
 }
 
-impl From<String> for Error {
-    fn from(s: String) -> Self {
-        Self {
-            message: s.clone(),
-            source: Some(Arc::new(s)),
-            extensions: None,
-        }
+impl<T: IntoError + Send + Sync + 'static> From<T> for Error {
+    fn from(e: T) -> Self {
+        e.into_error()
     }
 }
+
+/// A trait for types that can be converted into a GraphQL [`Error`].
+///
+/// This trait allows custom error types to supply extensions automatically
+/// when converted to a GraphQL error, without needing to call
+/// [`ErrorExtensions::extend`] repeatedly.
+///
+/// # Examples
+///
+/// ```rust
+/// use gqlrs::{Error, ErrorExtensionValues, IntoError};
+///
+/// #[derive(Debug)]
+/// enum MyError {
+///     NotFound { id: String },
+///     Unauthorized,
+/// }
+///
+/// impl std::fmt::Display for MyError {
+///     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+///         match self {
+///             MyError::NotFound { id } => write!(f, "Entity with id '{}' not found", id),
+///             MyError::Unauthorized => write!(f, "Unauthorized access"),
+///         }
+///     }
+/// }
+///
+/// impl IntoError for MyError {
+///     fn into_error(self) -> Error {
+///         let (message, extensions) = match &self {
+///             MyError::NotFound { id } => {
+///                 let mut ext = ErrorExtensionValues::default();
+///                 ext.set("code", "NOT_FOUND");
+///                 ext.set("entityId", id.clone());
+///                 (format!("Entity with id '{}' not found", id), Some(ext))
+///             }
+///             MyError::Unauthorized => {
+///                 let mut ext = ErrorExtensionValues::default();
+///                 ext.set("code", "UNAUTHORIZED");
+///                 ("Unauthorized access".to_string(), Some(ext))
+///             }
+///         };
+///         Error {
+///             message,
+///             source: Some(std::sync::Arc::new(self)),
+///             extensions,
+///         }
+///     }
+/// }
+/// ```
+pub trait IntoError {
+    /// Convert this type into a GraphQL [`Error`].
+    fn into_error(self) -> Error;
+}
+
+/// Macro to implement `IntoError` for types that implement `Display + Send +
+/// Sync + 'static`.
+///
+/// This provides backward compatibility for common error types while allowing
+/// custom types to implement `IntoError` directly with custom extensions.
+macro_rules! impl_into_error_display {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl IntoError for $ty {
+                fn into_error(self) -> Error {
+                    Error {
+                        message: self.to_string(),
+                        source: Some(Arc::new(self)),
+                        extensions: None,
+                    }
+                }
+            }
+        )*
+    };
+}
+
+// Implement IntoError for common types
+impl_into_error_display!(String, std::io::Error, std::fmt::Error,);
 
 impl From<&str> for Error {
     fn from(s: &str) -> Self {
         Self {
             message: s.to_string(),
             source: None,
-            extensions: None,
-        }
-    }
-}
-
-impl From<std::io::Error> for Error {
-    fn from(err: std::io::Error) -> Self {
-        Self {
-            message: err.to_string(),
-            source: Some(Arc::new(err)),
             extensions: None,
         }
     }
