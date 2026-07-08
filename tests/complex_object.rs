@@ -653,3 +653,106 @@ async fn test_flatten_with_result() {
         })
     );
 }
+
+// Regression test for async-graphql#1549: ComplexObject resolver returning
+// Result<Option<T>> where an Err should null only that nullable field,
+// not the entire response.
+#[tokio::test]
+async fn test_complex_object_nullable_result_error_does_not_null_ancestor() {
+    #[derive(SimpleObject)]
+    #[graphql(complex)]
+    struct MyObj {
+        a: i32,
+    }
+
+    #[ComplexObject]
+    impl MyObj {
+        // Nullable async field that returns an error.
+        async fn nullable_status(&self) -> Result<Option<String>> {
+            Err("something went wrong".into())
+        }
+
+        // Non-nullable async field that returns an error.
+        async fn non_nullable_status(&self) -> Result<String> {
+            Err("something went wrong".into())
+        }
+
+        // Nullable async field with an argument validator.
+        async fn nullable_with_arg(
+            &self,
+            #[graphql(validator(maximum = 10))] n: i32,
+        ) -> Option<i32> {
+            Some(n)
+        }
+
+        // Nullable sync field that returns an error.
+        fn nullable_sync_status(&self) -> Result<Option<String>> {
+            Err("something went wrong".into())
+        }
+    }
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn obj(&self) -> MyObj {
+            MyObj { a: 10 }
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+
+    // When a nullable async resolver errors, only that field should be null
+    // and the rest of the response should still be valid.
+    let query = "{ obj { a nullableStatus } }";
+    let response = schema.execute(query).await;
+    assert_eq!(
+        response.data,
+        value!({
+            "obj": {
+                "a": 10,
+                "nullableStatus": null,
+            }
+        })
+    );
+    assert_eq!(response.errors.len(), 1);
+    assert_eq!(response.errors[0].message, "something went wrong");
+
+    // When a non-nullable async resolver errors, the error propagates up and
+    // nulls an ancestor (the whole "obj" here becomes null or the response data
+    // is an error).
+    let query = "{ obj { a nonNullableStatus } }";
+    let response = schema.execute(query).await;
+    // Non-nullable field error should propagate, nulling an ancestor.
+    assert!(response.errors.len() >= 1);
+
+    // Argument/validator failures are not resolver errors; even for a nullable
+    // field they should keep propagating instead of being converted to a field
+    // null.
+    let query = "{ obj { a nullableWithArg(n: 11) } }";
+    let response = schema.execute(query).await;
+    assert_eq!(response.data, Value::Null);
+    assert_eq!(response.errors.len(), 1);
+    assert_eq!(
+        response.errors[0].path,
+        vec![
+            PathSegment::Field("obj".to_string()),
+            PathSegment::Field("nullableWithArg".to_string()),
+        ]
+    );
+
+    // Nullable sync resolver that errors should also only null the field.
+    let query = "{ obj { a nullableSyncStatus } }";
+    let response = schema.execute(query).await;
+    assert_eq!(
+        response.data,
+        value!({
+            "obj": {
+                "a": 10,
+                "nullableSyncStatus": null,
+            }
+        })
+    );
+    assert_eq!(response.errors.len(), 1);
+    assert_eq!(response.errors[0].message, "something went wrong");
+}
