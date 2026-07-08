@@ -350,6 +350,16 @@ impl From<&str> for Error {
     }
 }
 
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Self {
+            message: err.to_string(),
+            source: Some(Arc::new(err)),
+            extensions: None,
+        }
+    }
+}
+
 /// An alias for `Result<T, Error>`.
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 

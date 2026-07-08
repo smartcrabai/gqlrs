@@ -325,9 +325,11 @@ pub fn generate(object_args: &args::InputObject) -> GeneratorResult<TokenStream>
 
         if field.flatten {
             flatten_fields.push((ident, ty));
-            field_validations.push(quote! {
-                #crate_name::InputType::validate_input_guards(&self.#ident, ctx, __input_value).await?;
-            });
+            if field.input_using.is_none() {
+                field_validations.push(quote! {
+                    #crate_name::InputType::validate_input_guards(&self.#ident, ctx, __input_value).await?;
+                });
+            }
 
             let assert_generics = (!object_args.generics.params.is_empty()).then(|| {
                 let generics_list = &object_args.generics.params;
@@ -440,13 +442,15 @@ pub fn generate(object_args: &args::InputObject) -> GeneratorResult<TokenStream>
         });
 
         fields.push(ident);
-        field_validations.push(quote! {
-            if let ::std::option::Option::Some(#crate_name::Value::Object(__obj)) = __input_value {
-                if let ::std::option::Option::Some(__field_value) = __obj.get(#name) {
-                    #crate_name::InputType::validate_input_guards(&self.#ident, ctx, ::std::option::Option::Some(__field_value)).await?;
+        if field.input_using.is_none() {
+            field_validations.push(quote! {
+                if let ::std::option::Option::Some(#crate_name::Value::Object(__obj)) = __input_value {
+                    if let ::std::option::Option::Some(__field_value) = __obj.get(#name) {
+                        #crate_name::InputType::validate_input_guards(&self.#ident, ctx, ::std::option::Option::Some(__field_value)).await?;
+                    }
                 }
-            }
-        });
+            });
+        }
 
         let has_visible = field.visible.is_some();
         let visible = visible_fn(&field.visible);
@@ -462,7 +466,7 @@ pub fn generate(object_args: &args::InputObject) -> GeneratorResult<TokenStream>
                 input_value.description = ::std::option::Option::Some(::std::string::ToString::to_string(#desc));
             });
         }
-        if let Some(schema_default) = schema_default {
+        if let Some(ref schema_default) = schema_default {
             input_sets.push(quote!(input_value.default_value = #schema_default;));
         }
         if has_deprecation {

@@ -17,12 +17,49 @@ pub async fn test_fieldresult() {
             Some(Err("TestError".into()))
         }
 
+        async fn field_result_error(&self) -> FieldResult<i32> {
+            Err("TestError".into())
+        }
+
         async fn vec_error(&self) -> Vec<Result<i32>> {
             vec![Ok(1), Err("TestError".into())]
         }
     }
 
     let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    let sdl = schema.sdl();
+    assert!(sdl.contains("error: Int\n"), "{sdl}");
+    assert!(sdl.contains("optError: Int\n"), "{sdl}");
+    assert!(sdl.contains("fieldResultError: Int\n"), "{sdl}");
+    assert!(sdl.contains("vecError: [Int]!\n"), "{sdl}");
+
+    let resp = schema.execute("{ error fieldResultError }").await;
+    assert_eq!(
+        resp.data,
+        value!({
+            "error": null,
+            "fieldResultError": null,
+        })
+    );
+    assert_eq!(
+        resp.errors,
+        vec![
+            ServerError {
+                message: "TestError".to_string(),
+                source: None,
+                locations: vec![Pos { line: 1, column: 3 }],
+                path: vec![PathSegment::Field("error".to_owned())],
+                extensions: None,
+            },
+            ServerError {
+                message: "TestError".to_string(),
+                source: None,
+                locations: vec![Pos { line: 1, column: 9 }],
+                path: vec![PathSegment::Field("fieldResultError".to_owned())],
+                extensions: None,
+            },
+        ]
+    );
 
     let resp = schema.execute("{ error1:optError error2:optError }").await;
     assert_eq!(
@@ -83,6 +120,60 @@ pub async fn test_fieldresult() {
             path: vec![
                 PathSegment::Field("vecError".to_owned()),
                 PathSegment::Index(1)
+            ],
+            extensions: None,
+        }]
+    );
+}
+
+#[tokio::test]
+pub async fn test_result_object_field_catches_child_non_null_errors() {
+    struct DenyGuard;
+
+    #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+    impl Guard for DenyGuard {
+        async fn check(&self, _: &Context<'_>) -> Result<()> {
+            Err("denied".into())
+        }
+    }
+
+    struct ChildObject;
+
+    #[Object]
+    impl ChildObject {
+        #[graphql(guard = "DenyGuard")]
+        async fn guarded(&self) -> i32 {
+            1
+        }
+    }
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn child(&self) -> Result<ChildObject> {
+            Ok(ChildObject)
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    let sdl = schema.sdl();
+    assert!(sdl.contains("child: ChildObject\n"), "{sdl}");
+
+    let resp = schema.execute("{ child { guarded } }").await;
+    assert_eq!(resp.data, value!({ "child": null }));
+    assert_eq!(
+        resp.errors,
+        vec![ServerError {
+            message: "denied".to_string(),
+            source: None,
+            locations: vec![Pos {
+                line: 1,
+                column: 11,
+            }],
+            path: vec![
+                PathSegment::Field("child".to_owned()),
+                PathSegment::Field("guarded".to_owned()),
             ],
             extensions: None,
         }]
@@ -187,6 +278,16 @@ pub async fn test_error_propagation() {
     let resp = schema.execute("{ parent { child { name } } }").await;
 
     assert_eq!(
+        resp.data,
+        value!({
+            "parent": {
+                "child": {
+                    "name": null,
+                }
+            }
+        })
+    );
+    assert_eq!(
         resp.errors,
         vec![ServerError {
             message: "myerror".to_string(),
@@ -209,7 +310,9 @@ pub async fn test_error_propagation() {
         resp.data,
         value!({
             "parent": {
-                "childOpt": null,
+                "childOpt": {
+                    "name": null,
+                }
             }
         })
     );
@@ -232,7 +335,16 @@ pub async fn test_error_propagation() {
     );
 
     let resp = schema.execute("{ parentOpt { child { name } } }").await;
-    assert_eq!(resp.data, value!({ "parentOpt": null }));
+    assert_eq!(
+        resp.data,
+        value!({
+            "parentOpt": {
+                "child": {
+                    "name": null,
+                }
+            }
+        })
+    );
     assert_eq!(
         resp.errors,
         vec![ServerError {

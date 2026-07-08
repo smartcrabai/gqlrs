@@ -11,8 +11,8 @@ use std::{
 use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
-    ContextSelectionSet, ID, InputType, InputValueError, InputValueResult, OutputType, Positioned,
-    ServerResult, Value, parser::types::Field, registry::Registry,
+    ContextSelectionSet, ID, InputType, InputValueError, InputValueResult, OutputType,
+    OutputTypeMarker, Positioned, ServerResult, Value, parser::types::Field, registry::Registry,
 };
 
 /// Cursor type
@@ -259,16 +259,18 @@ impl<T: Serialize + DeserializeOwned + Send + Sync> InputType for OpaqueCursor<T
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-impl<T: Serialize + DeserializeOwned + Send + Sync> OutputType for OpaqueCursor<T> {
+impl<T: Serialize + DeserializeOwned + Send + Sync> OutputTypeMarker for OpaqueCursor<T> {
     fn type_name() -> Cow<'static, str> {
-        <String as OutputType>::type_name()
+        <String as OutputTypeMarker>::type_name()
     }
 
     fn create_type_info(registry: &mut Registry) -> String {
-        <String as OutputType>::create_type_info(registry)
+        <String as OutputTypeMarker>::create_type_info(registry)
     }
+}
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+impl<T: Serialize + DeserializeOwned + Send + Sync> OutputType for OpaqueCursor<T> {
     async fn resolve(
         &self,
         _ctx: &ContextSelectionSet<'_>,

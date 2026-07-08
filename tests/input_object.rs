@@ -615,13 +615,13 @@ pub async fn test_both_input_output_generic_with_input_name_suffix() {
         <MyObject<u32> as InputType>::type_name(),
         "MyObjectU32Input"
     );
-    assert_eq!(<MyObject<u32> as OutputType>::type_name(), "MyObjectU32");
+    assert_eq!(<MyObject<u32> as OutputTypeMarker>::type_name(), "MyObjectU32");
     assert_eq!(
         <MyObject<String> as InputType>::type_name(),
         "MyObjectStringInput"
     );
     assert_eq!(
-        <MyObject<String> as OutputType>::type_name(),
+        <MyObject<String> as OutputTypeMarker>::type_name(),
         "MyObjectString"
     );
 }
@@ -1182,7 +1182,7 @@ pub async fn test_input_name_suffix() {
     // The input type name should be MyObject + "Input" suffix
     assert_eq!(<MyObject as InputType>::type_name(), "MyObjectInput");
     // The output type name should remain the original name
-    assert_eq!(<MyObject as OutputType>::type_name(), "MyObject");
+    assert_eq!(<MyObject as OutputTypeMarker>::type_name(), "MyObject");
 }
 
 #[tokio::test]
@@ -1258,7 +1258,7 @@ pub async fn test_input_name_suffix_uses_graphql_name() {
     );
 
     assert_eq!(<MyObject as InputType>::type_name(), "CustomObjRequest");
-    assert_eq!(<MyObject as OutputType>::type_name(), "CustomObj");
+    assert_eq!(<MyObject as OutputTypeMarker>::type_name(), "CustomObj");
 }
 
 #[tokio::test]

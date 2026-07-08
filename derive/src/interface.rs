@@ -14,7 +14,8 @@ use crate::{
     output_type::OutputType,
     utils::{
         GeneratorResult, RemoveLifetime, gen_boxed_trait, gen_deprecation, gen_directive_calls,
-        generate_default, get_crate_path, get_rustdoc, visible_fn,
+        generate_default, get_crate_path, get_rustdoc, nullable_output_type_create_type_info,
+        output_type_create_type_info, visible_fn,
     },
 };
 
@@ -376,11 +377,19 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
         let deprecation = gen_deprecation(deprecation, &crate_name);
 
         let oty = OutputType::parse(ty)?;
-        let ty = match oty {
-            OutputType::Value(ty) => ty,
-            OutputType::Result(ty) => ty,
+        let ty = match &oty {
+            OutputType::Value(ty) => *ty,
+            OutputType::Result(ty) => *ty,
         };
         let schema_ty = oty.value_type();
+        let field_type = match &oty {
+            OutputType::Value(_) => output_type_create_type_info(&crate_name, &schema_ty),
+            OutputType::Result(_) => nullable_output_type_create_type_info(&crate_name, &schema_ty),
+        };
+        let result_nullable = match &oty {
+            OutputType::Value(_) => quote!(false),
+            OutputType::Result(_) => quote!(true),
+        };
 
         methods.push(quote! {
             #[allow(missing_docs)]
@@ -458,7 +467,7 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
         }
         if has_semantic_non_null {
             field_sets.push(quote! {
-                field.semantic_nullability = match <#schema_ty as #crate_name::OutputType>::semantic_nullability() {
+                field.semantic_nullability = match <#schema_ty as #crate_name::OutputTypeMarker>::semantic_nullability() {
                     #crate_name::registry::SemanticNullability::None => #crate_name::registry::SemanticNullability::OutNonNull,
                     v => v,
                 };
@@ -468,22 +477,38 @@ pub fn generate(interface_args: &args::Interface) -> GeneratorResult<TokenStream
         schema_fields.push(quote! {
             let mut field = #crate_name::registry::MetaField::new(
                 ::std::string::ToString::to_string(#name),
-                <#schema_ty as #crate_name::OutputTypeMarker>::create_type_info(registry),
+                #field_type,
             );
             #(#schema_args)*
             #(#field_sets)*
             fields.insert(::std::string::ToString::to_string(#name), field);
         });
 
-        let resolve_obj = quote! {
-            self.#method_name(#(#use_params),*)
-                .await
-                .map_err(|err| ::std::convert::Into::<#crate_name::Error>::into(err).into_server_error(ctx.item.pos))?
+        let resolve_obj = match &oty {
+            OutputType::Value(_) => quote! {
+                self.#method_name(#(#use_params),*)
+                    .await
+                    .map_err(|err| ::std::convert::Into::<#crate_name::Error>::into(err).into_server_error(ctx.item.pos))?
+            },
+            OutputType::Result(_) => quote! {
+                match self.#method_name(#(#use_params),*).await {
+                    ::std::result::Result::Ok(value) => value,
+                    ::std::result::Result::Err(err) => {
+                        let err = ::std::convert::Into::<#crate_name::Error>::into(err)
+                            .into_server_error(ctx.item.pos);
+                        ctx.add_error(ctx.set_error_path(err));
+                        return ::std::result::Result::Ok(::std::option::Option::Some(#crate_name::Value::Null));
+                    }
+                }
+            },
         };
 
         resolvers.push(quote! {
             if ctx.item.node.name.node == #name {
                 #(#get_params)*
+                if #result_nullable {
+                    return #crate_name::resolver_utils::resolve_nullable_field_value(ctx, &#resolve_obj).await;
+                }
                 let ctx_obj = ctx.with_selection_set(&ctx.item.node.selection_set);
                 return #crate_name::OutputType::resolve(&#resolve_obj, &ctx_obj, ctx.item).await.map(::std::option::Option::Some);
             }
