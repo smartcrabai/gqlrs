@@ -151,7 +151,7 @@ where
         )
     }
 
-    fn take_stream(&mut self) -> StreamKeysAndSender<K, T> {
+    fn take_stream(&mut self) -> StreamKeysAndSender<K, V, T> {
         (
             std::mem::take(&mut self.stream_keys),
             std::mem::take(&mut self.stream_pending),
@@ -570,7 +570,7 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
         T: Loader<K, V>,
     {
         enum Action<K: Send + Sync + Hash + Eq + Clone + 'static, V: Send + Sync + Clone + 'static, T: Loader<K, V>> {
-            ImmediateLoad(StreamKeysAndSender<K, T>),
+            ImmediateLoad(StreamKeysAndSender<K, V, T>),
             StartFetch,
             Delay,
         }
