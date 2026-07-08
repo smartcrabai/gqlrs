@@ -53,6 +53,8 @@ pub(crate) fn check_rules(
     let mut depth = 0;
 
     let mut ctx = VisitorContext::new(registry, doc, variables, operation_name);
+    ctx.set_limits(limit_complexity, limit_depth);
+
     let errors = match mode {
         ValidationMode::Strict => {
             let mut visitor = VisitorNil
