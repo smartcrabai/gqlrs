@@ -73,8 +73,13 @@ use std::{
 };
 
 pub use cache::{CacheFactory, CacheStorage, HashMapCache, LruCache, NoCache};
-use futures_channel::oneshot;
-use futures_util::task::{Spawn, SpawnExt};
+use futures_channel::{mpsc, oneshot};
+#[cfg(not(feature = "boxed-trait"))]
+use futures_util::stream::Stream;
+use futures_util::{
+    stream::{self, BoxStream, StreamExt, TryStreamExt},
+    task::{Spawn, SpawnExt},
+};
 use rustc_hash::FxBuildHasher;
 #[cfg(feature = "tracing")]
 use tracing::{Instrument, info_span, instrument};
@@ -94,6 +99,15 @@ where
     tx: oneshot::Sender<Result<HashMap<K, V>, <T as Loader<K, V>>::Error>>,
 }
 
+struct StreamSender<K, V, T>
+where
+    K: Send + Sync + Hash + Eq + Clone + 'static,
+    V: Send + Sync + Clone + 'static,
+    T: Loader<K, V>,
+{
+    tx: mpsc::UnboundedSender<StreamResult<K, V, T::Error>>,
+}
+
 struct Requests<K, V, T>
 where
     K: Send + Sync + Hash + Eq + Clone + 'static,
@@ -102,11 +116,16 @@ where
 {
     keys: HashSet<K>,
     pending: Vec<(HashSet<K>, ResSender<K, V, T>)>,
+    stream_keys: HashSet<K>,
+    stream_pending: Vec<(HashSet<K>, StreamSender<K, V, T>)>,
     cache_storage: Box<dyn CacheStorage<Key = K, Value = V>>,
     disable_cache: bool,
 }
 
+type StreamResult<K, V, E> = Result<(K, V), E>;
+type LoaderStream<'a, K, V, E> = BoxStream<'a, StreamResult<K, V, E>>;
 type KeysAndSender<K, V, T> = (HashSet<K>, Vec<(HashSet<K>, ResSender<K, V, T>)>);
+type StreamKeysAndSender<K, V, T> = (HashSet<K>, Vec<(HashSet<K>, StreamSender<K, V, T>)>);
 
 impl<K, V, T> Requests<K, V, T>
 where
@@ -118,6 +137,8 @@ where
         Self {
             keys: Default::default(),
             pending: Vec::new(),
+            stream_keys: Default::default(),
+            stream_pending: Vec::new(),
             cache_storage: cache_factory.create::<K, V>(),
             disable_cache: false,
         }
@@ -127,6 +148,13 @@ where
         (
             std::mem::take(&mut self.keys),
             std::mem::take(&mut self.pending),
+        )
+    }
+
+    fn take_stream(&mut self) -> StreamKeysAndSender<K, T> {
+        (
+            std::mem::take(&mut self.stream_keys),
+            std::mem::take(&mut self.stream_pending),
         )
     }
 }
@@ -153,6 +181,45 @@ where
     /// Load the data set specified by the `keys`.
     #[cfg(not(feature = "boxed-trait"))]
     fn load(&self, keys: &[K]) -> impl Future<Output = Result<HashMap<K, V>, Self::Error>> + Send;
+
+    /// Load the data set specified by the `keys` as a stream.
+    ///
+    /// Returns a stream that yields key-value pairs as they become available.
+    /// This is useful for loaders that can return results progressively rather
+    /// than waiting for the entire batch to complete.
+    ///
+    /// The default implementation wraps [`load`](Loader::load) in a stream.
+    #[cfg(feature = "boxed-trait")]
+    fn load_stream<'a>(&'a self, keys: &'a [K]) -> LoaderStream<'a, K, V, Self::Error> {
+        Box::pin(
+            stream::once(async move {
+                self.load(keys)
+                    .await
+                    .map(|map| stream::iter(map.into_iter().map(Ok)))
+            })
+            .try_flatten(),
+        )
+    }
+
+    /// Load the data set specified by the `keys` as a stream.
+    ///
+    /// Returns a stream that yields key-value pairs as they become available.
+    /// This is useful for loaders that can return results progressively rather
+    /// than waiting for the entire batch to complete.
+    ///
+    /// The default implementation wraps [`load`](Loader::load) in a stream.
+    #[cfg(not(feature = "boxed-trait"))]
+    fn load_stream<'a>(
+        &'a self,
+        keys: &'a [K],
+    ) -> impl Stream<Item = Result<(K, V), Self::Error>> + Send + 'a {
+        stream::once(async move {
+            self.load(keys)
+                .await
+                .map(|map| stream::iter(map.into_iter().map(Ok)))
+        })
+        .try_flatten()
+    }
 }
 
 struct DataLoaderInner<T> {
@@ -200,6 +267,53 @@ impl<T> DataLoaderInner<T> {
             Err(err) => {
                 for (_, sender) in senders {
                     sender.tx.send(Err(err.clone())).ok();
+                }
+            }
+        }
+    }
+
+    #[cfg_attr(feature = "tracing", instrument(skip_all))]
+    async fn do_load_stream<K, V>(
+        &self,
+        disable_cache: bool,
+        (keys, senders): StreamKeysAndSender<K, V, T>,
+    ) where
+        K: Send + Sync + Hash + Eq + Clone + 'static,
+        V: Send + Sync + Clone + 'static,
+        T: Loader<K, V>,
+    {
+        let tid = TypeId::of::<K>();
+        let keys_vec = keys.iter().cloned().collect::<Vec<_>>();
+        let mut stream = Box::pin(self.loader.load_stream(&keys_vec));
+
+        while let Some(item) = stream.next().await {
+            match item {
+                Ok((key, value)) => {
+                    if !disable_cache {
+                        let mut entry = self.requests.get_async(&tid).await.unwrap();
+                        let typed_requests =
+                            entry.get_mut().downcast_mut::<Requests<K, V, T>>().unwrap();
+                        if !typed_requests.disable_cache {
+                            typed_requests
+                                .cache_storage
+                                .insert(Cow::Borrowed(&key), Cow::Borrowed(&value));
+                        }
+                    }
+
+                    for (req_keys, sender) in &senders {
+                        if req_keys.contains(&key) {
+                            sender
+                                .tx
+                                .unbounded_send(Ok((key.clone(), value.clone())))
+                                .ok();
+                        }
+                    }
+                }
+                Err(err) => {
+                    for (_, sender) in &senders {
+                        sender.tx.unbounded_send(Err(err.clone())).ok();
+                    }
+                    break;
                 }
             }
         }
@@ -440,6 +554,125 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
         rx.await.unwrap()
     }
 
+    /// Use this `DataLoader` to load some data as a stream.
+    ///
+    /// This uses the [`Loader::load_stream`] method and yields key-value pairs
+    /// as they become available.
+    #[cfg_attr(feature = "tracing", instrument(skip_all))]
+    pub async fn load_many_stream<K, V, I>(
+        &self,
+        keys: I,
+    ) -> LoaderStream<'static, K, V, T::Error>
+    where
+        K: Send + Sync + Hash + Eq + Clone + 'static,
+        V: Send + Sync + Clone + 'static,
+        I: IntoIterator<Item = K>,
+        T: Loader<K, V>,
+    {
+        enum Action<K: Send + Sync + Hash + Eq + Clone + 'static, V: Send + Sync + Clone + 'static, T: Loader<K, V>> {
+            ImmediateLoad(StreamKeysAndSender<K, T>),
+            StartFetch,
+            Delay,
+        }
+
+        let tid = TypeId::of::<K>();
+
+        let (action, rx) = {
+            let mut entry = self
+                .inner
+                .requests
+                .entry_async(tid)
+                .await
+                .or_insert_with(|| Box::new(Requests::<K, V, T>::new(&self.cache_factory)));
+
+            let typed_requests = entry.downcast_mut::<Requests<K, V, T>>().unwrap();
+
+            let prev_count = typed_requests.stream_keys.len();
+            let mut keys_set = HashSet::new();
+            let mut use_cache_values = HashMap::new();
+
+            if typed_requests.disable_cache || self.disable_cache.load(Ordering::SeqCst) {
+                keys_set = keys.into_iter().collect();
+            } else {
+                for key in keys {
+                    if let Some(value) = typed_requests.cache_storage.get(&key) {
+                        use_cache_values.insert(key.clone(), value);
+                    } else {
+                        keys_set.insert(key);
+                    }
+                }
+            }
+
+            if keys_set.is_empty() {
+                return Box::pin(stream::iter(use_cache_values.into_iter().map(Ok)));
+            }
+
+            typed_requests.stream_keys.extend(keys_set.clone());
+            let (tx, rx) = mpsc::unbounded();
+            for value in use_cache_values {
+                tx.unbounded_send(Ok(value)).ok();
+            }
+            typed_requests
+                .stream_pending
+                .push((keys_set, StreamSender { tx }));
+
+            if typed_requests.stream_keys.len() >= self.max_batch_size {
+                (Action::ImmediateLoad(typed_requests.take_stream()), rx)
+            } else {
+                (
+                    if !typed_requests.stream_keys.is_empty() && prev_count == 0 {
+                        Action::StartFetch
+                    } else {
+                        Action::Delay
+                    },
+                    rx,
+                )
+            }
+        };
+
+        match action {
+            Action::ImmediateLoad(keys) => {
+                let inner = self.inner.clone();
+                let disable_cache = self.disable_cache.load(Ordering::SeqCst);
+                let task = async move { inner.do_load_stream(disable_cache, keys).await };
+                #[cfg(feature = "tracing")]
+                let task = task
+                    .instrument(info_span!("immediate_load_stream"))
+                    .in_current_span();
+
+                let _ = self.spawner.spawn(task);
+            }
+            Action::StartFetch => {
+                let inner = self.inner.clone();
+                let disable_cache = self.disable_cache.load(Ordering::SeqCst);
+                let delay = self.delay;
+                let timer = self.timer.clone();
+
+                let task = async move {
+                    timer.delay(delay).await;
+
+                    let keys = {
+                        let mut entry = inner.requests.get_async(&tid).await.unwrap();
+                        let typed_requests = entry.downcast_mut::<Requests<K, V, T>>().unwrap();
+                        typed_requests.take_stream()
+                    };
+
+                    if !keys.0.is_empty() {
+                        inner.do_load_stream(disable_cache, keys).await
+                    }
+                };
+                #[cfg(feature = "tracing")]
+                let task = task
+                    .instrument(info_span!("start_fetch_stream"))
+                    .in_current_span();
+                let _ = self.spawner.spawn(task);
+            }
+            Action::Delay => {}
+        }
+
+        Box::pin(rx)
+    }
+
     /// Feed some data into the cache.
     ///
     /// **NOTE: If the cache type is [NoCache], this function will not take
@@ -552,6 +785,7 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
+    use futures_util::{TryStreamExt, stream};
     use rustc_hash::FxBuildHasher;
 
     use super::*;
@@ -787,6 +1021,116 @@ mod tests {
             loader.load_many(vec![1, 2, 3]).await.unwrap(),
             vec![(1, 10), (2, 20), (3, 30)].into_iter().collect()
         );
+    }
+
+    struct StreamingLoader;
+
+    #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+    impl Loader<i32, String> for StreamingLoader {
+        type Error = ();
+
+        async fn load(&self, keys: &[i32]) -> Result<HashMap<i32, String>, Self::Error> {
+            Ok(keys
+                .iter()
+                .copied()
+                .map(|k| (k, format!("value-{k}")))
+                .collect())
+        }
+
+        #[cfg(feature = "boxed-trait")]
+        fn load_stream<'a>(
+            &'a self,
+            keys: &'a [i32],
+        ) -> LoaderStream<'a, i32, String, Self::Error> {
+            Box::pin(stream::iter(
+                keys.iter().copied().map(|k| Ok((k, format!("stream-{k}")))),
+            ))
+        }
+
+        #[cfg(not(feature = "boxed-trait"))]
+        fn load_stream<'a>(
+            &'a self,
+            keys: &'a [i32],
+        ) -> impl Stream<Item = Result<(i32, String), Self::Error>> + Send + 'a {
+            stream::iter(keys.iter().copied().map(|k| Ok((k, format!("stream-{k}")))))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_dataloader_stream() {
+        let loader = DataLoader::new(
+            StreamingLoader,
+            TokioSpawner::current(),
+            TokioTimer::default(),
+        );
+
+        let result: HashMap<_, _> = loader
+            .load_many_stream(vec![1, 2, 3])
+            .await
+            .try_collect()
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 3);
+        assert_eq!(result.get(&1), Some(&"stream-1".to_string()));
+        assert_eq!(result.get(&2), Some(&"stream-2".to_string()));
+        assert_eq!(result.get(&3), Some(&"stream-3".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_dataloader_stream_with_cache() {
+        let loader = DataLoader::with_cache(
+            StreamingLoader,
+            TokioSpawner::current(),
+            TokioTimer::default(),
+            HashMapCache::default(),
+        );
+        loader
+            .feed_many(vec![
+                (1, "cached-1".to_string()),
+                (2, "cached-2".to_string()),
+            ])
+            .await;
+
+        // Part from cache, part from stream
+        let result: HashMap<_, _> = loader
+            .load_many_stream(vec![1, 2, 3])
+            .await
+            .try_collect()
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 3);
+        assert_eq!(result.get(&1), Some(&"cached-1".to_string()));
+        assert_eq!(result.get(&2), Some(&"cached-2".to_string()));
+        assert_eq!(result.get(&3), Some(&"stream-3".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_dataloader_load_and_stream_use_separate_batches() {
+        let loader = Arc::new(
+            DataLoader::new(
+                StreamingLoader,
+                TokioSpawner::current(),
+                TokioTimer::default(),
+            )
+            .delay(Duration::from_millis(50)),
+        );
+
+        let normal_handle = tokio::spawn({
+            let loader = loader.clone();
+            async move { loader.load_many(vec![1]).await.unwrap() }
+        });
+        tokio::task::yield_now().await;
+
+        let streamed: HashMap<_, _> = loader
+            .load_many_stream(vec![2])
+            .await
+            .try_collect()
+            .await
+            .unwrap();
+        let normal = normal_handle.await.unwrap();
+
+        assert_eq!(normal.get(&1), Some(&"value-1".to_string()));
+        assert_eq!(streamed.get(&2), Some(&"stream-2".to_string()));
     }
 
     #[tokio::test]
