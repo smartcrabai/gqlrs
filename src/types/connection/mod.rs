@@ -258,7 +258,6 @@ where
 /// # Examples
 ///
 /// ```rust
-/// 
 /// use gqlrs::*;
 /// use gqlrs::types::connection::*;
 ///

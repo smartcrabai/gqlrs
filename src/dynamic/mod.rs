@@ -34,6 +34,7 @@ mod macros;
 
 mod base;
 mod check;
+mod connection;
 mod directive;
 mod r#enum;
 mod error;
@@ -52,6 +53,7 @@ mod type_ref;
 mod union;
 mod value_accessor;
 
+pub use connection::{DynamicConnection, DynamicConnectionBuilder, DynamicEdge, DynamicPageInfo};
 pub use directive::Directive;
 pub use r#enum::{Enum, EnumItem};
 pub use error::SchemaError;
