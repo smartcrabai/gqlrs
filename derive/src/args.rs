@@ -237,6 +237,8 @@ pub struct SimpleObjectField {
     pub complexity: Option<Expr>,
     #[darling(default, multiple)]
     pub requires_scopes: Vec<String>,
+    #[darling(default)]
+    pub semantic_non_null: bool,
 }
 
 #[derive(FromDeriveInput)]
@@ -373,6 +375,8 @@ pub struct ObjectField {
     pub directives: Vec<Expr>,
     #[darling(default, multiple)]
     pub requires_scopes: Vec<String>,
+    #[darling(default)]
+    pub semantic_non_null: bool,
 }
 
 #[derive(FromMeta, Default, Clone)]
@@ -681,6 +685,8 @@ pub struct InterfaceField {
     pub directives: Vec<Expr>,
     #[darling(default, multiple)]
     pub requires_scopes: Vec<String>,
+    #[darling(default)]
+    pub semantic_non_null: bool,
 }
 
 #[derive(FromVariant)]
@@ -1026,6 +1032,8 @@ pub struct ComplexObjectField {
     pub directives: Vec<Expr>,
     #[darling(default, multiple)]
     pub requires_scopes: Vec<String>,
+    #[darling(default)]
+    pub semantic_non_null: bool,
 }
 
 #[derive(FromMeta, Default)]

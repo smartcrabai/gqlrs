@@ -259,6 +259,12 @@ pub struct MetaField {
     /// the authenticated supergraph users with the appropriate JWT scopes
     /// when using Apollo Federation.
     pub requires_scopes: Vec<String>,
+    /// Indicates that the field is semantically non-null. This means that the
+    /// field will never be null in the successful case, but can still be null
+    /// due to error propagation.
+    ///
+    /// Reference: <https://github.com/graphql/graphql-spec/pull/1066>
+    pub semantic_non_null: bool,
 }
 
 impl MetaField {
@@ -281,6 +287,7 @@ impl MetaField {
             compute_complexity: None,
             directive_invocations: Vec::new(),
             requires_scopes: Vec::new(),
+            semantic_non_null: false,
         }
     }
 }
@@ -1340,6 +1347,56 @@ impl Registry {
         <ID as InputType>::create_type_info(self);
     }
 
+    /// Registers the `@semanticNonNull` directive only if any field uses
+    /// `semantic_non_null`. This ensures the directive does not appear in
+    /// introspection when unused.
+    pub(crate) fn add_semantic_non_null_directive_if_needed(&mut self) {
+        let has_semantic_non_null = self.types.values().any(|ty| match ty {
+            MetaType::Object { fields, .. } | MetaType::Interface { fields, .. } => {
+                fields.values().any(|field| field.semantic_non_null)
+            }
+            _ => false,
+        });
+
+        if has_semantic_non_null {
+            self.add_directive(MetaDirective {
+                name: "semanticNonNull".into(),
+                description: Some(
+                    "Indicates that a field is semantically non-null. This means that the field will \
+                    never be null in the successful case, but can still be null due to error propagation."
+                        .to_string(),
+                ),
+                locations: vec![__DirectiveLocation::FIELD_DEFINITION],
+                args: {
+                    let mut args = IndexMap::new();
+                    args.insert(
+                        "levels".into(),
+                        MetaInputValue {
+                            name: "levels".into(),
+                            description: Some(
+                                "The list levels at which the field is semantically non-null. \
+                                If not specified, the field itself is semantically non-null."
+                                    .into(),
+                            ),
+                            ty: "[Int!]".into(),
+                            deprecation: Deprecation::NoDeprecated,
+                            default_value: None,
+                            visible: None,
+                            inaccessible: false,
+                            tags: Default::default(),
+                            is_secret: false,
+                            directive_invocations: vec![],
+                        },
+                    );
+                    args
+                },
+                is_repeatable: false,
+                visible: None,
+                composable: None,
+            });
+        }
+    }
+
     pub fn create_input_type<T, F>(&mut self, type_id: MetaTypeId, mut f: F) -> String
     where
         T: InputType,
@@ -1545,6 +1602,7 @@ impl Registry {
                     compute_complexity: None,
                     directive_invocations: vec![],
                     requires_scopes: vec![],
+                    semantic_non_null: false,
                 },
             );
         }
@@ -1603,6 +1661,7 @@ impl Registry {
                         compute_complexity: None,
                         directive_invocations: vec![],
                         requires_scopes: vec![],
+                        semantic_non_null: false,
                     },
                 );
             }
@@ -1633,6 +1692,7 @@ impl Registry {
                     override_from: None,
                     directive_invocations: vec![],
                     requires_scopes: vec![],
+                    semantic_non_null: false,
                 },
             );
 
@@ -1674,6 +1734,7 @@ impl Registry {
                     compute_complexity: None,
                     directive_invocations: vec![],
                     requires_scopes: vec![],
+                    semantic_non_null: false,
                 },
             );
         }
@@ -1709,6 +1770,7 @@ impl Registry {
                             compute_complexity: None,
                             directive_invocations: vec![],
                             requires_scopes: vec![],
+                            semantic_non_null: false,
                         },
                     );
                     fields
