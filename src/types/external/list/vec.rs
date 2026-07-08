@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use crate::{
-    ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType,
+    Context, ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType,
     OutputTypeMarker, Positioned, Result, ServerResult, Value, parser::types::Field, registry,
     resolver_utils::resolve_list,
 };
@@ -41,6 +41,26 @@ impl<T: InputType> InputType for Vec<T> {
 
     fn as_raw_value(&self) -> Option<&Self::RawValueType> {
         Some(self)
+    }
+
+    #[allow(clippy::manual_async_fn)]
+    fn validate_input_guards<'a>(
+        &'a self,
+        ctx: &'a Context<'_>,
+        input_value: Option<&'a Value>,
+    ) -> impl std::future::Future<Output = Result<()>> + Send + 'a {
+        async move {
+            if let Some(Value::List(values)) = input_value {
+                for (item, value) in self.iter().zip(values) {
+                    item.validate_input_guards(ctx, Some(value)).await?;
+                }
+            } else if let Some(value) = input_value
+                && let Some(item) = self.first()
+            {
+                item.validate_input_guards(ctx, Some(value)).await?;
+            }
+            Ok(())
+        }
     }
 }
 

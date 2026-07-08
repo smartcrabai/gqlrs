@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
 use crate::{
-    ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType,
-    OutputTypeMarker, Positioned, ServerResult, Value, parser::types::Field, registry,
+    Context, ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType,
+    OutputTypeMarker, Positioned, Result, ServerResult, Value, parser::types::Field, registry,
 };
 
 impl<T: InputType> InputType for Option<T> {
@@ -42,6 +42,19 @@ impl<T: InputType> InputType for Option<T> {
             Some(value) => value.as_raw_value(),
             None => None,
         }
+    }
+
+    fn validate_input_guards<'a>(
+        &'a self,
+        ctx: &'a Context<'_>,
+        input_value: Option<&'a Value>,
+    ) -> impl std::future::Future<Output = Result<()>> + Send + 'a {
+        Box::pin(async move {
+            if let Some(value) = self {
+                value.validate_input_guards(ctx, input_value).await?;
+            }
+            Ok(())
+        })
     }
 }
 

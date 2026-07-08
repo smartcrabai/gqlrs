@@ -27,6 +27,7 @@ Define a GraphQL input object
 | default      | Argument default value                                                                                                                          | literal     | Y        |
 | default_with | Expression to generate default value                                                                                                            | code string | Y        |
 | validator    | Input value validator *[See also the Book](https://async-graphql.github.io/async-graphql/en/input_value_validators.html)*                       | object      | Y        |
+| guard        | Field guard *[See also the Book](https://async-graphql.github.io/async-graphql/en/field_guard.html)*                                            | string      | Y        |
 | flatten      | Similar to serde (flatten)                                                                                                                      | boolean     | Y        |
 | skip         | Skip this field, use `Default::default` to get a default value for this field.                                                                  | bool        | Y        |
 | skip_input   | Skip this field, similar to `skip`, but avoids conflicts when this macro is used with `SimpleObject`.                                           | bool        | Y        |

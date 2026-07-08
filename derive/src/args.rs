@@ -544,6 +544,8 @@ pub struct InputObjectField {
     pub directives: Vec<Expr>,
     #[darling(default)]
     pub deprecation: Deprecation,
+    #[darling(default)]
+    pub guard: Option<Expr>,
 }
 
 #[derive(FromDeriveInput)]

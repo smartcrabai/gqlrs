@@ -2,7 +2,7 @@ use std::{borrow::Cow, ops::Deref};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{InputType, InputValueError, InputValueResult, Value, registry};
+use crate::{Context, InputType, InputValueError, InputValueResult, Result, Value, registry};
 
 /// Similar to `Option`, but it has three states, `undefined`, `null` and `x`.
 ///
@@ -236,6 +236,20 @@ impl<T: InputType> InputType for MaybeUndefined<T> {
             value.as_raw_value()
         } else {
             None
+        }
+    }
+
+    #[allow(clippy::manual_async_fn)]
+    fn validate_input_guards<'a>(
+        &'a self,
+        ctx: &'a Context<'_>,
+        input_value: Option<&'a Value>,
+    ) -> impl std::future::Future<Output = Result<()>> + Send + 'a {
+        async move {
+            if let MaybeUndefined::Value(value) = self {
+                value.validate_input_guards(ctx, input_value).await?;
+            }
+            Ok(())
         }
     }
 }
