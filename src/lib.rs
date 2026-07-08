@@ -256,6 +256,8 @@ pub type FieldError = Error;
 /// compatibility reasons.
 pub type FieldResult<T> = Result<T>;
 
+#[doc = include_str!("docs/complex_interface.md")]
+pub use async_graphql_derive::ComplexInterface;
 #[doc = include_str!("docs/complex_object.md")]
 pub use async_graphql_derive::ComplexObject;
 #[doc = include_str!("docs/description.md")]

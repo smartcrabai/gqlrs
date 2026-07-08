@@ -6,6 +6,7 @@
 extern crate proc_macro;
 
 mod args;
+mod complex_interface;
 mod complex_object;
 mod description;
 mod directive;
@@ -78,6 +79,17 @@ pub fn ComplexObject(args: TokenStream, input: TokenStream) -> TokenStream {
     let object_args = parse_nested_meta!(args::ComplexObject, args);
     let mut item_impl = parse_macro_input!(input as ItemImpl);
     match complex_object::generate(&object_args, &mut item_impl) {
+        Ok(expanded) => expanded,
+        Err(err) => err.write_errors().into(),
+    }
+}
+
+#[proc_macro_attribute]
+#[allow(non_snake_case)]
+pub fn ComplexInterface(args: TokenStream, input: TokenStream) -> TokenStream {
+    let interface_args = parse_nested_meta!(args::ComplexInterface, args);
+    let mut item_impl = parse_macro_input!(input as ItemImpl);
+    match complex_interface::generate(&interface_args, &mut item_impl) {
         Ok(expanded) => expanded,
         Err(err) => err.write_errors().into(),
     }
