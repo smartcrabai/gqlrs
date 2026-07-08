@@ -134,6 +134,29 @@ pub fn generate(object_args: &args::MergedObject) -> GeneratorResult<TokenStream
         quote! { #(#checks)* }
     };
 
+    let flat_find_entities = {
+        let n_types = types.len();
+        let init = quote! {
+            let mut results: ::std::vec::Vec<::std::option::Option<#crate_name::Value>> = ::std::vec::Vec::with_capacity(representations.len());
+            results.resize_with(representations.len(), || ::std::option::Option::None);
+        };
+        let try_member = (0..n_types).rev().map(|i| {
+            let n = LitInt::new(&format!("{}", i), Span::call_site());
+            quote! {
+                let member_results = self.#n.find_entities(ctx, representations).await?;
+                for (idx, val) in ::std::iter::Iterator::enumerate(::std::iter::IntoIterator::into_iter(member_results)) {
+                    if val.is_some() && results[idx].is_none() {
+                        results[idx] = val;
+                    }
+                }
+            }
+        });
+        quote! {
+            #init
+            #(#try_member)*
+        }
+    };
+
     let visible = visible_fn(&object_args.visible);
     let resolve_container = if object_args.serial {
         quote! { #crate_name::resolver_utils::resolve_container_serial(ctx, self).await }
@@ -153,6 +176,15 @@ pub fn generate(object_args: &args::MergedObject) -> GeneratorResult<TokenStream
             async fn find_entity(&self, ctx: &#crate_name::Context<'_>, params: &#crate_name::Value) ->  #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
                 #flat_find_entity
                 ::std::result::Result::Ok(::std::option::Option::None)
+            }
+
+            async fn find_entities(
+                &self,
+                ctx: &#crate_name::Context<'_>,
+                representations: &[#crate_name::Value],
+            ) -> #crate_name::ServerResult<::std::vec::Vec<::std::option::Option<#crate_name::Value>>> {
+                #flat_find_entities
+                ::std::result::Result::Ok(results)
             }
         }
 
