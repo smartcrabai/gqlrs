@@ -991,33 +991,35 @@ pub async fn test_on_ping() {
     );
 }
 
+struct ServerPingQuery;
+
+#[Object]
+impl ServerPingQuery {
+    async fn value(&self) -> i32 {
+        10
+    }
+}
+
+struct ServerPingSubscription;
+
+#[Subscription]
+impl ServerPingSubscription {
+    async fn values(&self) -> impl Stream<Item = i32> {
+        futures_util::stream::iter(0..10)
+    }
+}
+
+fn server_ping_schema() -> Schema<ServerPingQuery, EmptyMutation, ServerPingSubscription> {
+    Schema::new(ServerPingQuery, EmptyMutation, ServerPingSubscription)
+}
+
 #[tokio::test]
 pub async fn test_server_initiated_ping() {
-    struct Query;
-
-    #[Object]
-    impl Query {
-        async fn value(&self) -> i32 {
-            10
-        }
-    }
-
-    struct Subscription;
-
-    #[Subscription]
-    impl Subscription {
-        async fn values(&self) -> impl Stream<Item = i32> {
-            futures_util::stream::iter(0..10)
-        }
-    }
-
-    let schema = Schema::new(Query, EmptyMutation, Subscription);
+    let schema = server_ping_schema();
     let (mut tx, rx) = mpsc::unbounded();
-    let ping_interval = Duration::from_millis(50);
     let mut stream = http::WebSocket::new(schema, rx, WebSocketProtocols::GraphQLWS)
-        .ping_interval(TokioTimer::default(), ping_interval);
-
-    tokio::time::sleep(Duration::from_millis(75)).await;
+        .ping_interval(TokioTimer::default(), Duration::from_millis(500))
+        .keepalive_timeout(TokioTimer::default(), Duration::from_secs(2));
 
     tx.send(
         serde_json::to_string(&value!({
@@ -1036,28 +1038,231 @@ pub async fn test_server_initiated_ping() {
         }),
     );
 
-    // The ping interval starts after the connection is acknowledged, not when
-    // the websocket is constructed.
-    assert!(
-        tokio::time::timeout(Duration::from_millis(20), stream.next())
-            .await
-            .is_err()
+    // Server should send a Ping after the interval
+    let msg = tokio::time::timeout(Duration::from_secs(1), stream.next())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&msg.unwrap_text()).unwrap(),
+        serde_json::json!({
+            "type": "ping",
+        }),
     );
 
-    // Server should send ping messages at the configured interval.
-    for _ in 0..3 {
-        assert_eq!(
-            serde_json::from_str::<serde_json::Value>(
-                &tokio::time::timeout(Duration::from_millis(200), stream.next())
-                    .await
-                    .unwrap()
-                    .unwrap()
-                    .unwrap_text(),
-            )
+    // Client responds with Pong
+    tx.send(
+        serde_json::to_string(&value!({
+            "type": "pong",
+        }))
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    // Server should send another Ping after the interval
+    let msg = tokio::time::timeout(Duration::from_secs(1), stream.next())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&msg.unwrap_text()).unwrap(),
+        serde_json::json!({
+            "type": "ping",
+        }),
+    );
+}
+
+#[tokio::test]
+pub async fn test_server_ping_interval_without_timeout_keeps_sending() {
+    let schema = server_ping_schema();
+    let (mut tx, rx) = mpsc::unbounded();
+    let mut stream = http::WebSocket::new(schema, rx, WebSocketProtocols::GraphQLWS)
+        .ping_interval(TokioTimer::default(), Duration::from_millis(100));
+
+    tx.send(
+        serde_json::to_string(&value!({
+            "type": "connection_init",
+        }))
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&stream.next().await.unwrap().unwrap_text())
             .unwrap(),
+        serde_json::json!({
+            "type": "connection_ack",
+        }),
+    );
+
+    for _ in 0..2 {
+        let msg = tokio::time::timeout(Duration::from_secs(1), stream.next())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&msg.unwrap_text()).unwrap(),
             serde_json::json!({
                 "type": "ping",
             }),
         );
     }
+}
+
+#[tokio::test]
+pub async fn test_server_ping_no_pong_timeout() {
+    let schema = server_ping_schema();
+    let (mut tx, rx) = mpsc::unbounded();
+    let mut stream = http::WebSocket::new(schema, rx, WebSocketProtocols::GraphQLWS)
+        .ping_interval(TokioTimer::default(), Duration::from_millis(200))
+        .keepalive_timeout(TokioTimer::default(), Duration::from_millis(500));
+
+    tx.send(
+        serde_json::to_string(&value!({
+            "type": "connection_init",
+        }))
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&stream.next().await.unwrap().unwrap_text())
+            .unwrap(),
+        serde_json::json!({
+            "type": "connection_ack",
+        }),
+    );
+
+    // Server sends a Ping
+    let msg = tokio::time::timeout(Duration::from_secs(1), stream.next())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&msg.unwrap_text()).unwrap(),
+        serde_json::json!({
+            "type": "ping",
+        }),
+    );
+
+    // Client does NOT respond with Pong
+    // Connection should timeout after keepalive_timeout
+    assert_eq!(
+        tokio::time::timeout(Duration::from_secs(2), stream.next())
+            .await
+            .unwrap()
+            .unwrap(),
+        WsMessage::Close(3008, "timeout".to_string())
+    );
+
+    assert!(stream.next().await.is_none());
+}
+
+#[tokio::test]
+pub async fn test_server_ping_timeout_ignores_non_pong_messages() {
+    let schema = server_ping_schema();
+    let (mut tx, rx) = mpsc::unbounded();
+    let mut stream = http::WebSocket::new(schema, rx, WebSocketProtocols::GraphQLWS)
+        .ping_interval(TokioTimer::default(), Duration::from_millis(100))
+        .keepalive_timeout(TokioTimer::default(), Duration::from_millis(700));
+
+    tx.send(
+        serde_json::to_string(&value!({
+            "type": "connection_init",
+        }))
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&stream.next().await.unwrap().unwrap_text())
+            .unwrap(),
+        serde_json::json!({
+            "type": "connection_ack",
+        }),
+    );
+
+    let msg = tokio::time::timeout(Duration::from_secs(1), stream.next())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&msg.unwrap_text()).unwrap(),
+        serde_json::json!({
+            "type": "ping",
+        }),
+    );
+
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    tx.send(
+        serde_json::to_string(&value!({
+            "type": "ping",
+        }))
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&stream.next().await.unwrap().unwrap_text())
+            .unwrap(),
+        serde_json::json!({
+            "type": "pong",
+        }),
+    );
+
+    assert_eq!(
+        tokio::time::timeout(Duration::from_millis(500), stream.next()).await,
+        Ok(Some(WsMessage::Close(3008, "timeout".to_string())))
+    );
+
+    assert!(stream.next().await.is_none());
+}
+
+#[tokio::test]
+pub async fn test_server_ping_interval_can_exceed_timeout() {
+    let schema = server_ping_schema();
+    let (mut tx, rx) = mpsc::unbounded();
+    let mut stream = http::WebSocket::new(schema, rx, WebSocketProtocols::GraphQLWS)
+        .ping_interval(TokioTimer::default(), Duration::from_millis(500))
+        .keepalive_timeout(TokioTimer::default(), Duration::from_millis(100));
+
+    tx.send(
+        serde_json::to_string(&value!({
+            "type": "connection_init",
+        }))
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&stream.next().await.unwrap().unwrap_text())
+            .unwrap(),
+        serde_json::json!({
+            "type": "connection_ack",
+        }),
+    );
+
+    assert!(
+        tokio::time::timeout(Duration::from_millis(300), stream.next())
+            .await
+            .is_err()
+    );
+
+    let msg = tokio::time::timeout(Duration::from_secs(1), stream.next())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&msg.unwrap_text()).unwrap(),
+        serde_json::json!({
+            "type": "ping",
+        }),
+    );
 }
