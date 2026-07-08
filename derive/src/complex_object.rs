@@ -693,21 +693,40 @@ pub fn generate(
         }
     }
 
-    let expanded = quote! {
-        #item_impl
+    let expanded = if cfg!(feature = "fast-check") {
+        // Fast-check mode: generate minimal implementations for faster cargo check
+        quote! {
+            #item_impl
 
-        #[allow(clippy::all, clippy::pedantic)]
-        #boxed_trait
-        impl #generics #crate_name::ComplexObject for #self_ty #where_clause {
-            fn fields(registry: &mut #crate_name::registry::Registry) -> ::std::vec::Vec<(::std::string::String, #crate_name::registry::MetaField)> {
-                let mut fields = ::std::vec::Vec::new();
-                #(#schema_fields)*
-                fields
+            #[allow(clippy::all, clippy::pedantic)]
+            #boxed_trait
+            impl #generics #crate_name::ComplexObject for #self_ty #where_clause {
+                fn fields(_registry: &mut #crate_name::registry::Registry) -> ::std::vec::Vec<(::std::string::String, #crate_name::registry::MetaField)> {
+                    ::std::vec::Vec::new()
+                }
+
+                async fn resolve_field(&self, _ctx: &#crate_name::Context<'_>) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
+                    ::std::result::Result::Ok(::std::option::Option::None)
+                }
             }
+        }
+    } else {
+        quote! {
+            #item_impl
 
-            async fn resolve_field(&self, ctx: &#crate_name::Context<'_>) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
-                #(#resolvers)*
-                ::std::result::Result::Ok(::std::option::Option::None)
+            #[allow(clippy::all, clippy::pedantic)]
+            #boxed_trait
+            impl #generics #crate_name::ComplexObject for #self_ty #where_clause {
+                fn fields(registry: &mut #crate_name::registry::Registry) -> ::std::vec::Vec<(::std::string::String, #crate_name::registry::MetaField)> {
+                    let mut fields = ::std::vec::Vec::new();
+                    #(#schema_fields)*
+                    fields
+                }
+
+                async fn resolve_field(&self, ctx: &#crate_name::Context<'_>) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
+                    #(#resolvers)*
+                    ::std::result::Result::Ok(::std::option::Option::None)
+                }
             }
         }
     };

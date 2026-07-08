@@ -41,3 +41,4 @@
   - [Optimizing N+1 queries](dataloader.md)
   - [Custom directive](custom_directive.md)
   - [Apollo Federation](apollo_federation.md)
+  - [Compile times & rust-analyzer performance](compile_times.md)

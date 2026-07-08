@@ -27,6 +27,7 @@ nullable-result = []
 
 boxed-trait = ["async-graphql-derive/boxed-trait"]
 dynamic-schema = []
+fast-check = ["async-graphql-derive/fast-check"]
 graphiql = ["dep:askama"]
 jiff = ["dep:jiff"]
 raw_value = ["async-graphql-value/raw_value"]
