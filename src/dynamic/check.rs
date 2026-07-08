@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use indexmap::IndexMap;
 
 use crate::dynamic::{
-    InputObject, Interface, Object, SchemaError, Type,
+    InputObject, Interface, SchemaError, Type,
     base::{BaseContainer, BaseField},
     schema::SchemaInner,
     type_ref::TypeRef,
@@ -114,11 +114,7 @@ impl SchemaInner {
     }
 
     fn check_objects(&self) -> Result<(), SchemaError> {
-        let has_entities = self
-            .types
-            .iter()
-            .filter_map(|(_, ty)| ty.as_object())
-            .any(Object::is_entity);
+        let has_entities = self.env.registry.has_entities();
 
         // https://spec.graphql.org/October2021/#sec-Objects.Type-Validation
         for ty in self.types.values() {

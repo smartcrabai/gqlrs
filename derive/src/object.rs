@@ -88,6 +88,7 @@ pub fn generate(
     let mut schema_fields = Vec::new();
     let mut find_entities = Vec::new();
     let mut find_entities_batch = Vec::new();
+    let mut find_interface_entities = Vec::new();
     let mut add_keys = Vec::new();
     let mut create_entity_types = Vec::new();
 
@@ -292,21 +293,37 @@ pub fn generate(
                         .into_server_error(ctx.item.pos))
                 };
 
+                let resolve_entity = quote! {
+                    if let (#(#key_pat),*) = (#(#key_getter),*) {
+                        let f = async move {
+                            #(#requires_getter)*
+                            #guard
+                            #do_find
+                        };
+                        let obj = f.await.map_err(|err| ctx.set_error_path(err))?;
+                        let ctx_obj = ctx.with_selection_set(&ctx.item.node.selection_set);
+                        return #crate_name::OutputType::resolve(&obj, &ctx_obj, ctx.item).await.map(::std::option::Option::Some);
+                    }
+                };
+
                 find_entities.push((
                     args.len(),
                     quote! {
                         #(#cfg_attrs)*
-                        if typename == &<#entity_type as #crate_name::OutputTypeMarker>::type_name() {
-                            if let (#(#key_pat),*) = (#(#key_getter),*) {
-                                let f = async move {
-                                    #(#requires_getter)*
-                                    #guard
-                                    #do_find
-                                };
-                                let obj = f.await.map_err(|err| ctx.set_error_path(err))?;
-                                let ctx_obj = ctx.with_selection_set(&ctx.item.node.selection_set);
-                                return #crate_name::OutputType::resolve(&obj, &ctx_obj, ctx.item).await.map(::std::option::Option::Some);
-                            }
+                        let entity_type_name = <#entity_type as #crate_name::OutputTypeMarker>::type_name();
+                        if typename == &entity_type_name {
+                            #resolve_entity
+                        }
+                    },
+                ));
+
+                find_interface_entities.push((
+                    args.len(),
+                    quote! {
+                        #(#cfg_attrs)*
+                        let entity_type_name = <#entity_type as #crate_name::OutputTypeMarker>::type_name();
+                        if ctx.schema_env.registry.is_interface_possible_type(entity_type_name.as_ref(), typename.as_str()) {
+                            #resolve_entity
                         }
                     },
                 ));
@@ -941,7 +958,9 @@ pub fn generate(
     };
 
     find_entities.sort_by(|(a, _), (b, _)| b.cmp(a));
+    find_interface_entities.sort_by(|(a, _), (b, _)| b.cmp(a));
     let find_entities_iter = find_entities.iter().map(|(_, code)| code);
+    let find_interface_entities_iter = find_interface_entities.iter().map(|(_, code)| code);
 
     let has_batch_entities = !find_entities_batch.is_empty();
     let find_entities_batch_iter = find_entities_batch.iter();
@@ -1051,6 +1070,7 @@ pub fn generate(
                             #crate_name::resolver_utils::find_entity_params(ctx, params)?
                         {
                             #(#find_entities_iter)*
+                            #(#find_interface_entities_iter)*
                         }
                         ::std::result::Result::Ok(::std::option::Option::None)
                     }
@@ -1189,6 +1209,7 @@ pub fn generate(
                             #crate_name::resolver_utils::find_entity_params(ctx, params)?
                         {
                             #(#find_entities_iter)*
+                            #(#find_interface_entities_iter)*
                         }
                         ::std::result::Result::Ok(::std::option::Option::None)
                     }

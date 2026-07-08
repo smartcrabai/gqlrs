@@ -1557,30 +1557,111 @@ Passing a negative level or a level greater than the list dimension is an error.
         })
     }
 
+    fn collect_entity_interface_possible_types(
+        &self,
+        possible_types: &IndexSet<String>,
+        entity_possible_types: &mut IndexSet<String>,
+        visited_interfaces: &mut HashSet<String>,
+    ) {
+        for type_name in possible_types {
+            match self.types.get(type_name) {
+                Some(MetaType::Object { name, .. }) => {
+                    entity_possible_types.insert(name.clone());
+                }
+                Some(MetaType::Interface {
+                    name,
+                    possible_types,
+                    ..
+                }) if visited_interfaces.insert(name.clone()) => self
+                    .collect_entity_interface_possible_types(
+                        possible_types,
+                        entity_possible_types,
+                        visited_interfaces,
+                    ),
+                _ => {}
+            }
+        }
+    }
+
+    fn contains_entity_interface_possible_type(
+        &self,
+        possible_types: &IndexSet<String>,
+        type_name: &str,
+        visited_interfaces: &mut HashSet<String>,
+    ) -> bool {
+        possible_types
+            .iter()
+            .any(|possible_type| match self.types.get(possible_type) {
+                Some(MetaType::Object { name, .. }) => name == type_name,
+                Some(MetaType::Interface {
+                    name,
+                    possible_types,
+                    ..
+                }) if visited_interfaces.insert(name.clone()) => self
+                    .contains_entity_interface_possible_type(
+                        possible_types,
+                        type_name,
+                        visited_interfaces,
+                    ),
+                _ => false,
+            })
+    }
+
+    /// Returns true if `type_name` is a concrete object type that implements
+    /// `interface_name`, expanding nested interfaces recursively.
+    #[doc(hidden)]
+    pub fn is_interface_possible_type(&self, interface_name: &str, type_name: &str) -> bool {
+        match self.types.get(interface_name) {
+            Some(MetaType::Interface { possible_types, .. }) => self
+                .contains_entity_interface_possible_type(
+                    possible_types,
+                    type_name,
+                    &mut HashSet::new(),
+                ),
+            _ => false,
+        }
+    }
+
     /// Each type annotated with @key should be added to the _Entity union.
     /// If no types are annotated with the key directive, then the _Entity union
     /// and Query._entities field should be removed from the schema.
     ///
     /// [Reference](https://www.apollographql.com/docs/federation/federation-spec/#resolve-requests-for-entities).
-    fn create_entity_type_and_root_field(&mut self) {
-        let possible_types: IndexSet<String> = self
-            .types
-            .values()
-            .filter_map(|ty| match ty {
+    pub(crate) fn entity_possible_types(&self) -> IndexSet<String> {
+        let mut entity_possible_types = IndexSet::new();
+
+        for ty in self.types.values() {
+            match ty {
                 MetaType::Object {
                     name,
                     keys: Some(keys),
                     resolvable: true,
                     ..
-                } if !keys.is_empty() => Some(name.clone()),
+                } if !keys.is_empty() => {
+                    entity_possible_types.insert(name.clone());
+                }
+                // Federation v2.3 entity interfaces: interface types with @key
+                // cannot appear directly in the _Entity union (GraphQL unions
+                // only allow object types). Instead, expand recursively to the
+                // implementing object types.
                 MetaType::Interface {
-                    name,
                     keys: Some(keys),
+                    possible_types,
                     ..
-                } if !keys.is_empty() => Some(name.clone()),
-                _ => None,
-            })
-            .collect();
+                } if !keys.is_empty() => self.collect_entity_interface_possible_types(
+                    possible_types,
+                    &mut entity_possible_types,
+                    &mut HashSet::new(),
+                ),
+                _ => {}
+            }
+        }
+
+        entity_possible_types
+    }
+
+    fn create_entity_type_and_root_field(&mut self) {
+        let possible_types = self.entity_possible_types();
 
         if let MetaType::Object { fields, .. } = self
             .types
