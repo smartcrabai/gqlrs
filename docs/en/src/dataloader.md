@@ -80,11 +80,10 @@ struct UserNameLoader {
     pool: sqlx::PgPool,
 }
 
-impl Loader<u64> for UserNameLoader {
-    type Value = String;
+impl Loader<u64, String> for UserNameLoader {
     type Error = Arc<sqlx::Error>;
 
-    async fn load(&self, keys: &[u64]) -> Result<HashMap<u64, Self::Value>, Self::Error> {
+    async fn load(&self, keys: &[u64]) -> Result<HashMap<u64, String>, Self::Error> {
         Ok(sqlx::query_as("SELECT name FROM user WHERE id = ANY($1)")
             .bind(keys)
             .fetch(&self.pool)
@@ -139,20 +138,18 @@ struct PostgresLoader {
     pool: sqlx::PgPool,
 }
 
-impl Loader<UserId> for PostgresLoader {
-    type Value = User;
+impl Loader<UserId, User> for PostgresLoader {
     type Error = Arc<sqlx::Error>;
 
-    async fn load(&self, keys: &[UserId]) -> Result<HashMap<UserId, Self::Value>, Self::Error> {
+    async fn load(&self, keys: &[UserId]) -> Result<HashMap<UserId, User>, Self::Error> {
         // Load users from database
     }
 }
 
-impl Loader<TodoId> for PostgresLoader {
-    type Value = Todo;
+impl Loader<TodoId, Todo> for PostgresLoader {
     type Error = sqlx::Error;
 
-    async fn load(&self, keys: &[TodoId]) -> Result<HashMap<TodoId, Self::Value>, Self::Error> {
+    async fn load(&self, keys: &[TodoId]) -> Result<HashMap<TodoId, Todo>, Self::Error> {
         // Load todos from database
     }
 }
