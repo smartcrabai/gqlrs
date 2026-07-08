@@ -1260,3 +1260,152 @@ pub async fn test_input_name_suffix_uses_graphql_name() {
     assert_eq!(<MyObject as InputType>::type_name(), "CustomObjRequest");
     assert_eq!(<MyObject as OutputType>::type_name(), "CustomObj");
 }
+
+#[tokio::test]
+pub async fn test_input_object_input_using() {
+    mod converters {
+        pub fn to_uppercase(s: String) -> String {
+            s.to_uppercase()
+        }
+    }
+
+    #[derive(InputObject)]
+    struct MyInput {
+        #[graphql(input_using = "converters::to_uppercase")]
+        name: String,
+    }
+
+    struct Root;
+
+    #[Object]
+    impl Root {
+        async fn test(&self, input: MyInput) -> String {
+            input.name
+        }
+    }
+
+    let schema = Schema::new(Root, EmptyMutation, EmptySubscription);
+    let query = r#"{
+        test(input: { name: "hello" })
+    }"#;
+    assert_eq!(
+        schema.execute(query).await.data,
+        value!({
+            "test": "HELLO"
+        })
+    );
+}
+
+#[tokio::test]
+pub async fn test_input_object_input_using_runs_before_validators() {
+    mod converter {
+        pub fn append_suffix(mut value: String) -> String {
+            value.push('!');
+            value
+        }
+    }
+
+    #[derive(InputObject)]
+    struct MyInput {
+        #[graphql(input_using = "converter::append_suffix", validator(max_length = 5))]
+        name: String,
+    }
+
+    struct Root;
+
+    #[Object]
+    impl Root {
+        async fn test(&self, input: MyInput) -> String {
+            input.name
+        }
+    }
+
+    let schema = Schema::new(Root, EmptyMutation, EmptySubscription);
+    let query = r#"{
+        test(input: { name: "hello" })
+    }"#;
+    assert!(schema.execute(query).await.into_result().is_err());
+}
+
+#[tokio::test]
+pub async fn test_input_object_input_using_with_process_with() {
+    mod processor {
+        pub fn trim(input: &mut String) {
+            *input = input.trim().to_string();
+        }
+    }
+
+    mod converter {
+        pub fn to_uppercase(s: String) -> String {
+            s.to_uppercase()
+        }
+    }
+
+    #[derive(InputObject)]
+    struct MyInput {
+        #[graphql(
+            process_with = "processor::trim",
+            input_using = "converter::to_uppercase"
+        )]
+        name: String,
+    }
+
+    struct Root;
+
+    #[Object]
+    impl Root {
+        async fn test(&self, input: MyInput) -> String {
+            input.name.clone()
+        }
+    }
+
+    let schema = Schema::new(Root, EmptyMutation, EmptySubscription);
+    let query = r#"{
+        test(input: { name: "  hello world  " })
+    }"#;
+    assert_eq!(
+        schema.execute(query).await.data,
+        value!({
+            "test": "HELLO WORLD"
+        })
+    );
+}
+
+#[tokio::test]
+pub async fn test_input_object_input_using_infers_graphql_type() {
+    struct Name(String);
+
+    fn from_graphql(value: String) -> Name {
+        Name(value.to_uppercase())
+    }
+
+    fn to_graphql(value: &Name) -> String {
+        value.0.clone()
+    }
+
+    #[derive(InputObject)]
+    struct MyInput {
+        #[graphql(input_using = "from_graphql", output_using = "to_graphql")]
+        name: Name,
+    }
+
+    struct Root;
+
+    #[Object]
+    impl Root {
+        async fn test(&self, input: MyInput) -> String {
+            input.name.0
+        }
+    }
+
+    let schema = Schema::new(Root, EmptyMutation, EmptySubscription);
+    let query = r#"{
+        test(input: { name: "hello" })
+    }"#;
+    assert_eq!(
+        schema.execute(query).await.data,
+        value!({
+            "test": "HELLO"
+        })
+    );
+}
