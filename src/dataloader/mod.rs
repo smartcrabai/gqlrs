@@ -873,11 +873,10 @@ mod tests {
         }
 
         #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-        impl Loader<i32> for CountingLoader {
-            type Value = i32;
+        impl Loader<i32, i32> for CountingLoader {
             type Error = ();
 
-            async fn load(&self, keys: &[i32]) -> Result<HashMap<i32, Self::Value>, Self::Error> {
+            async fn load(&self, keys: &[i32]) -> Result<HashMap<i32, i32>, Self::Error> {
                 self.calls.fetch_add(1, Ordering::SeqCst);
                 Ok(keys.iter().copied().map(|k| (k, k)).collect())
             }
