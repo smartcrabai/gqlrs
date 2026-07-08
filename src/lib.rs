@@ -53,6 +53,7 @@
 //! * Apollo Federation(v2)
 //! * Batch Queries
 //! * Apollo Persisted Queries
+//! * Relay Persisted Queries
 //!
 //! ## Crate features
 //!
@@ -63,6 +64,7 @@
 //! |:-------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 //! | **`apollo_tracing`**           | Enable the [Apollo tracing extension](https://docs.rs/async-graphql/latest/gqlrs/extensions/struct.ApolloTracing.html).                                                               |
 //! | **`apollo_persisted_queries`** | Enable the [Apollo persisted queries extension](https://docs.rs/async-graphql/latest/gqlrs/extensions/apollo_persisted_queries/struct.ApolloPersistedQueries.html).                   |
+//! | **`relay_persisted_queries`**  | Enable the [Relay persisted queries extension](https://docs.rs/async-graphql/latest/gqlrs/extensions/relay_persisted_queries/struct.RelayPersistedQueries.html).                     |
 //! | **`boxed-trait`**              | Enables [`async-trait`](https://crates.io/crates/async-trait) for all traits.                                                                                                                 |
 //! | **`chrono`**                   | Integrate with the [`chrono` crate](https://crates.io/crates/chrono).                                                                                                                         |
 //! | **`chrono-tz`**                | Integrate with the [`chrono-tz` crate](https://crates.io/crates/chrono-tz).                                                                                                                   |

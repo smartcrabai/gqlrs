@@ -7,6 +7,8 @@ pub mod apollo_persisted_queries;
 mod apollo_tracing;
 #[cfg(feature = "log")]
 mod logger;
+#[cfg(feature = "relay_persisted_queries")]
+pub mod relay_persisted_queries;
 
 #[cfg(feature = "tracing")]
 mod tracing;
