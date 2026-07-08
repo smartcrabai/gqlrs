@@ -300,7 +300,8 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
         );
 
         let complexity = if let Some(complexity) = &field.complexity {
-            let (_, expr) = parse_complexity_expr(complexity.clone())?;
+            let (_, expr) =
+                parse_complexity_expr(complexity.clone(), &::std::collections::HashSet::new())?;
             quote! {
                 ::std::option::Option::Some(|__ctx, __variables_definition, __field, child_complexity| {
                     ::std::result::Result::Ok(#expr)

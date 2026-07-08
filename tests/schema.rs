@@ -49,3 +49,41 @@ pub async fn test_http_headers() {
         Some(&HeaderValue::from_static("1"))
     );
 }
+
+#[tokio::test]
+pub async fn test_complexity_with_const_expression() {
+    const VALUE: usize = 5;
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        #[graphql(complexity = "VALUE")]
+        async fn items(&self) -> Vec<i32> {
+            vec![1, 2, 3]
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    let resp = schema.execute("{ items }").await;
+    assert_eq!(resp.data, value!({ "items": [1, 2, 3] }));
+}
+
+#[tokio::test]
+pub async fn test_complexity_with_const_and_child() {
+    const MULTIPLIER: usize = 3;
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        #[graphql(complexity = "MULTIPLIER * child_complexity")]
+        async fn items(&self) -> Vec<i32> {
+            vec![1, 2, 3]
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    let resp = schema.execute("{ items }").await;
+    assert_eq!(resp.data, value!({ "items": [1, 2, 3] }));
+}
