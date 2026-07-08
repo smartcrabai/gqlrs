@@ -175,6 +175,18 @@ macro_rules! impl_set_semantic_nullability {
     };
 }
 
+macro_rules! impl_set_depth_cost {
+    () => {
+        /// Set the depth cost of this field when calculating query depth.
+        ///
+        /// Defaults to `1`. Set to `0` to exclude this field from depth calculations.
+        #[inline]
+        pub fn depth_cost(self, depth_cost: usize) -> Self {
+            Self { depth_cost, ..self }
+        }
+    };
+}
+
 macro_rules! impl_directive {
     () => {
         /// Attach directive to the entity

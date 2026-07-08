@@ -559,6 +559,7 @@ pub fn generate(
                 let has_visible = !matches!(method_args.visible, None | Some(args::Visible::None));
                 let has_tags = !method_args.tags.is_empty();
                 let has_complexity = method_args.complexity.is_some();
+                let has_depth_cost = method_args.depth_cost.is_some();
                 let has_directives = !method_args.directives.is_empty();
                 let has_requires_scopes = !method_args.requires_scopes.is_empty();
                 let has_semantic_non_null = method_args
@@ -792,6 +793,10 @@ pub fn generate(
                 }
                 if has_complexity {
                     field_sets.push(quote!(field.compute_complexity = #complexity;));
+                }
+                if has_depth_cost {
+                    let depth_cost = method_args.depth_cost.unwrap();
+                    field_sets.push(quote!(field.depth_cost = #depth_cost;));
                 }
                 if has_directives {
                     field_sets.push(

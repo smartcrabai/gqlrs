@@ -193,6 +193,7 @@ impl Object {
                     directive_invocations: to_meta_directive_invocation(field.directives.clone()),
                     requires_scopes: field.requires_scopes.clone(),
                     semantic_nullability: field.semantic_nullability,
+                    depth_cost: field.depth_cost,
                 },
             );
         }
@@ -239,6 +240,45 @@ impl Object {
 #[cfg(test)]
 mod tests {
     use crate::{Value, dynamic::*, value};
+
+    #[tokio::test]
+    async fn field_depth_cost() {
+        struct MyObjData;
+
+        let my_obj = Object::new("MyObj").field(
+            Field::new("value", TypeRef::named(TypeRef::INT), |_| {
+                FieldFuture::new(async { Ok(Some(Value::from(10))) })
+            })
+            .depth_cost(0),
+        );
+
+        let query = Object::new("Query").field(Field::new(
+            "obj",
+            TypeRef::named_nn(my_obj.type_name()),
+            |_| FieldFuture::new(async { Ok(Some(FieldValue::owned_any(MyObjData))) }),
+        ));
+
+        let schema = Schema::build("Query", None, None)
+            .register(query)
+            .register(my_obj)
+            .limit_depth(1)
+            .finish()
+            .unwrap();
+
+        assert_eq!(
+            schema
+                .execute("{ obj { value } }")
+                .await
+                .into_result()
+                .unwrap()
+                .data,
+            value!({
+                "obj": {
+                    "value": 10,
+                }
+            })
+        );
+    }
 
     #[tokio::test]
     async fn borrow_context() {

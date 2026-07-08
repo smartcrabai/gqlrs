@@ -280,6 +280,9 @@ pub struct MetaField {
     /// When set to a value other than `None`, the field will be annotated with
     /// the `@semanticNonNull` directive in SDL exports.
     pub semantic_nullability: SemanticNullability,
+    /// The depth cost of this field when calculating query depth.
+    /// Defaults to 1. Set to 0 to exclude this field from depth calculations.
+    pub depth_cost: usize,
 }
 
 impl MetaField {
@@ -303,6 +306,7 @@ impl MetaField {
             directive_invocations: Vec::new(),
             requires_scopes: Vec::new(),
             semantic_nullability: SemanticNullability::None,
+            depth_cost: 1,
         }
     }
 }
@@ -1604,6 +1608,7 @@ Passing a negative level or a level greater than the list dimension is an error.
                     directive_invocations: vec![],
                     requires_scopes: vec![],
                     semantic_nullability: SemanticNullability::None,
+                    depth_cost: 1,
                 },
             );
         }
@@ -1663,6 +1668,7 @@ Passing a negative level or a level greater than the list dimension is an error.
                         directive_invocations: vec![],
                         requires_scopes: vec![],
                         semantic_nullability: SemanticNullability::None,
+                        depth_cost: 1,
                     },
                 );
             }
@@ -1694,6 +1700,7 @@ Passing a negative level or a level greater than the list dimension is an error.
                     directive_invocations: vec![],
                     requires_scopes: vec![],
                     semantic_nullability: SemanticNullability::None,
+                    depth_cost: 1,
                 },
             );
 
@@ -1736,6 +1743,7 @@ Passing a negative level or a level greater than the list dimension is an error.
                     directive_invocations: vec![],
                     requires_scopes: vec![],
                     semantic_nullability: SemanticNullability::None,
+                    depth_cost: 1,
                 },
             );
         }
@@ -1772,6 +1780,7 @@ Passing a negative level or a level greater than the list dimension is an error.
                             directive_invocations: vec![],
                             requires_scopes: vec![],
                             semantic_nullability: SemanticNullability::None,
+                            depth_cost: 1,
                         },
                     );
                     fields

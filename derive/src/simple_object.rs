@@ -291,6 +291,7 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
         let has_visible = !matches!(field.visible, None | Some(args::Visible::None));
         let has_tags = !field.tags.is_empty();
         let has_complexity = field.complexity.is_some();
+        let has_depth_cost = field.depth_cost.is_some();
         let has_directives = !field.directives.is_empty();
         let has_requires_scopes = !field.requires_scopes.is_empty();
 
@@ -350,6 +351,10 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
             }
             if has_complexity {
                 field_sets.push(quote!(field.compute_complexity = #complexity;));
+            }
+            if has_depth_cost {
+                let depth_cost = field.depth_cost.unwrap();
+                field_sets.push(quote!(field.depth_cost = #depth_cost;));
             }
             if has_directives {
                 field_sets
