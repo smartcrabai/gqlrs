@@ -1,6 +1,6 @@
 use std::{
     any::Any,
-    collections::BTreeMap,
+    collections::{BTreeMap, btree_map},
     fmt::{self, Debug, Display, Formatter},
     marker::PhantomData,
     sync::Arc,
@@ -30,6 +30,29 @@ impl ErrorExtensionValues {
     /// Get an extension value.
     pub fn get(&self, name: impl AsRef<str>) -> Option<&Value> {
         self.0.get(name.as_ref())
+    }
+
+    /// Return an iterator over all extension values.
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &Value)> {
+        self.0.iter()
+    }
+}
+
+impl IntoIterator for ErrorExtensionValues {
+    type Item = (String, Value);
+    type IntoIter = btree_map::IntoIter<String, Value>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a ErrorExtensionValues {
+    type Item = (&'a String, &'a Value);
+    type IntoIter = btree_map::Iter<'a, String, Value>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
     }
 }
 
