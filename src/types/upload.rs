@@ -1,6 +1,7 @@
 use std::{borrow::Cow, ops::Deref, sync::Arc};
 
-use futures_util::AsyncRead;
+use bytes::Bytes;
+use futures_util::{AsyncRead, AsyncReadExt, Stream, stream};
 
 use crate::{
     Context, InputType, InputValueError, InputValueResult, Value, registry, registry::MetaTypeId,
@@ -58,6 +59,46 @@ impl UploadValue {
         {
             futures_util::io::Cursor::new(self.content)
         }
+    }
+
+    /// Returns a stream of chunks from the upload content.
+    ///
+    /// This method provides a streaming interface to read stored upload data in
+    /// chunks. Each item in the stream is a `Bytes` chunk of the file content.
+    /// A `chunk_size` of `0` is treated as `1`.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// async fn upload(&self, ctx: &Context<'_>, file: Upload) -> Result<String> {
+    ///     use futures_util::StreamExt;
+    ///
+    ///     let value = file.value(ctx)?;
+    ///     let stream = value.content_stream(8192);
+    ///     futures_util::pin_mut!(stream);
+    ///     while let Some(chunk) = stream.next().await {
+    ///         let chunk = chunk?;
+    ///         // Process chunk
+    ///     }
+    ///     Ok("done".to_string())
+    /// }
+    /// ```
+    pub fn content_stream(
+        self,
+        chunk_size: usize,
+    ) -> impl Stream<Item = std::io::Result<Bytes>> + Send + 'static {
+        let reader = self.into_async_read();
+        let chunk_size = chunk_size.max(1);
+        stream::try_unfold(reader, move |mut reader| async move {
+            let mut buf = vec![0u8; chunk_size];
+            let n = reader.read(&mut buf).await?;
+            if n == 0 {
+                Ok(None)
+            } else {
+                buf.truncate(n);
+                Ok(Some((Bytes::from(buf), reader)))
+            }
+        })
     }
 
     /// Returns the size of the file, in bytes.
