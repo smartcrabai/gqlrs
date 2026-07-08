@@ -38,6 +38,31 @@ use crate::{
 /// schema.execute(Request::new("{ value }")).await;
 /// # });
 /// ```
+///
+/// # OpenTelemetry Support
+///
+/// When the `tracing-otel` feature is enabled, field spans will include an
+/// `otel.name` attribute set to `{parent_type}.{field_name}`. This provides
+/// descriptive span names in OpenTelemetry-compatible tracing backends.
+///
+/// ```no_run
+/// use gqlrs::{extensions::Tracing, *};
+///
+/// #[derive(SimpleObject)]
+/// struct Query {
+///     value: i32,
+/// }
+///
+/// let schema = Schema::build(Query { value: 100 }, EmptyMutation, EmptySubscription)
+///     .extension(Tracing)
+///     .finish();
+///
+/// # tokio::runtime::Runtime::new().unwrap().block_on(async {
+/// // With tracing-otel feature enabled, field spans will have
+/// // otel.name = "Query.value" for this query
+/// schema.execute(Request::new("{ value }")).await;
+/// # });
+/// ```
 #[cfg_attr(docsrs, doc(cfg(feature = "tracing")))]
 pub struct Tracing;
 
@@ -244,14 +269,30 @@ impl Extension for TracingExtension {
         };
 
         let span = if should_trace {
-            Some(span!(
-                target: "gqlrs::graphql",
-                Level::INFO,
-                "field",
-                path = %info.path_node,
-                parent_type = %info.parent_type,
-                return_type = %info.return_type,
-            ))
+            #[cfg(feature = "tracing-otel")]
+            {
+                let otel_name = format!("{}.{}", info.parent_type, info.name);
+                Some(span!(
+                    target: "gqlrs::graphql",
+                    Level::INFO,
+                    "field",
+                    path = %info.path_node,
+                    parent_type = %info.parent_type,
+                    return_type = %info.return_type,
+                    otel.name = %otel_name,
+                ))
+            }
+            #[cfg(not(feature = "tracing-otel"))]
+            {
+                Some(span!(
+                    target: "gqlrs::graphql",
+                    Level::INFO,
+                    "field",
+                    path = %info.path_node,
+                    parent_type = %info.parent_type,
+                    return_type = %info.return_type,
+                ))
+            }
         } else {
             None
         };
