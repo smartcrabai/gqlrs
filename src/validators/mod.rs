@@ -8,6 +8,8 @@ mod min_length;
 mod minimum;
 mod multiple_of;
 mod regex;
+#[cfg(feature = "validator")]
+mod validator_adapter;
 
 pub use chars_max_length::chars_max_length;
 pub use chars_min_length::chars_min_length;
@@ -20,6 +22,9 @@ pub use minimum::minimum;
 pub use multiple_of::multiple_of;
 
 pub use self::regex::regex;
+#[cfg(feature = "validator")]
+#[cfg_attr(docsrs, doc(cfg(feature = "validator")))]
+pub use self::validator_adapter::{ValidatorAdapter, ValidatorExt};
 use crate::{Context, InputType, InputValueError};
 
 /// Represents a custom input value validator.

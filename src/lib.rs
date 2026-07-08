@@ -247,6 +247,9 @@ pub use subscription::SubscriptionType;
 pub use types::*;
 pub use validation::{ValidationMode, ValidationResult, VisitorContext};
 pub use validators::{CustomValidator, CustomValidatorWithContext};
+#[cfg(feature = "validator")]
+#[cfg_attr(docsrs, doc(cfg(feature = "validator")))]
+pub use validators::{ValidatorAdapter, ValidatorExt};
 
 /// An alias of [gqlrs::Error](struct.Error.html). Present for backward
 /// compatibility reasons.
