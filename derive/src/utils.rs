@@ -366,6 +366,31 @@ pub fn gen_deprecation(deprecation: &Deprecation, crate_name: &syn::Path) -> Tok
     }
 }
 
+/// Strips `Type::Group` and `Type::Paren` wrappers from a type.
+/// When a type comes through a macro's `:ty` fragment, it gets wrapped
+/// in an invisible `Type::Group`. This helper unwraps it so downstream
+/// pattern matching can see the actual type.
+pub fn unwrap_type_group(ty: &Type) -> &Type {
+    match ty {
+        Type::Group(g) => unwrap_type_group(&g.elem),
+        Type::Paren(p) => unwrap_type_group(&p.elem),
+        _ => ty,
+    }
+}
+
+pub fn is_context_ref(ty: &Type) -> bool {
+    let Type::Reference(TypeReference { elem, .. }) = unwrap_type_group(ty) else {
+        return false;
+    };
+    let Type::Path(path) = unwrap_type_group(elem.as_ref()) else {
+        return false;
+    };
+    path.path
+        .segments
+        .last()
+        .is_some_and(|segment| segment.ident == "Context")
+}
+
 pub fn extract_input_args<T: FromMeta + Default>(
     crate_name: &syn::Path,
     method: &mut ImplItemFn,
@@ -401,22 +426,20 @@ pub fn extract_input_args<T: FromMeta + Default>(
 
             match (&*pat.pat, unwrap_type(&pat.ty)) {
                 (Pat::Ident(arg_ident), Type::Reference(TypeReference { elem, .. })) => {
-                    if let Type::Path(path) = elem.as_ref() {
-                        if idx != 1 || path.path.segments.last().unwrap().ident != "Context" {
-                            args.push((
-                                arg_ident.clone(),
-                                pat.ty.as_ref().clone(),
-                                parse_graphql_attrs::<T>(&pat.attrs)?.unwrap_or_default(),
-                            ));
-                        } else {
-                            create_ctx = false;
-                        }
+                    if idx == 1 && is_context_ref(&pat.ty) {
+                        create_ctx = false;
+                    } else if matches!(unwrap_type_group(elem.as_ref()), Type::Path(_)) {
+                        args.push((
+                            arg_ident.clone(),
+                            pat.ty.as_ref().clone(),
+                            parse_graphql_attrs::<T>(&pat.attrs)?.unwrap_or_default(),
+                        ));
                     }
                 }
-                (Pat::Ident(arg_ident), ty) => {
+                (Pat::Ident(arg_ident), _) => {
                     args.push((
                         arg_ident.clone(),
-                        ty.clone(),
+                        pat.ty.as_ref().clone(),
                         parse_graphql_attrs::<T>(&pat.attrs)?.unwrap_or_default(),
                     ));
                     remove_graphql_attrs(&mut pat.attrs);

@@ -4,8 +4,8 @@ use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use quote::quote;
 use syn::{
-    Block, Error, FnArg, ImplItem, ItemImpl, Pat, ReturnType, Token, Type, TypeReference,
-    ext::IdentExt, punctuated::Punctuated,
+    Block, Error, FnArg, ImplItem, ItemImpl, Pat, ReturnType, Token, Type, ext::IdentExt,
+    punctuated::Punctuated,
 };
 
 use crate::{
@@ -14,9 +14,9 @@ use crate::{
     utils::{
         GeneratorResult, create_output_type_info, extract_input_args, gen_boxed_trait,
         gen_deprecation, gen_directive_calls, generate_default, generate_guards, get_cfg_attrs,
-        get_crate_path, get_rustdoc, get_type_path_and_name, nullable_field_check,
+        get_crate_path, get_rustdoc, get_type_path_and_name, is_context_ref, nullable_field_check,
         nullable_output_type_create_type_info, parse_complexity_expr, parse_graphql_attrs,
-        remove_graphql_attrs, unwrap_type, visible_fn,
+        remove_graphql_attrs, visible_fn,
     },
 };
 
@@ -55,13 +55,9 @@ pub fn generate(
                             .expect("invalid result type");
 
                     let should_create_context = new_impl.sig.inputs.iter().nth(1).is_none_or(|x| {
-                        if let FnArg::Typed(pat) = x
-                            && let Type::Reference(TypeReference { elem, .. }) =
-                                unwrap_type(&pat.ty)
-                            && let Type::Path(path) = elem.as_ref()
-                        {
-                            return path.path.segments.last().unwrap().ident != "Context";
-                        };
+                        if let FnArg::Typed(pat) = x {
+                            return !is_context_ref(&pat.ty);
+                        }
                         true
                     });
 
