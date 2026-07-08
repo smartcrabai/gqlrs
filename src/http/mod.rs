@@ -1,11 +1,16 @@
 //! A helper module that supports HTTP
 
+mod callback;
 #[cfg(feature = "graphiql")]
 mod graphiql_source;
 mod multipart;
 mod multipart_subscribe;
 mod websocket;
 
+pub use callback::{
+    CALLBACK_CONTENT_TYPE, CHECKPOINT_HEADER_VALUE, CallbackClientMessage, CallbackEvent,
+    CallbackPayload, CallbackResponse, CallbackUrls, generate_subscription_id,
+};
 use futures_util::io::{AsyncRead, AsyncReadExt};
 #[cfg(feature = "graphiql")]
 pub use graphiql_source::{Credentials, GraphiQLSource};
