@@ -416,3 +416,63 @@ pub async fn test_concrete_object_with_lifetime() {
         })
     );
 }
+
+/// Regression test for https://github.com/async-graphql/async-graphql/issues/1451
+/// Stack overflow when a generic type's ComplexObject method returns the same
+/// generic type.
+#[tokio::test]
+pub async fn test_generic_complex_object_returns_self() {
+    #[derive(SimpleObject)]
+    #[graphql(complex)]
+    #[graphql(concrete(name = "NodeInt", params(i32)))]
+    #[graphql(concrete(name = "NodeString", params(String)))]
+    struct Node<T: OutputType> {
+        value: T,
+    }
+
+    #[ComplexObject]
+    impl Node<i32> {
+        async fn cloned(&self) -> Node<i32> {
+            Node { value: self.value }
+        }
+    }
+
+    #[ComplexObject]
+    impl Node<String> {
+        async fn cloned(&self) -> Node<String> {
+            Node {
+                value: self.value.clone(),
+            }
+        }
+    }
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn node_i32(&self) -> Node<i32> {
+            Node { value: 42 }
+        }
+
+        async fn node_string(&self) -> Node<String> {
+            Node {
+                value: "hello".to_string(),
+            }
+        }
+    }
+
+    // Schema::new must not stack-overflow
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+
+    let query = r#"{
+        nodeI32 { value cloned { value } }
+        nodeString { value cloned { value } }
+    }"#;
+    assert_eq!(
+        schema.execute(query).await.into_result().unwrap().data,
+        value!({
+            "nodeI32": { "value": 42, "cloned": { "value": 42 } },
+            "nodeString": { "value": "hello", "cloned": { "value": "hello" } },
+        })
+    );
+}

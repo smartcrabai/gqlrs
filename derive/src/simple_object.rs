@@ -608,6 +608,12 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
             None
         };
 
+        let complex_bound = if object_args.complex {
+            quote! { + #crate_name::ComplexObject }
+        } else {
+            quote! {}
+        };
+
         code.push(quote! {
             impl #impl_generics #ident #ty_generics #where_clause {
                 #(#getters)*
@@ -615,15 +621,14 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
                 fn __internal_create_type_info_simple_object(
                     registry: &mut #crate_name::registry::Registry,
                     name: &str,
-                    complex_fields: #crate_name::indexmap::IndexMap<::std::string::String, #crate_name::registry::MetaField>,
-                ) -> ::std::string::String where Self: #crate_name::OutputType {
+                ) -> ::std::string::String where Self: #crate_name::OutputType #complex_bound {
                     registry.create_output_type::<Self, _>(#crate_name::registry::MetaTypeId::Object, |registry| {
                         #crate_name::registry::ObjectBuilder::new(
                             ::std::string::ToString::to_string(name),
                             {
                                 let mut fields = #crate_name::indexmap::IndexMap::with_capacity(#field_count);
                                 #(#schema_fields)*
-                                ::std::iter::Extend::extend(&mut fields, complex_fields.clone());
+                                #concat_complex_fields
                                 fields
                             },
                         )
@@ -671,9 +676,7 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
                     }
 
                     fn create_type_info(registry: &mut #crate_name::registry::Registry) -> ::std::string::String {
-                        let mut fields = #crate_name::indexmap::IndexMap::with_capacity(#field_count);
-                        #concat_complex_fields
-                        Self::__internal_create_type_info_simple_object(registry, #gql_typename, fields)
+                        Self::__internal_create_type_info_simple_object(registry, #gql_typename)
                     }
                 }
 
