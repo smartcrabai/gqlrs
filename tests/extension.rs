@@ -358,8 +358,8 @@ pub async fn query_execute_with_data() {
 
     #[Object]
     impl Query {
-        async fn value(&self, ctx: &Context<'_>) -> Result<i64> {
-            Ok(*ctx.data::<i32>()? as i64 + ctx.data::<i64>()?)
+        async fn value(&self, ctx: &Context<'_>) -> Result<i32> {
+            Ok(*ctx.data::<i32>()? + *ctx.data::<i16>()? as i32)
         }
     }
 
@@ -376,7 +376,7 @@ pub async fn query_execute_with_data() {
 
     let schema = Schema::build(Query, EmptyMutation, EmptySubscription)
         .extension(MyExtension(100i32))
-        .extension(MyExtension(200i64))
+        .extension(MyExtension(200i16))
         .finish();
     let query = "{ value }";
     assert_eq!(
@@ -475,7 +475,7 @@ pub async fn subscription_execute_with_data() {
 
     #[Object]
     impl Query {
-        async fn value(&self) -> i64 {
+        async fn value(&self) -> i32 {
             0
         }
     }

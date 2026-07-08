@@ -18,7 +18,7 @@ pub async fn test_default_value_arg() {
             input
         }
 
-        async fn value4(&self, #[graphql(default = 100)] input: u32) -> u32 {
+        async fn value4(&self, #[graphql(default = 100)] input: u16) -> u16 {
             input
         }
     }

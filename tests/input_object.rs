@@ -526,7 +526,7 @@ pub async fn test_both_input_output() {
 #[tokio::test]
 pub async fn test_both_input_output_generic() {
     #[derive(SimpleObject, InputObject)]
-    #[graphql(concrete(name = "MyObjectU32", params(u32)))]
+    #[graphql(concrete(name = "MyObjectU16", params(u16)))]
     #[graphql(concrete(name = "MyObjectString", params(String)))]
     #[allow(dead_code)]
     struct MyObject<T: InputType + OutputType> {
@@ -537,7 +537,7 @@ pub async fn test_both_input_output_generic() {
 
     #[Object]
     impl Query {
-        async fn obj(&self, input: MyObject<u32>) -> MyObject<String> {
+        async fn obj(&self, input: MyObject<u16>) -> MyObject<String> {
             MyObject::<String> {
                 a: format!("{}", input.a),
             }
@@ -559,10 +559,10 @@ pub async fn test_both_input_output_generic() {
         })
     );
 
-    assert_eq!(<MyObject<u32> as InputType>::type_name(), "MyObjectU32");
+    assert_eq!(<MyObject<u16> as InputType>::type_name(), "MyObjectU16");
     assert_eq!(
-        <MyObject<u32> as OutputTypeMarker>::type_name(),
-        "MyObjectU32"
+        <MyObject<u16> as OutputTypeMarker>::type_name(),
+        "MyObjectU16"
     );
     assert_eq!(
         <MyObject<String> as InputType>::type_name(),
@@ -635,7 +635,7 @@ pub async fn test_both_input_output_generic_with_nesting() {
     }
 
     #[derive(SimpleObject, InputObject)]
-    #[graphql(concrete(name = "MyObjectU32", params(u32)))]
+    #[graphql(concrete(name = "MyObjectU16", params(u16)))]
     #[graphql(concrete(
         name = "MyObjectMyEnum",
         input_name = "MyObjectMyEnumInput",
@@ -670,10 +670,10 @@ pub async fn test_both_input_output_generic_with_nesting() {
         }),
     );
 
-    assert_eq!(<MyObject<u32> as InputType>::type_name(), "MyObjectU32");
+    assert_eq!(<MyObject<u16> as InputType>::type_name(), "MyObjectU16");
     assert_eq!(
-        <MyObject<u32> as OutputTypeMarker>::type_name(),
-        "MyObjectU32"
+        <MyObject<u16> as OutputTypeMarker>::type_name(),
+        "MyObjectU16"
     );
     assert_eq!(
         <MyObject<MyEnum> as InputType>::type_name(),
@@ -1108,7 +1108,7 @@ pub async fn test_inputobject_generic_with_name_type() {
     #[graphql(name_type)]
     struct GenericInput<T: InputType> {
         content: Vec<T>,
-        count: usize,
+        count: u16,
     }
 
     impl<T: InputType> TypeName for GenericInput<T> {

@@ -12,7 +12,7 @@ pub fn test_type_directive_1() {
             location = "Object",
             composable = "https://custom.spec.dev/extension/v1.0"
         )]
-        pub fn testDirective(scope: String, input: u32, opt: Option<u64>) {}
+        pub fn testDirective(scope: String, input: u16, opt: Option<i16>) {}
     }
 
     use test_mod::*;

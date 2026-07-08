@@ -83,6 +83,7 @@
 //! | **`unblock`**                  | Support [Asynchronous reader for Upload](types/struct.Upload.html)                                                                                                                            |
 //! | **`uuid`**                     | Integrate with the [`uuid` crate](https://crates.io/crates/uuid).                                                                                                                             |
 //! | **`url`**                      | Integrate with the [`url` crate](https://crates.io/crates/url).                                                                                                                               |
+//! | **`wide-integer-scalars`**     | Enable GraphQL `Int` scalar implementations for Rust integer types that can hold values outside the signed 32-bit GraphQL `Int` range.                                                        |
 //!
 //! ## Integrations
 //!

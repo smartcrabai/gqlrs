@@ -1,7 +1,6 @@
-use std::num::{
-    NonZeroI8, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroIsize, NonZeroU8, NonZeroU16, NonZeroU32,
-    NonZeroU64, NonZeroUsize,
-};
+use std::num::{NonZeroI8, NonZeroI16, NonZeroI32, NonZeroU8, NonZeroU16};
+#[cfg(feature = "wide-integer-scalars")]
+use std::num::{NonZeroI64, NonZeroIsize, NonZeroU32, NonZeroU64, NonZeroUsize};
 
 use crate::{InputValueError, InputValueResult, Number, Scalar, ScalarType, Value};
 
@@ -99,6 +98,11 @@ impl ScalarType for NonZeroI32 {
 }
 
 /// The `Int` scalar type represents non-fractional whole numeric values.
+///
+/// Note: GraphQL's Int scalar is a signed 32-bit integer. Using NonZeroI64 may
+/// cause runtime errors for values outside the i32 range. Enable the
+/// `wide-integer-scalars` feature to use this type.
+#[cfg(feature = "wide-integer-scalars")]
 #[Scalar(internal, name = "Int")]
 impl ScalarType for NonZeroI64 {
     fn parse(value: Value) -> InputValueResult<Self> {
@@ -126,6 +130,11 @@ impl ScalarType for NonZeroI64 {
 }
 
 /// The `Int` scalar type represents non-fractional whole numeric values.
+///
+/// Note: GraphQL's Int scalar is a signed 32-bit integer. Using NonZeroIsize
+/// may cause runtime errors for values outside the i32 range. Enable the
+/// `wide-integer-scalars` feature to use this type.
+#[cfg(feature = "wide-integer-scalars")]
 #[Scalar(internal, name = "Int")]
 impl ScalarType for NonZeroIsize {
     fn parse(value: Value) -> InputValueResult<Self> {
@@ -219,6 +228,11 @@ impl ScalarType for NonZeroU16 {
 }
 
 /// The `Int` scalar type represents non-fractional whole numeric values.
+///
+/// Note: GraphQL's Int scalar is a signed 32-bit integer. Using NonZeroU32 may
+/// cause runtime errors for values outside the i32 range. Enable the
+/// `wide-integer-scalars` feature to use this type.
+#[cfg(feature = "wide-integer-scalars")]
 #[Scalar(internal, name = "Int")]
 impl ScalarType for NonZeroU32 {
     fn parse(value: Value) -> InputValueResult<Self> {
@@ -250,6 +264,11 @@ impl ScalarType for NonZeroU32 {
 }
 
 /// The `Int` scalar type represents non-fractional whole numeric values.
+///
+/// Note: GraphQL's Int scalar is a signed 32-bit integer. Using NonZeroU64 may
+/// cause runtime errors for values outside the i32 range. Enable the
+/// `wide-integer-scalars` feature to use this type.
+#[cfg(feature = "wide-integer-scalars")]
 #[Scalar(internal, name = "Int")]
 impl ScalarType for NonZeroU64 {
     fn parse(value: Value) -> InputValueResult<Self> {
@@ -277,6 +296,11 @@ impl ScalarType for NonZeroU64 {
 }
 
 /// The `Int` scalar type represents non-fractional whole numeric values.
+///
+/// Note: GraphQL's Int scalar is a signed 32-bit integer. Using NonZeroUsize
+/// may cause runtime errors for values outside the i32 range. Enable the
+/// `wide-integer-scalars` feature to use this type.
+#[cfg(feature = "wide-integer-scalars")]
 #[Scalar(internal, name = "Int")]
 impl ScalarType for NonZeroUsize {
     fn parse(value: Value) -> InputValueResult<Self> {

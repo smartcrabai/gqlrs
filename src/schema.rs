@@ -150,7 +150,7 @@ impl<Query, Mutation, Subscription> SchemaBuilder<Query, Mutation, Subscription>
     /// }
     ///
     /// let schema = Schema::build(Query, EmptyMutation, EmptySubscription)
-    ///     .extension(extensions::Logger)
+    ///     .extension(extensions::Analyzer)
     ///     .finish();
     /// ```
     #[must_use]

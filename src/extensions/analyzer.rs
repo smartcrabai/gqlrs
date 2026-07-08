@@ -83,9 +83,9 @@ mod tests {
             MyObj
         }
 
-        #[graphql(complexity = "count * child_complexity")]
-        async fn objs(&self, count: usize) -> Vec<MyObj> {
-            vec![MyObj; count]
+        #[graphql(complexity = "count as usize * child_complexity")]
+        async fn objs(&self, count: u16) -> Vec<MyObj> {
+            vec![MyObj; count as usize]
         }
     }
 

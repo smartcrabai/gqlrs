@@ -492,7 +492,7 @@ pub async fn test_union_with_generic() {
 
     #[Object(
         concrete(name = "MyObjString", params(String)),
-        concrete(name = "MyObjInt", params(i64))
+        concrete(name = "MyObjInt", params(i32))
     )]
     impl<T: Send + Sync + gqlrs::OutputType> MyObj<T> {
         async fn id(&self) -> i32 {
@@ -509,7 +509,7 @@ pub async fn test_union_with_generic() {
     }
 
     #[derive(Union)]
-    #[graphql(concrete(name = "NodeInt", params(i64)))]
+    #[graphql(concrete(name = "NodeInt", params(i32)))]
     #[graphql(concrete(name = "NodeString", params(String)))]
     enum Node<T: Send + Sync + gqlrs::OutputType> {
         MyObj(MyObj<T>),
@@ -519,7 +519,7 @@ pub async fn test_union_with_generic() {
 
     #[Object]
     impl Query {
-        async fn node_int(&self) -> Node<i64> {
+        async fn node_int(&self) -> Node<i32> {
             Node::MyObj(MyObj { value: 10 })
         }
 

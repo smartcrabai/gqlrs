@@ -169,12 +169,9 @@ mod tests {
             todo!()
         }
 
-        #[graphql(complexity = "count * child_complexity + 2")]
+        #[graphql(complexity = "count as usize * child_complexity + 2")]
         #[allow(unused_variables)]
-        async fn simple_objs(
-            &self,
-            #[graphql(default_with = "5")] count: usize,
-        ) -> Vec<MySimpleObj> {
+        async fn simple_objs(&self, #[graphql(default_with = "5")] count: u16) -> Vec<MySimpleObj> {
             todo!()
         }
 
@@ -192,9 +189,9 @@ mod tests {
             todo!()
         }
 
-        #[graphql(complexity = "count * child_complexity")]
+        #[graphql(complexity = "count as usize * child_complexity")]
         #[allow(unused_variables)]
-        async fn objs(&self, #[graphql(default_with = "5")] count: usize) -> Vec<MyObj> {
+        async fn objs(&self, #[graphql(default_with = "5")] count: u16) -> Vec<MyObj> {
             todo!()
         }
 
@@ -216,11 +213,11 @@ mod tests {
             todo!()
         }
 
-        #[graphql(complexity = "count * child_complexity")]
+        #[graphql(complexity = "count as usize * child_complexity")]
         #[allow(unused_variables)]
         async fn objs(
             &self,
-            #[graphql(default_with = "5")] count: usize,
+            #[graphql(default_with = "5")] count: u16,
         ) -> BoxStream<'static, Vec<MyObj>> {
             todo!()
         }
