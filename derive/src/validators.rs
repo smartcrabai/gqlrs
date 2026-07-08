@@ -52,6 +52,8 @@ pub struct Validators {
     regex: Option<String>,
     #[darling(default, multiple)]
     custom: Vec<Expr>,
+    #[darling(default, multiple)]
+    custom_with_ctx: Vec<Expr>,
     #[darling(default)]
     list: bool,
 }
@@ -62,6 +64,16 @@ impl Validators {
         crate_name: &syn::Path,
         value: TokenStream,
         map_err: Option<TokenStream>,
+    ) -> Result<TokenStream> {
+        self.create_validators_with_context(crate_name, value, map_err, None)
+    }
+
+    pub fn create_validators_with_context(
+        &self,
+        crate_name: &syn::Path,
+        value: TokenStream,
+        map_err: Option<TokenStream>,
+        ctx_expr: Option<TokenStream>,
     ) -> Result<TokenStream> {
         let mut list_validators = Vec::new();
         let mut elem_validators = Vec::new();
@@ -172,6 +184,35 @@ impl Validators {
                         #crate_name::CustomValidator::check(&(#expr), __raw_value) #map_err ?;
                     }
                 });
+            }
+        }
+
+        for expr in &self.custom_with_ctx {
+            if let ::std::option::Option::Some(ref ctx) = ctx_expr {
+                if self.list {
+                    codes.push(quote! {
+                        if let ::std::option::Option::Some(value) = #crate_name::InputType::as_raw_value(#value) {
+                            for __item in value {
+                                if let ::std::option::Option::Some(__raw_value) = #crate_name::InputType::as_raw_value(__item) {
+                                    #crate_name::CustomValidatorWithContext::check(&(#expr), __raw_value, #ctx) #map_err ?;
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    codes.push(quote! {
+                        if let ::std::option::Option::Some(__raw_value) = #crate_name::InputType::as_raw_value(#value) {
+                            #crate_name::CustomValidatorWithContext::check(&(#expr), __raw_value, #ctx) #map_err ?;
+                        }
+                    });
+                }
+            } else {
+                return Err(syn::Error::new_spanned(
+                    expr,
+                    "`custom_with_ctx` requires context, but no context expression was provided. \
+                     `custom_with_ctx` is only supported on Object/ComplexObject/Subscription field arguments, \
+                     not on InputObject/OneofObject fields or Directive arguments.",
+                ));
             }
         }
 

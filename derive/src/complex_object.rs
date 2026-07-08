@@ -367,11 +367,15 @@ pub fn generate(
                     None => Default::default(),
                 };
 
-                let validators = validator.clone().unwrap_or_default().create_validators(
-                    &crate_name,
-                    quote!(&#ident),
-                    Some(quote!(.map_err(|err| err.into_server_error(__pos)))),
-                )?;
+                let validators = validator
+                    .clone()
+                    .unwrap_or_default()
+                    .create_validators_with_context(
+                        &crate_name,
+                        quote!(&#ident),
+                        Some(quote!(.map_err(|err| err.into_server_error(__pos)))),
+                        Some(quote!(ctx)),
+                    )?;
 
                 let mut non_mut_ident = ident.clone();
                 non_mut_ident.mutability = None;
