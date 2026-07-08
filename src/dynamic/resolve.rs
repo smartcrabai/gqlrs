@@ -440,13 +440,20 @@ pub(crate) fn resolve<'a>(
             (TypeRef::Named(_), None) => Ok(None),
 
             (TypeRef::NonNull(type_ref), Some(value)) => {
-                resolve(schema, ctx, type_ref, Some(value)).await
+                match resolve(schema, ctx, type_ref, Some(value)).await? {
+                    Some(value) => Ok(Some(value)),
+                    None => Err(ctx.set_error_path(
+                        Error::new("internal: non-null types require a return value")
+                            .into_server_error(ctx.item.pos),
+                    )),
+                }
             }
             (TypeRef::NonNull(_), None) => Err(ctx.set_error_path(
                 Error::new("internal: non-null types require a return value")
                     .into_server_error(ctx.item.pos),
             )),
 
+            (TypeRef::List(_), Some(FieldValue(FieldValueInner::Value(Value::Null)))) => Ok(None),
             (TypeRef::List(type_ref), Some(FieldValue(FieldValueInner::List(values)))) => {
                 resolve_list(schema, ctx, type_ref, values).await
             }
@@ -520,6 +527,7 @@ async fn resolve_value(
     value: &FieldValue<'_>,
 ) -> ServerResult<Option<Value>> {
     match (field_type, &value.0) {
+        (Type::Scalar(_), FieldValueInner::Value(Value::Null)) => Ok(None),
         (Type::Scalar(scalar), FieldValueInner::Value(value)) if scalar.validate(value) => {
             Ok(Some(value.clone()))
         }
@@ -550,6 +558,7 @@ async fn resolve_value(
             .into_server_error(ctx.item.pos),
         )),
 
+        (Type::Enum(_), FieldValueInner::Value(Value::Null)) => Ok(None),
         (Type::Enum(e), FieldValueInner::Value(Value::Enum(name))) => {
             if !e.enum_values.contains_key(name.as_str()) {
                 return Err(ctx.set_error_path(
