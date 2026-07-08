@@ -537,6 +537,7 @@ impl Registry {
                 }
 
                 write!(sdl, "interface {}", name).ok();
+                self.write_implements(sdl, name);
 
                 if options.federation {
                     if let Some(keys) = keys {
@@ -560,8 +561,6 @@ impl Registry {
                 for directive in directive_invocations {
                     write!(sdl, " {}", directive.sdl()).ok();
                 }
-
-                self.write_implements(sdl, name);
 
                 writeln!(sdl, " {{").ok();
                 Self::export_fields(sdl, fields.values(), options);
