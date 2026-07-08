@@ -68,15 +68,26 @@ impl ExtensionFactory for Tracing {
     fn create(&self) -> Arc<dyn Extension> {
         Arc::new(TracingExtension {
             trace_scalars: false,
+            error_level: Level::ERROR,
         })
     }
 }
 
 /// Configuration for the [`Tracing`] extension.
 #[cfg_attr(docsrs, doc(cfg(feature = "tracing")))]
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 pub struct TracingConfig {
     trace_scalars: bool,
+    error_level: Level,
+}
+
+impl Default for TracingConfig {
+    fn default() -> Self {
+        Self {
+            trace_scalars: false,
+            error_level: Level::ERROR,
+        }
+    }
 }
 
 impl TracingConfig {
@@ -92,18 +103,45 @@ impl TracingConfig {
         self.trace_scalars = trace_scalars;
         self
     }
+
+    /// Set the log level for resolver errors.
+    ///
+    /// By default, resolver errors are logged at `ERROR` level. Use this
+    /// method to change the level (e.g., `Level::INFO` or `Level::WARN`).
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use gqlrs::{extensions::Tracing, *};
+    /// use tracing::Level;
+    ///
+    /// #[derive(SimpleObject)]
+    /// struct Query {
+    ///     value: i32,
+    /// }
+    ///
+    /// let schema = Schema::build(Query { value: 100 }, EmptyMutation, EmptySubscription)
+    ///     .extension(Tracing::config().with_error_level(Level::WARN))
+    ///     .finish();
+    /// ```
+    pub fn with_error_level(mut self, level: Level) -> Self {
+        self.error_level = level;
+        self
+    }
 }
 
 impl ExtensionFactory for TracingConfig {
     fn create(&self) -> Arc<dyn Extension> {
         Arc::new(TracingExtension {
             trace_scalars: self.trace_scalars,
+            error_level: self.error_level,
         })
     }
 }
 
 struct TracingExtension {
     trace_scalars: bool,
+    error_level: Level,
 }
 
 #[async_trait::async_trait]
@@ -218,13 +256,35 @@ impl Extension for TracingExtension {
             None
         };
 
-        let fut = next.run(ctx, info).inspect_err(|err| {
-            tracing::info!(
-                target: "gqlrs::graphql",
-                error = %err.message,
-                "error",
-            );
-        });
+        let fut = next
+            .run(ctx, info)
+            .inspect_err(|err| match self.error_level {
+                Level::ERROR => tracing::error!(
+                    target: "gqlrs::graphql",
+                    error = %err.message,
+                    "error",
+                ),
+                Level::WARN => tracing::warn!(
+                    target: "gqlrs::graphql",
+                    error = %err.message,
+                    "error",
+                ),
+                Level::INFO => tracing::info!(
+                    target: "gqlrs::graphql",
+                    error = %err.message,
+                    "error",
+                ),
+                Level::DEBUG => tracing::debug!(
+                    target: "gqlrs::graphql",
+                    error = %err.message,
+                    "error",
+                ),
+                Level::TRACE => tracing::trace!(
+                    target: "gqlrs::graphql",
+                    error = %err.message,
+                    "error",
+                ),
+            });
         match span {
             Some(span) => fut.instrument(span).await,
             None => fut.await,
