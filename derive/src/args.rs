@@ -243,6 +243,8 @@ pub struct SimpleObjectField {
     pub requires_scopes: Vec<String>,
     #[darling(default)]
     pub semantic_non_null: Option<bool>,
+    #[darling(default)]
+    pub nullable: bool,
 }
 
 #[derive(FromDeriveInput)]
@@ -387,6 +389,8 @@ pub struct ObjectField {
     pub requires_scopes: Vec<String>,
     #[darling(default)]
     pub semantic_non_null: Option<bool>,
+    #[darling(default)]
+    pub nullable: bool,
 }
 
 #[derive(FromMeta, Default, Clone)]
@@ -1097,6 +1101,8 @@ pub struct ComplexObjectField {
     pub requires_scopes: Vec<String>,
     #[darling(default)]
     pub semantic_non_null: Option<bool>,
+    #[darling(default)]
+    pub nullable: bool,
 }
 
 #[derive(FromMeta, Default)]

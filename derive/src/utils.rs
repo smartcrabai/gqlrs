@@ -93,6 +93,28 @@ pub fn nullable_output_type_create_type_info(crate_name: &syn::Path, ty: &Type) 
     }}
 }
 
+/// Check if a field should be treated as nullable, considering both the type
+/// and the nullable attribute. Returns a TokenStream that evaluates to a
+/// boolean at runtime.
+pub fn nullable_field_check(crate_name: &syn::Path, ty: &Type, nullable_attr: bool) -> TokenStream {
+    if nullable_attr {
+        quote!(true)
+    } else {
+        nullable_type_check(crate_name, ty)
+    }
+}
+
+pub fn create_output_type_info(
+    crate_name: &syn::Path,
+    ty: &Type,
+    nullable_attr: bool,
+) -> TokenStream {
+    if nullable_attr {
+        quote!(<::std::option::Option<#ty> as #crate_name::OutputTypeMarker>::create_type_info(registry))
+    } else {
+        quote!(<#ty as #crate_name::OutputTypeMarker>::create_type_info(registry))
+    }
+}
 fn is_output_type_nullable(ty: &Type) -> bool {
     match ty {
         Type::Group(ty) => is_output_type_nullable(&ty.elem),
