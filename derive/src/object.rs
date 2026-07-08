@@ -15,7 +15,7 @@ use crate::{
         GeneratorResult, extract_input_args, gen_boxed_trait, gen_deprecation, gen_directive_calls,
         generate_default, generate_guards, get_cfg_attrs, get_crate_path, get_rustdoc,
         get_type_path_and_name, nullable_type_check, parse_complexity_expr, parse_graphql_attrs,
-        remove_graphql_attrs, visible_fn,
+        remove_graphql_attrs, unwrap_type, visible_fn,
     },
     validators::Validators,
 };
@@ -114,7 +114,8 @@ pub fn generate(
 
                     let should_create_context = new_impl.sig.inputs.iter().nth(1).is_none_or(|x| {
                         if let FnArg::Typed(pat) = x
-                            && let Type::Reference(TypeReference { elem, .. }) = &*pat.ty
+                            && let Type::Reference(TypeReference { elem, .. }) =
+                                unwrap_type(&pat.ty)
                             && let Type::Path(path) = elem.as_ref()
                         {
                             return path.path.segments.last().unwrap().ident != "Context";
