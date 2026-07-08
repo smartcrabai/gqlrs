@@ -22,6 +22,7 @@ dataloader = ["dep:futures-channel", "dep:lru", "dep:scc"]
 decimal = ["dep:rust_decimal"]
 default = ["dynamic-schema", "tempfile", "graphiql"]
 log = ["dep:log"]
+nullable-result = []
 
 boxed-trait = ["async-graphql-derive/boxed-trait"]
 dynamic-schema = []
