@@ -210,8 +210,10 @@ impl<T: InputType> InputType for MaybeUndefined<T> {
     }
 
     fn create_type_info(registry: &mut registry::Registry) -> String {
-        T::create_type_info(registry);
-        T::type_name().to_string()
+        let ty = T::create_type_info(registry);
+        registry::MetaTypeName::create(&ty)
+            .unwrap_non_null()
+            .to_string()
     }
 
     fn parse(value: Option<Value>) -> InputValueResult<Self> {

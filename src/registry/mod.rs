@@ -1073,6 +1073,17 @@ impl MetaType {
         }
     }
 
+    fn set_name(&mut self, new_name: String) {
+        match self {
+            MetaType::Scalar { name, .. }
+            | MetaType::Object { name, .. }
+            | MetaType::Interface { name, .. }
+            | MetaType::Union { name, .. }
+            | MetaType::Enum { name, .. }
+            | MetaType::InputObject { name, .. } => *name = new_name,
+        }
+    }
+
     #[inline]
     pub fn is_composite(&self) -> bool {
         matches!(
@@ -1407,8 +1418,11 @@ Passing a negative level or a level greater than the list dimension is an error.
         T: InputType,
         F: FnMut(&mut Registry) -> MetaType,
     {
-        self.create_type(&mut f, &T::type_name(), std::any::type_name::<T>(), type_id);
-        T::qualified_type_name()
+        let declared_name = T::type_name();
+        let name = self.create_type(&mut f, &declared_name, std::any::type_name::<T>(), type_id);
+        let mut ty = T::qualified_type_name();
+        Self::rename_type_reference(&mut ty, &declared_name, &name);
+        ty
     }
 
     pub fn create_output_type<T, F>(&mut self, type_id: MetaTypeId, mut f: F) -> String
@@ -1416,8 +1430,11 @@ Passing a negative level or a level greater than the list dimension is an error.
         T: OutputTypeMarker + ?Sized,
         F: FnMut(&mut Registry) -> MetaType,
     {
-        self.create_type(&mut f, &T::type_name(), std::any::type_name::<T>(), type_id);
-        T::qualified_type_name()
+        let declared_name = T::type_name();
+        let name = self.create_type(&mut f, &declared_name, std::any::type_name::<T>(), type_id);
+        let mut ty = T::qualified_type_name();
+        Self::rename_type_reference(&mut ty, &declared_name, &name);
+        ty
     }
 
     pub fn create_subscription_type<T, F>(&mut self, mut f: F) -> String
@@ -1425,13 +1442,99 @@ Passing a negative level or a level greater than the list dimension is an error.
         T: SubscriptionType + ?Sized,
         F: FnMut(&mut Registry) -> MetaType,
     {
-        self.create_type(
+        let declared_name = T::type_name();
+        let name = self.create_type(
             &mut f,
-            &T::type_name(),
+            &declared_name,
             std::any::type_name::<T>(),
             MetaTypeId::Object,
         );
-        T::qualified_type_name()
+        let mut ty = T::qualified_type_name();
+        Self::rename_type_reference(&mut ty, &declared_name, &name);
+        ty
+    }
+
+    fn unused_input_object_name(&self, name: &str) -> String {
+        let base_name = format!("{name}Input");
+        if !self.types.contains_key(&base_name) {
+            return base_name;
+        }
+
+        for idx in 2.. {
+            let candidate = format!("{base_name}{idx}");
+            if !self.types.contains_key(&candidate) {
+                return candidate;
+            }
+        }
+
+        unreachable!()
+    }
+
+    fn registered_input_object_name(&self, rust_typename: &'static str) -> Option<String> {
+        self.types
+            .iter()
+            .find(|(_, ty)| {
+                ty.type_id() == MetaTypeId::InputObject && ty.rust_typename() == Some(rust_typename)
+            })
+            .map(|(name, _)| name.clone())
+    }
+
+    fn rename_type_reference(ty: &mut String, from: &str, to: &str) {
+        fn rename(ty: &str, from: &str, to: &str) -> Option<String> {
+            match MetaTypeName::create(ty) {
+                MetaTypeName::NonNull(inner) => rename(inner, from, to).map(|ty| format!("{ty}!")),
+                MetaTypeName::List(inner) => rename(inner, from, to).map(|ty| format!("[{ty}]")),
+                MetaTypeName::Named(name) if name == from => Some(to.to_string()),
+                MetaTypeName::Named(_) => None,
+            }
+        }
+
+        if let Some(new_ty) = rename(ty, from, to) {
+            *ty = new_ty;
+        }
+    }
+
+    fn rename_input_type_references_in_type(ty: &mut MetaType, from: &str, to: &str) {
+        match ty {
+            MetaType::Object { fields, .. } | MetaType::Interface { fields, .. } => {
+                for field in fields.values_mut() {
+                    for arg in field.args.values_mut() {
+                        Self::rename_type_reference(&mut arg.ty, from, to);
+                    }
+                }
+            }
+            MetaType::InputObject { input_fields, .. } => {
+                for field in input_fields.values_mut() {
+                    Self::rename_type_reference(&mut field.ty, from, to);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn rename_input_type_references(&mut self, from: &str, to: &str) {
+        for directive in self.directives.values_mut() {
+            for arg in directive.args.values_mut() {
+                Self::rename_type_reference(&mut arg.ty, from, to);
+            }
+        }
+
+        for ty in self.types.values_mut() {
+            Self::rename_input_type_references_in_type(ty, from, to);
+        }
+    }
+
+    fn rename_conflicting_input_object(&mut self, name: &str) -> String {
+        let input_name = self.unused_input_object_name(name);
+        let mut ty = self
+            .types
+            .remove(name)
+            .expect("conflicting input object must be registered");
+        ty.set_name(input_name.clone());
+        Self::rename_input_type_references_in_type(&mut ty, name, &input_name);
+        self.rename_input_type_references(name, &input_name);
+        self.types.insert(input_name.clone(), ty);
+        input_name
     }
 
     fn create_type<F: FnMut(&mut Registry) -> MetaType>(
@@ -1440,12 +1543,15 @@ Passing a negative level or a level greater than the list dimension is an error.
         name: &str,
         rust_typename: &'static str,
         type_id: MetaTypeId,
-    ) {
+    ) -> String {
         match self.types.get(name) {
             Some(ty) => {
-                if let Some(prev_typename) = ty.rust_typename() {
+                let prev_typename = ty.rust_typename();
+                let prev_type_id = ty.type_id();
+
+                if let Some(prev_typename) = prev_typename {
                     if prev_typename == "__fake_type__" {
-                        return;
+                        return name.to_string();
                     }
 
                     if rust_typename != prev_typename && !self.ignore_name_conflicts.contains(name)
@@ -1456,39 +1562,83 @@ Passing a negative level or a level greater than the list dimension is an error.
                         );
                     }
 
-                    if ty.type_id() != type_id {
-                        panic!(
-                            "Register `{}` as `{}`, but it is already registered as `{}`",
-                            name,
-                            type_id,
-                            ty.type_id()
-                        );
+                    if prev_type_id != type_id {
+                        match (prev_type_id, type_id) {
+                            (MetaTypeId::InputObject, MetaTypeId::Object) => {
+                                // GraphQL requires one kind per type name. When a Rust type is
+                                // used as both an input object and an output object with the same
+                                // default GraphQL name, keep the output name stable and move the
+                                // already-created input object to an automatically disambiguated
+                                // input name. Existing argument/default references are rewritten
+                                // to the new input name below.
+                                self.rename_conflicting_input_object(name);
+                                self.types.insert(
+                                    name.to_string(),
+                                    type_id.create_fake_type(rust_typename),
+                                );
+                                let mut ty = f(self);
+                                ty.set_name(name.to_string());
+                                *self.types.get_mut(name).unwrap() = ty;
+                            }
+                            (MetaTypeId::Object, MetaTypeId::InputObject) => {
+                                if let Some(input_name) =
+                                    self.registered_input_object_name(rust_typename)
+                                {
+                                    return input_name;
+                                }
+
+                                let input_name = self.unused_input_object_name(name);
+                                self.types.insert(
+                                    input_name.clone(),
+                                    type_id.create_fake_type(rust_typename),
+                                );
+                                let mut ty = f(self);
+                                ty.set_name(input_name.clone());
+                                Self::rename_input_type_references_in_type(
+                                    &mut ty,
+                                    name,
+                                    &input_name,
+                                );
+                                *self.types.get_mut(&input_name).unwrap() = ty;
+                                return input_name;
+                            }
+                            _ => {
+                                panic!(
+                                    "Register `{}` as `{}`, but it is already registered as `{}`",
+                                    name, type_id, prev_type_id
+                                );
+                            }
+                        }
                     }
                 }
+
+                name.to_string()
             }
             None => {
                 // Inserting a fake type before calling the function allows recursive types to
                 // exist.
                 self.types
                     .insert(name.to_string(), type_id.create_fake_type(rust_typename));
-                let ty = f(self);
+                let mut ty = f(self);
+                ty.set_name(name.to_string());
                 *self.types.get_mut(name).unwrap() = ty;
+                name.to_string()
             }
         }
     }
 
     pub fn create_fake_output_type<T: OutputTypeMarker>(&mut self) -> MetaType {
-        T::create_type_info(self);
+        let ty = T::create_type_info(self);
         self.types
-            .get(&*T::type_name())
+            .get(MetaTypeName::concrete_typename(&ty))
             .cloned()
             .expect("You definitely encountered a bug!")
     }
 
     pub fn create_fake_input_type<T: InputType>(&mut self) -> MetaType {
-        T::create_type_info(self);
+        let ty = T::create_type_info(self);
         self.types
-            .get(&*T::type_name())
+            .get(MetaTypeName::concrete_typename(&ty))
             .cloned()
             .expect("You definitely encountered a bug!")
     }

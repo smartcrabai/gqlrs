@@ -702,9 +702,8 @@ pub async fn test_both_input_output_2() {
     assert_eq!(<MyObject as OutputTypeMarker>::type_name(), "MyObj");
 }
 
-#[test]
-#[should_panic]
-pub fn test_both_input_output_with_same_name() {
+#[tokio::test]
+pub async fn test_both_input_output_with_same_name() {
     #[derive(SimpleObject, InputObject)]
     #[allow(dead_code)]
     struct MyObject {
@@ -724,7 +723,53 @@ pub fn test_both_input_output_with_same_name() {
         }
     }
 
-    Schema::new(Query, EmptyMutation, EmptySubscription);
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    assert_eq!(
+        schema
+            .execute("{ obj(input: {a: 1, b: true}) { a b } }")
+            .await
+            .into_result()
+            .unwrap()
+            .data,
+        value!({
+            "obj": {
+                "a": 1,
+                "b": true,
+            }
+        })
+    );
+
+    let sdl = schema.sdl();
+    assert!(sdl.contains("input MyObjectInput"));
+    assert!(sdl.contains("obj(input: MyObjectInput!): MyObject!"));
+
+    let resp = schema
+        .execute("{ obj(input: {a: 1, b: true, extra: 2}) { a b } }")
+        .await;
+    assert!(resp.errors[0].message.contains("unknown field \"extra\""));
+
+    assert_eq!(
+        schema
+            .execute(
+                Request::new("query($input: MyObjectInput!) { obj(input: $input) { a b } }")
+                    .variables(Variables::from_value(value!({
+                        "input": {
+                            "a": 2,
+                            "b": false,
+                        }
+                    }))),
+            )
+            .await
+            .into_result()
+            .unwrap()
+            .data,
+        value!({
+            "obj": {
+                "a": 2,
+                "b": false,
+            }
+        })
+    );
 }
 
 #[tokio::test]
@@ -1406,6 +1451,170 @@ pub async fn test_input_object_input_using_infers_graphql_type() {
         schema.execute(query).await.data,
         value!({
             "test": "HELLO"
+        })
+    );
+}
+
+#[tokio::test]
+pub async fn test_both_input_output_generic_same_concrete() {
+    #[derive(SimpleObject, InputObject)]
+    #[graphql(concrete(name = "MyObjectI32", params(i32)))]
+    #[allow(dead_code)]
+    struct MyObject<T: InputType + OutputType> {
+        a: T,
+    }
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn obj(&self, input: MyObject<i32>) -> MyObject<i32> {
+            input
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    assert_eq!(
+        schema
+            .execute("{ obj(input: {a: 123}) { a } }")
+            .await
+            .into_result()
+            .unwrap()
+            .data,
+        value!({
+            "obj": {
+                "a": 123,
+            }
+        })
+    );
+}
+
+#[tokio::test]
+pub async fn test_both_input_output_generic_same_concrete_wrapped_input() {
+    #[derive(SimpleObject, InputObject)]
+    #[graphql(concrete(name = "MyObjectI32", params(i32)))]
+    #[allow(dead_code)]
+    struct MyObject<T: InputType + OutputType> {
+        a: T,
+    }
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn obj(
+            &self,
+            inputs: Vec<MyObject<i32>>,
+            fallback: Option<MyObject<i32>>,
+        ) -> MyObject<i32> {
+            inputs.into_iter().next().or(fallback).unwrap()
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    let sdl = schema.sdl();
+    assert!(sdl.contains("inputs: [MyObjectI32Input!]!"));
+    assert!(sdl.contains("fallback: MyObjectI32Input"));
+
+    assert_eq!(
+        schema
+            .execute(
+                Request::new(
+                    "query($inputs: [MyObjectI32Input!]!, $fallback: MyObjectI32Input) { obj(inputs: $inputs, fallback: $fallback) { a } }",
+                )
+                .variables(Variables::from_value(value!({
+                    "inputs": [{
+                        "a": 321,
+                    }],
+                    "fallback": {
+                        "a": 654,
+                    }
+                }))),
+            )
+            .await
+            .into_result()
+            .unwrap()
+            .data,
+        value!({
+            "obj": {
+                "a": 321,
+            }
+        })
+    );
+}
+
+#[tokio::test]
+pub async fn test_both_input_output_generic_same_concrete_nested_output() {
+    #[derive(SimpleObject, InputObject)]
+    #[graphql(concrete(name = "MyObjectI32", params(i32)))]
+    #[allow(dead_code)]
+    struct MyObject<T: InputType + OutputType> {
+        a: T,
+    }
+
+    struct Wrapper {
+        inner: MyObject<i32>,
+    }
+
+    #[Object]
+    impl Wrapper {
+        async fn inner(&self) -> &MyObject<i32> {
+            &self.inner
+        }
+    }
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn obj(&self, input: MyObject<i32>) -> Wrapper {
+            Wrapper { inner: input }
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    assert_eq!(
+        schema
+            .execute("{ obj(input: {a: 456}) { inner { a } } }")
+            .await
+            .into_result()
+            .unwrap()
+            .data,
+        value!({
+            "obj": {
+                "inner": {
+                    "a": 456,
+                }
+            }
+        })
+    );
+
+    let sdl = schema.sdl();
+    assert!(sdl.contains("input MyObjectI32Input"));
+    assert!(sdl.contains("obj(input: MyObjectI32Input!): Wrapper!"));
+
+    assert_eq!(
+        schema
+            .execute(
+                Request::new(
+                    "query($input: MyObjectI32Input!) { obj(input: $input) { inner { a } } }",
+                )
+                .variables(Variables::from_value(value!({
+                    "input": {
+                        "a": 789,
+                    }
+                }))),
+            )
+            .await
+            .into_result()
+            .unwrap()
+            .data,
+        value!({
+            "obj": {
+                "inner": {
+                    "a": 789,
+                }
+            }
         })
     );
 }
