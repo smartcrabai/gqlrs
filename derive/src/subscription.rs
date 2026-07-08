@@ -282,6 +282,9 @@ pub fn generate(
 
             let has_complexity = field.complexity.is_some();
             let has_directives = !field.directives.is_empty();
+            let has_semantic_non_null = field
+                .semantic_non_null
+                .unwrap_or(subscription_args.semantic_non_null);
             let directives = gen_directive_calls(
                 &crate_name,
                 &field.directives,
@@ -304,6 +307,9 @@ pub fn generate(
             if has_directives {
                 field_sets
                     .push(quote!(field.directive_invocations = ::std::vec![ #(#directives),* ];));
+            }
+            if has_semantic_non_null {
+                field_sets.push(quote!(field.semantic_nullability = <<#stream_ty as #crate_name::futures_util::stream::Stream>::Item as #crate_name::OutputType>::semantic_nullability();));
             }
 
             schema_fields.push(quote! {

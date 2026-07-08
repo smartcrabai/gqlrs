@@ -238,7 +238,7 @@ pub struct SimpleObjectField {
     #[darling(default, multiple)]
     pub requires_scopes: Vec<String>,
     #[darling(default)]
-    pub semantic_non_null: bool,
+    pub semantic_non_null: Option<bool>,
 }
 
 #[derive(FromDeriveInput)]
@@ -292,6 +292,8 @@ pub struct SimpleObject {
     pub directives: Vec<Expr>,
     #[darling(default, multiple)]
     pub requires_scopes: Vec<String>,
+    #[darling(default)]
+    pub semantic_non_null: bool,
     #[darling(rename = "crate")]
     pub crate_path: Option<Path>,
 }
@@ -345,6 +347,8 @@ pub struct Object {
     pub directives: Vec<Expr>,
     #[darling(default, multiple)]
     pub requires_scopes: Vec<String>,
+    #[darling(default)]
+    pub semantic_non_null: bool,
     #[darling(rename = "crate")]
     pub crate_path: Option<Path>,
 }
@@ -376,7 +380,7 @@ pub struct ObjectField {
     #[darling(default, multiple)]
     pub requires_scopes: Vec<String>,
     #[darling(default)]
-    pub semantic_non_null: bool,
+    pub semantic_non_null: Option<bool>,
 }
 
 #[derive(FromMeta, Default, Clone)]
@@ -686,7 +690,7 @@ pub struct InterfaceField {
     #[darling(default, multiple)]
     pub requires_scopes: Vec<String>,
     #[darling(default)]
-    pub semantic_non_null: bool,
+    pub semantic_non_null: Option<bool>,
 }
 
 #[derive(FromVariant)]
@@ -730,6 +734,8 @@ pub struct Interface {
     pub input_name: Option<String>,
     #[darling(default, multiple)]
     pub requires_scopes: Vec<String>,
+    #[darling(default)]
+    pub semantic_non_null: bool,
     #[darling(rename = "crate")]
     pub crate_path: Option<Path>,
 }
@@ -771,6 +777,7 @@ pub struct Subscription {
     pub guard: Option<Expr>,
     #[darling(default, multiple, rename = "directive")]
     pub directives: Vec<Expr>,
+    pub semantic_non_null: bool,
     #[darling(rename = "crate")]
     pub crate_path: Option<Path>,
 }
@@ -801,6 +808,7 @@ pub struct SubscriptionField {
     pub complexity: Option<Expr>,
     #[darling(default, multiple, rename = "directive")]
     pub directives: Vec<Expr>,
+    pub semantic_non_null: Option<bool>,
 }
 
 #[derive(FromField)]
@@ -1005,6 +1013,8 @@ pub struct ComplexObject {
     pub guard: Option<Expr>,
     #[darling(rename = "crate")]
     pub crate_path: Option<Path>,
+    #[darling(default)]
+    pub semantic_non_null: bool,
 }
 
 #[derive(FromMeta, Default)]
@@ -1033,7 +1043,7 @@ pub struct ComplexObjectField {
     #[darling(default, multiple)]
     pub requires_scopes: Vec<String>,
     #[darling(default)]
-    pub semantic_non_null: bool,
+    pub semantic_non_null: Option<bool>,
 }
 
 #[derive(FromMeta, Default)]

@@ -86,7 +86,6 @@ async fn test_semantic_non_null_sdl_export() {
     let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
     let sdl = schema.sdl_with_options(SDLExportOptions::new().use_space_ident().indent_width(2));
 
-    // Verify the directive is present in the SDL
     assert!(sdl.contains("directive @semanticNonNull"));
     assert!(sdl.contains("name: String! @semanticNonNull"));
     assert!(sdl.contains("age: Int!"));
@@ -160,7 +159,6 @@ async fn test_semantic_non_null_not_present_when_not_used() {
     let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
     let sdl = schema.sdl();
 
-    // Verify the directive is NOT present when not used
     assert!(!sdl.contains("@semanticNonNull"));
 }
 
@@ -187,8 +185,91 @@ async fn test_semantic_non_null_directive_in_sdl() {
 
     let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
     let sdl = schema.sdl();
-    println!("SDL: {}", sdl);
 
-    // Verify the directive definition is present
-    assert!(sdl.contains("@semanticNonNull"));
+    assert!(sdl.contains("directive @semanticNonNull"));
+}
+
+#[tokio::test]
+async fn test_semantic_non_null_on_result_fields() {
+    struct Query;
+
+    #[Object(semantic_non_null)]
+    impl Query {
+        async fn ok_field(&self) -> Result<String> {
+            Ok("success".to_string())
+        }
+
+        async fn err_field(&self) -> Result<i32> {
+            Err("error".into())
+        }
+
+        async fn regular(&self) -> &str {
+            "always here"
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    let sdl = schema.sdl();
+
+    assert!(
+        sdl.contains("directive @semanticNonNull"),
+        "Expected @semanticNonNull directive definition in SDL, got:\n{}",
+        sdl
+    );
+    assert!(
+        sdl.contains("@semanticNonNull"),
+        "Expected @semanticNonNull on Result fields in SDL, got:\n{}",
+        sdl
+    );
+}
+
+#[tokio::test]
+async fn test_semantic_non_null_selective_result_field() {
+    struct Query;
+
+    #[Object]
+    impl Query {
+        #[graphql(semantic_non_null)]
+        async fn semantically_non_null(&self) -> Result<String> {
+            Ok("always present".to_string())
+        }
+
+        async fn regular(&self) -> Result<String> {
+            Ok("nullable".to_string())
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    let sdl = schema.sdl();
+
+    assert!(
+        sdl.contains("directive @semanticNonNull"),
+        "Expected @semanticNonNull directive definition in SDL, got:\n{}",
+        sdl
+    );
+}
+
+#[tokio::test]
+async fn test_no_semantic_non_null_by_default() {
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn name(&self) -> &str {
+            "test"
+        }
+
+        async fn result_field(&self) -> Result<String> {
+            Ok("test".to_string())
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    let sdl = schema.sdl();
+
+    assert!(
+        !sdl.contains("@semanticNonNull"),
+        "Did not expect @semanticNonNull in SDL without opt-in, got:\n{}",
+        sdl
+    );
 }
