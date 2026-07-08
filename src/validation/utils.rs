@@ -188,7 +188,10 @@ pub fn is_valid_input_value(
 
                         None
                     }
-                    _ => None,
+                    _ => Some(valid_error(
+                        &path_node,
+                        format!("expected type \"{}\"", object_name),
+                    )),
                 },
                 _ => None,
             }
