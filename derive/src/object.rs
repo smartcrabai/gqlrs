@@ -965,7 +965,7 @@ pub fn generate(
     let has_batch_entities = !find_entities_batch.is_empty();
     let find_entities_batch_iter = find_entities_batch.iter();
 
-    if resolvers.is_empty() && create_entity_types.is_empty() {
+    if schema_fields.is_empty() && create_entity_types.is_empty() {
         return Err(Error::new_spanned(
             self_ty,
             "A GraphQL Object type must define one or more fields.",
