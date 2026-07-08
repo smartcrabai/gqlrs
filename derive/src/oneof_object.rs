@@ -29,23 +29,19 @@ pub fn generate(object_args: &args::OneofObject) -> GeneratorResult<TokenStream>
         &object_args.directives,
         TypeDirectiveLocation::InputObject,
     );
+    let gql_type_name = args::get_input_type_name(
+        ident,
+        object_args.name.as_deref(),
+        object_args.input_name.as_deref(),
+        object_args.input_name_suffix.as_deref(),
+    );
     let gql_typename = if !object_args.name_type {
-        let name = object_args
-            .input_name
-            .clone()
-            .or_else(|| object_args.name.clone())
-            .unwrap_or_else(|| RenameTarget::Type.rename(ident.to_string()));
-        quote!(::std::borrow::Cow::Borrowed(#name))
+        quote!(::std::borrow::Cow::Borrowed(#gql_type_name))
     } else {
         quote!(<Self as #crate_name::TypeName>::type_name())
     };
     let gql_typename_string = if !object_args.name_type {
-        let name = object_args
-            .input_name
-            .clone()
-            .or_else(|| object_args.name.clone())
-            .unwrap_or_else(|| RenameTarget::Type.rename(ident.to_string()));
-        quote!(::std::string::ToString::to_string(#name))
+        quote!(::std::string::ToString::to_string(#gql_type_name))
     } else {
         quote!(::std::string::ToString::to_string(&#gql_typename))
     };
@@ -294,7 +290,10 @@ pub fn generate(object_args: &args::OneofObject) -> GeneratorResult<TokenStream>
         });
 
         for concrete in &object_args.concretes {
-            let gql_typename = &concrete.name;
+            let gql_typename = args::get_concrete_input_type_name(
+                concrete,
+                object_args.input_name_suffix.as_deref(),
+            );
             let params = &concrete.params.0;
             let concrete_type = quote! { #ident<#(#params),*> };
 

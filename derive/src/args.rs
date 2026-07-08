@@ -287,6 +287,8 @@ pub struct SimpleObject {
     #[darling(default)]
     pub input_name: Option<String>,
     #[darling(default)]
+    pub input_name_suffix: Option<String>,
+    #[darling(default)]
     pub guard: Option<Expr>,
     #[darling(default, multiple, rename = "directive")]
     pub directives: Vec<Expr>,
@@ -476,6 +478,8 @@ pub struct Union {
     // for OneofObject
     #[darling(default)]
     pub input_name: Option<String>,
+    #[darling(default)]
+    pub input_name_suffix: Option<String>,
 
     #[darling(rename = "crate")]
     pub crate_path: Option<Path>,
@@ -551,6 +555,8 @@ pub struct InputObject {
     #[darling(default)]
     pub input_name: Option<String>,
     #[darling(default)]
+    pub input_name_suffix: Option<String>,
+    #[darling(default)]
     pub rename_fields: Option<RenameRule>,
     #[darling(default)]
     pub visible: Option<Visible>,
@@ -612,6 +618,8 @@ pub struct OneofObject {
     pub name: Option<String>,
     #[darling(default)]
     pub input_name: Option<String>,
+    #[darling(default)]
+    pub input_name_suffix: Option<String>,
     #[darling(default)]
     pub name_type: bool,
     #[darling(default)]
@@ -732,6 +740,8 @@ pub struct Interface {
     // for OneofObject
     #[darling(default)]
     pub input_name: Option<String>,
+    #[darling(default)]
+    pub input_name_suffix: Option<String>,
     #[darling(default, multiple)]
     pub requires_scopes: Vec<String>,
     #[darling(default)]
@@ -939,6 +949,39 @@ impl RenameRuleExt for Option<RenameRule> {
     fn rename(&self, name: impl AsRef<str>, target: RenameTarget) -> String {
         self.unwrap_or(target.rule()).rename(name)
     }
+}
+
+pub fn get_input_type_name(
+    ident: &Ident,
+    name: Option<&str>,
+    input_name: Option<&str>,
+    input_name_suffix: Option<&str>,
+) -> String {
+    if let Some(input_name) = input_name {
+        input_name.to_string()
+    } else {
+        let base_name = name
+            .map(ToString::to_string)
+            .unwrap_or_else(|| RenameTarget::Type.rename(ident.to_string()));
+        if let Some(suffix) = input_name_suffix {
+            format!("{base_name}{suffix}")
+        } else {
+            base_name
+        }
+    }
+}
+
+pub fn get_concrete_input_type_name(
+    concrete: &ConcreteType,
+    input_name_suffix: Option<&str>,
+) -> String {
+    concrete.input_name.clone().unwrap_or_else(|| {
+        if let Some(suffix) = input_name_suffix {
+            format!("{}{suffix}", concrete.name)
+        } else {
+            concrete.name.clone()
+        }
+    })
 }
 
 #[derive(FromDeriveInput)]

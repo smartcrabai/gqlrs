@@ -575,6 +575,58 @@ pub async fn test_both_input_output_generic() {
 }
 
 #[tokio::test]
+pub async fn test_both_input_output_generic_with_input_name_suffix() {
+    #[derive(SimpleObject, InputObject)]
+    #[graphql(input_name_suffix = "Input")]
+    #[graphql(concrete(name = "MyObjectU32", params(u32)))]
+    #[graphql(concrete(name = "MyObjectString", params(String)))]
+    #[allow(dead_code)]
+    struct MyObject<T: InputType + OutputType> {
+        a: T,
+    }
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn obj(&self, input: MyObject<u32>) -> MyObject<String> {
+            MyObject::<String> {
+                a: format!("{}", input.a),
+            }
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    assert_eq!(
+        schema
+            .execute("{ obj(input: {a: 123}) { a } }")
+            .await
+            .into_result()
+            .unwrap()
+            .data,
+        value!({
+            "obj": {
+                "a": "123",
+            }
+        })
+    );
+
+    assert_eq!(
+        <MyObject<u32> as InputType>::type_name(),
+        "MyObjectU32Input"
+    );
+    assert_eq!(<MyObject<u32> as OutputType>::type_name(), "MyObjectU32");
+    assert_eq!(
+        <MyObject<String> as InputType>::type_name(),
+        "MyObjectStringInput"
+    );
+    assert_eq!(
+        <MyObject<String> as OutputType>::type_name(),
+        "MyObjectString"
+    );
+}
+
+#[tokio::test]
 pub async fn test_both_input_output_generic_with_nesting() {
     #[derive(Clone, Copy, PartialEq, Eq, Enum, serde::Serialize)]
     enum MyEnum {
@@ -1089,4 +1141,122 @@ pub async fn test_inputobject_generic_with_name_type() {
         <GenericInput<i32> as InputType>::type_name(),
         "IntGenericInput"
     );
+}
+
+#[tokio::test]
+pub async fn test_input_name_suffix() {
+    #[derive(SimpleObject, InputObject)]
+    #[graphql(input_name_suffix = "Input")]
+    #[allow(dead_code)]
+    struct MyObject {
+        #[graphql(default = 10)]
+        a: i32,
+        b: bool,
+    }
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn obj(&self, input: MyObject) -> MyObject {
+            input
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    assert_eq!(
+        schema
+            .execute("{ obj(input: {a: 1, b: true}) { a b } }")
+            .await
+            .into_result()
+            .unwrap()
+            .data,
+        value!({
+            "obj": {
+                "a": 1,
+                "b": true,
+            }
+        })
+    );
+
+    // The input type name should be MyObject + "Input" suffix
+    assert_eq!(<MyObject as InputType>::type_name(), "MyObjectInput");
+    // The output type name should remain the original name
+    assert_eq!(<MyObject as OutputType>::type_name(), "MyObject");
+}
+
+#[tokio::test]
+pub async fn test_input_name_suffix_with_oneof() {
+    #[derive(OneofObject)]
+    #[graphql(input_name_suffix = "Input")]
+    enum MyOneof {
+        A(i32),
+        B(String),
+    }
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn test(&self, input: MyOneof) -> i32 {
+            match input {
+                MyOneof::A(a) => a,
+                MyOneof::B(b) => b.len() as i32,
+            }
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    assert_eq!(
+        schema
+            .execute("{ test(input: { a: 42 }) }")
+            .await
+            .into_result()
+            .unwrap()
+            .data,
+        value!({
+            "test": 42
+        })
+    );
+
+    // The input type name should be MyOneof + "Input" suffix
+    assert_eq!(<MyOneof as InputType>::type_name(), "MyOneofInput");
+}
+
+#[tokio::test]
+pub async fn test_input_name_suffix_uses_graphql_name() {
+    // input_name_suffix appends to the GraphQL type name used by the output object.
+    #[derive(SimpleObject, InputObject)]
+    #[graphql(name = "CustomObj", input_name_suffix = "Request")]
+    #[allow(dead_code)]
+    struct MyObject {
+        a: i32,
+    }
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn obj(&self, input: MyObject) -> MyObject {
+            input
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    assert_eq!(
+        schema
+            .execute("{ obj(input: {a: 1}) { a } }")
+            .await
+            .into_result()
+            .unwrap()
+            .data,
+        value!({
+            "obj": {
+                "a": 1,
+            }
+        })
+    );
+
+    assert_eq!(<MyObject as InputType>::type_name(), "CustomObjRequest");
+    assert_eq!(<MyObject as OutputType>::type_name(), "CustomObj");
 }
