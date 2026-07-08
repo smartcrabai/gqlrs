@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     char::ParseCharError,
     convert::Infallible,
     fmt::Display,
@@ -9,7 +10,10 @@ use std::{
 
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::ID;
+use crate::{
+    ContextSelectionSet, ID, InputType, InputValueError, InputValueResult, OutputType, Positioned,
+    ServerResult, Value, parser::types::Field, registry::Registry,
+};
 
 /// Cursor type
 ///
@@ -156,6 +160,40 @@ impl CursorType for uuid::Uuid {
 }
 
 /// A opaque cursor that encode/decode the value to base64
+///
+/// `OpaqueCursor<T>` implements both [`CursorType`] and [`InputType`], so it
+/// can be used directly as a GraphQL input argument (instead of accepting
+/// `Option<String>` and manually decoding via connection helpers). In the
+/// GraphQL schema it is represented as a `String` cursor.
+///
+/// # Examples
+///
+/// ```rust
+/// use gqlrs::{connection::*, *};
+/// use serde::{Deserialize, Serialize};
+///
+/// #[derive(Serialize, Deserialize, Clone)]
+/// struct MyCursor {
+///     id: i32,
+///     offset: usize,
+/// }
+///
+/// struct Query;
+///
+/// #[Object]
+/// impl Query {
+///     async fn items(
+///         &self,
+///         after: Option<OpaqueCursor<MyCursor>>,
+///         first: Option<i32>,
+///     ) -> Result<Connection<OpaqueCursor<MyCursor>, String>> {
+///         // `after` is already decoded from the base64 opaque cursor
+///         let start = after.map(|c| c.offset).unwrap_or(0);
+///         // ...
+///         # todo!()
+///     }
+/// }
+/// ```
 pub struct OpaqueCursor<T>(pub T);
 
 impl<T> Deref for OpaqueCursor<T> {
@@ -192,5 +230,50 @@ where
 
         let value = serde_json::to_vec(&self.0).unwrap_or_default();
         base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(value)
+    }
+}
+
+impl<T: Serialize + DeserializeOwned + Send + Sync> InputType for OpaqueCursor<T> {
+    type RawValueType = T;
+
+    fn type_name() -> Cow<'static, str> {
+        <String as InputType>::type_name()
+    }
+
+    fn create_type_info(registry: &mut Registry) -> String {
+        <String as InputType>::create_type_info(registry)
+    }
+
+    fn parse(value: Option<Value>) -> InputValueResult<Self> {
+        let cursor = <String as InputType>::parse(value).map_err(InputValueError::propagate)?;
+        CursorType::decode_cursor(&cursor)
+            .map_err(|e| InputValueError::custom(format!("Invalid opaque cursor: {e}")))
+    }
+
+    fn to_value(&self) -> Value {
+        Value::String(CursorType::encode_cursor(self))
+    }
+
+    fn as_raw_value(&self) -> Option<&Self::RawValueType> {
+        Some(&self.0)
+    }
+}
+
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+impl<T: Serialize + DeserializeOwned + Send + Sync> OutputType for OpaqueCursor<T> {
+    fn type_name() -> Cow<'static, str> {
+        <String as OutputType>::type_name()
+    }
+
+    fn create_type_info(registry: &mut Registry) -> String {
+        <String as OutputType>::create_type_info(registry)
+    }
+
+    async fn resolve(
+        &self,
+        _ctx: &ContextSelectionSet<'_>,
+        _field: &Positioned<Field>,
+    ) -> ServerResult<Value> {
+        Ok(Value::String(CursorType::encode_cursor(self)))
     }
 }

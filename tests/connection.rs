@@ -1,4 +1,5 @@
 use gqlrs::{connection::*, *};
+use serde::{Deserialize, Serialize};
 
 #[tokio::test]
 pub async fn test_connection_additional_fields() {
@@ -164,6 +165,128 @@ pub async fn test_connection_nodes() {
                     9999,
                 ],
             },
+        })
+    );
+}
+
+#[tokio::test]
+pub async fn test_opaque_cursor_inputs_use_string_scalar() {
+    #[derive(Serialize, Deserialize)]
+    struct UserCursor {
+        id: i32,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    struct PostCursor {
+        id: i32,
+    }
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn user_id(&self, after: Option<OpaqueCursor<UserCursor>>) -> i32 {
+            after.map(|cursor| cursor.id).unwrap_or_default()
+        }
+
+        async fn post_id(&self, after: Option<OpaqueCursor<PostCursor>>) -> i32 {
+            after.map(|cursor| cursor.id).unwrap_or_default()
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    let user_cursor = OpaqueCursor(UserCursor { id: 10 }).encode_cursor();
+    let post_cursor = OpaqueCursor(PostCursor { id: 20 }).encode_cursor();
+    let query = format!(
+        r#"{{ userId(after: "{}") postId(after: "{}") }}"#,
+        user_cursor, post_cursor
+    );
+
+    assert_eq!(
+        schema.execute(query).await.into_result().unwrap().data,
+        value!({
+            "userId": 10,
+            "postId": 20,
+        })
+    );
+}
+
+#[tokio::test]
+pub async fn test_opaque_cursor_as_input() {
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+    struct MyCursor {
+        offset: usize,
+    }
+
+    struct Query;
+
+    #[Object]
+    impl Query {
+        async fn numbers(
+            &self,
+            after: Option<OpaqueCursor<MyCursor>>,
+            first: Option<i32>,
+        ) -> Result<Connection<OpaqueCursor<MyCursor>, i32>> {
+            let start = after.map(|c| c.offset + 1).unwrap_or(0);
+            let first = first.unwrap_or(3) as usize;
+            let end = (start + first).min(10000);
+            let mut connection = Connection::new(start > 0, end < 10000);
+            connection.edges.extend(
+                (start..end).map(|n| Edge::new(OpaqueCursor(MyCursor { offset: n }), n as i32)),
+            );
+            Ok(connection)
+        }
+    }
+
+    let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
+    let encoded = OpaqueCursor(MyCursor { offset: 1 }).encode_cursor();
+
+    // First page: request two items and expose the opaque end cursor.
+    let res = schema
+        .execute(r#"{ numbers(first: 2) { edges { node } pageInfo { endCursor hasNextPage } } }"#)
+        .await;
+    assert!(
+        res.errors.is_empty(),
+        "First page had errors: {:?}",
+        res.errors
+    );
+    assert_eq!(
+        res.data,
+        value!({
+            "numbers": {
+                "edges": [
+                    { "node": 0 },
+                    { "node": 1 },
+                ],
+                "pageInfo": {
+                    "endCursor": encoded.clone(),
+                    "hasNextPage": true,
+                },
+            }
+        })
+    );
+
+    // Second page: pass the opaque cursor directly as an input argument.
+    let query = format!(
+        r#"{{ numbers(after: "{}", first: 2) {{ edges {{ node }} }} }}"#,
+        encoded
+    );
+    let res2 = schema.execute(&query).await;
+    assert!(
+        res2.errors.is_empty(),
+        "Second page had errors: {:?}",
+        res2.errors
+    );
+
+    assert_eq!(
+        res2.data,
+        value!({
+            "numbers": {
+                "edges": [
+                    { "node": 2 },
+                    { "node": 3 },
+                ]
+            }
         })
     );
 }
