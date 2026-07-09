@@ -69,7 +69,7 @@ pub async fn test_scalar_macro_default_name_for_generic_type() {
 
     assert_eq!(<GenericScalar as InputType>::type_name().as_ref(), "FooBar");
     assert_eq!(
-        <GenericScalar as OutputType>::type_name().as_ref(),
+        <GenericScalar as OutputTypeMarker>::type_name().as_ref(),
         "FooBar"
     );
 

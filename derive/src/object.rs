@@ -383,11 +383,11 @@ pub fn generate(
                         } else {
                             key_str.push(#key_name.to_string());
                         }
-                        registry.add_keys(&<#entity_type as #crate_name::OutputType>::type_name(), &key_str.join(" "));
+                        registry.add_keys(&<#entity_type as #crate_name::OutputTypeMarker>::type_name(), &key_str.join(" "));
                     }
                 });
                 create_entity_types.push(
-                    quote! { <#entity_type as #crate_name::OutputType>::create_type_info(registry); },
+                    quote! { <#entity_type as #crate_name::OutputTypeMarker>::create_type_info(registry); },
                 );
 
                 let field_ident = &method.sig.ident;
@@ -414,7 +414,7 @@ pub fn generate(
 
                 find_entities_batch.push(quote! {
                     #(#cfg_attrs)*
-                    if typename_ref == <#entity_type as #crate_name::OutputType>::type_name().as_ref() {
+                    if typename_ref == <#entity_type as #crate_name::OutputTypeMarker>::type_name().as_ref() {
                         let mut batch_keys = ::std::vec::Vec::with_capacity(batch_indices.len());
                         let mut key_indices = ::std::vec::Vec::with_capacity(batch_indices.len());
                         for &idx in batch_indices {
@@ -1260,8 +1260,7 @@ pub fn generate(
                 }
 
                 #[allow(clippy::all, clippy::pedantic)]
-                #boxed_trait
-                impl #def_bounds #crate_name::OutputType for #concrete_type {
+                impl #def_bounds #crate_name::OutputTypeMarker for #concrete_type {
                     fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
                         ::std::borrow::Cow::Borrowed(#gql_typename)
                     }
@@ -1269,7 +1268,11 @@ pub fn generate(
                     fn create_type_info(_registry: &mut #crate_name::registry::Registry) -> ::std::string::String {
                         ::std::string::String::new()
                     }
+                }
 
+                #[allow(clippy::all, clippy::pedantic)]
+                #boxed_trait
+                impl #def_bounds #crate_name::OutputType for #concrete_type {
                     async fn resolve(
                         &self,
                         _ctx: &#crate_name::ContextSelectionSet<'_>,

@@ -302,7 +302,7 @@ impl<T> DataLoaderInner<T> {
         V: MaybeSend + MaybeSync + Clone + 'static,
         T: Loader<K, V>,
     {
-        let tid = TypeId::of::<K>();
+        let tid = TypeId::of::<(K, V)>();
         let keys_vec = keys.iter().cloned().collect::<Vec<_>>();
         let mut stream = Box::pin(self.loader.load_stream(&keys_vec));
 
@@ -624,7 +624,7 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
             Delay,
         }
 
-        let tid = TypeId::of::<K>();
+        let tid = TypeId::of::<(K, V)>();
 
         let (action, rx) = {
             let mut entry = self

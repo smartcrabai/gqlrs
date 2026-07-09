@@ -294,6 +294,9 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
         let has_depth_cost = field.depth_cost.is_some();
         let has_directives = !field.directives.is_empty();
         let has_requires_scopes = !field.requires_scopes.is_empty();
+        let has_semantic_non_null = field
+            .semantic_non_null
+            .unwrap_or(object_args.semantic_non_null);
 
         let visible = visible_fn(&field.visible);
         let directives = gen_directive_calls(
@@ -363,6 +366,14 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
             if has_requires_scopes {
                 field_sets
                     .push(quote!(field.requires_scopes = ::std::vec![ #(#requires_scopes),* ];));
+            }
+            if has_semantic_non_null {
+                field_sets.push(quote! {
+                    field.semantic_nullability = match <#ty as #crate_name::OutputTypeMarker>::semantic_nullability() {
+                        #crate_name::registry::SemanticNullability::None => #crate_name::registry::SemanticNullability::OutNonNull,
+                        v => v,
+                    };
+                });
             }
 
             let field_type_info = match (&field.output_using, field.optional, &output_using_arg_ty)
@@ -659,6 +670,12 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
         };
     }
 
+    let internal_create_type_info_bounds = if object_args.complex {
+        quote! { where Self: #crate_name::OutputTypeMarker + #crate_name::ComplexObject }
+    } else {
+        quote! { where Self: #crate_name::OutputTypeMarker }
+    };
+
     let resolve_container = if object_args.serial {
         quote! { #crate_name::resolver_utils::resolve_container_serial(ctx, self).await }
     } else {
@@ -865,15 +882,14 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
                     fn __internal_create_type_info_simple_object(
                         registry: &mut #crate_name::registry::Registry,
                         name: &str,
-                        complex_fields: #crate_name::indexmap::IndexMap<::std::string::String, #crate_name::registry::MetaField>,
-                    ) -> ::std::string::String where Self: #crate_name::OutputTypeMarker {
+                    ) -> ::std::string::String #internal_create_type_info_bounds {
                         registry.create_output_type::<Self, _>(#crate_name::registry::MetaTypeId::Object, |registry| {
                             #crate_name::registry::ObjectBuilder::new(
                                 ::std::string::ToString::to_string(name),
                                 {
                                     let mut fields = #crate_name::indexmap::IndexMap::with_capacity(#field_count);
                                     #(#schema_fields)*
-                                    ::std::iter::Extend::extend(&mut fields, complex_fields.clone());
+                                    #concat_complex_fields
                                     fields
                                 },
                             )
@@ -921,9 +937,7 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
                         }
 
                         fn create_type_info(registry: &mut #crate_name::registry::Registry) -> ::std::string::String {
-                            let mut fields = #crate_name::indexmap::IndexMap::with_capacity(#field_count);
-                            #concat_complex_fields
-                            Self::__internal_create_type_info_simple_object(registry, #gql_typename, fields)
+                            Self::__internal_create_type_info_simple_object(registry, #gql_typename)
                         }
                     }
 
