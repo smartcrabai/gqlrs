@@ -9,7 +9,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{InputType, MaybeSend, MaybeSync, parser, Pos, Value};
+use crate::{InputType, MaybeSend, MaybeSync, Pos, Value, parser};
 
 #[cfg(not(feature = "no_send"))]
 pub type ErrorSource = Arc<dyn Any + Send + Sync>;
@@ -419,8 +419,8 @@ pub trait IntoError {
     fn into_error(self) -> Error;
 }
 
-/// Macro to implement `IntoError` for types that implement `Display + MaybeSend +
-/// MaybeSync + 'static`.
+/// Macro to implement `IntoError` for types that implement `Display + MaybeSend
+/// + MaybeSync + 'static`.
 ///
 /// This provides backward compatibility for common error types while allowing
 /// custom types to implement `IntoError` directly with custom extensions.

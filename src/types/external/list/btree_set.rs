@@ -1,21 +1,10 @@
 use std::{borrow::Cow, collections::BTreeSet};
 
-use crate::{Context,
-    ContextSelectionSet,
-    Error,
-    InputType,
-    InputValueError,
-    InputValueResult,
-    MaybeSend,
-    OutputType,
-    OutputTypeMarker,
-    parser::types::Field,
-    Positioned,
-    registry,
-    resolver_utils::resolve_list,
-    Result,
-    ServerResult,
-    Value,};
+use crate::{
+    Context, ContextSelectionSet, Error, InputType, InputValueError, InputValueResult, MaybeSend,
+    OutputType, OutputTypeMarker, Positioned, Result, ServerResult, Value, parser::types::Field,
+    registry, resolver_utils::resolve_list,
+};
 
 impl<T: InputType + Ord> InputType for BTreeSet<T> {
     type RawValueType = Self;

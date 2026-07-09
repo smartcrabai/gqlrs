@@ -10,7 +10,6 @@ use crate::{
     registry::{MetaField, MetaType, MetaTypeId, Registry},
 };
 
-
 fn extend_fields(
     fields: &mut IndexMap<String, MetaField>,
     new_fields: IndexMap<String, MetaField>,

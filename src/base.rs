@@ -167,8 +167,8 @@ impl<T: OutputType + ?Sized> OutputType for &T {
     }
 }
 
-impl<T: OutputTypeMarker + MaybeSync, E: Into<Error> + MaybeSend + MaybeSync + Clone> OutputTypeMarker
-    for Result<T, E>
+impl<T: OutputTypeMarker + MaybeSync, E: Into<Error> + MaybeSend + MaybeSync + Clone>
+    OutputTypeMarker for Result<T, E>
 {
     fn type_name() -> Cow<'static, str> {
         T::type_name()
@@ -198,7 +198,9 @@ impl<T: OutputTypeMarker + MaybeSync, E: Into<Error> + MaybeSend + MaybeSync + C
     async_trait::async_trait
 )]
 #[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
-impl<T: OutputType + MaybeSync, E: Into<Error> + MaybeSend + MaybeSync + Clone> OutputType for Result<T, E> {
+impl<T: OutputType + MaybeSync, E: Into<Error> + MaybeSend + MaybeSync + Clone> OutputType
+    for Result<T, E>
+{
     async fn resolve(
         &self,
         ctx: &ContextSelectionSet<'_>,

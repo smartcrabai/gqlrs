@@ -7,7 +7,6 @@ use indexmap::IndexMap;
 use crate::{
     Data, ErrorFormatter, Executor, IntrospectionMode, MaybeSend, MaybeSync, QueryEnv, Request,
     Response, SDLExportOptions, SchemaEnv, ServerError, ServerResult, ValidationMode, Value,
-    sendable::{MaybeBoxStream as BoxStream, StreamMaybeSendExt},
     dynamic::{
         DynamicRequest, FieldFuture, FieldValue, Object, ResolverContext, Scalar, SchemaError,
         Subscription, TypeRef, Union, field::BoxResolverFn, resolve::resolve_container,
@@ -16,6 +15,7 @@ use crate::{
     extensions::{ExtensionFactory, Extensions},
     registry::{MetaDirective, MetaType, Registry},
     schema::{SchemaEnvInner, prepare_request},
+    sendable::{MaybeBoxStream as BoxStream, StreamMaybeSendExt},
 };
 
 /// Dynamic schema builder
@@ -612,20 +612,12 @@ mod tests {
     use async_graphql_value::Variables;
     use futures_util::StreamExt;
     use tokio::sync::Mutex;
-    use crate::sendable::MaybeBoxStream as BoxStream;
 
-    use crate::{dynamic::*,
-    extensions::*,
-    MaybeSend,
-    MaybeSync,
-    PathSegment,
-    Request,
-    Response,
-    ServerError,
-    ServerResult,
-    ValidationResult,
-    Value,
-    value,};
+    use crate::{
+        MaybeSend, MaybeSync, PathSegment, Request, Response, ServerError, ServerResult,
+        ValidationResult, Value, dynamic::*, extensions::*, sendable::MaybeBoxStream as BoxStream,
+        value,
+    };
 
     #[tokio::test]
     async fn basic_query() {
@@ -922,7 +914,7 @@ mod tests {
         }
 
         #[cfg_attr(not(feature = "no_send"), async_trait::async_trait)]
-#[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
+        #[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
         #[allow(unused_variables)]
         impl Extension for MyExtensionImpl {
             async fn request(&self, ctx: &ExtensionContext<'_>, next: NextRequest<'_>) -> Response {

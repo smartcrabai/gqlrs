@@ -1,20 +1,10 @@
 use std::borrow::Cow;
 
-use crate::{Context,
-    ContextSelectionSet,
-    InputType,
-    InputValueError,
-    InputValueResult,
-    MaybeSend,
-    MaybeSync,
-    OutputType,
-    OutputTypeMarker,
-    parser::types::Field,
-    Positioned,
-    registry,
-    Result,
-    ServerResult,
-    Value,};
+use crate::{
+    Context, ContextSelectionSet, InputType, InputValueError, InputValueResult, MaybeSend,
+    MaybeSync, OutputType, OutputTypeMarker, Positioned, Result, ServerResult, Value,
+    parser::types::Field, registry,
+};
 
 impl<T: InputType> InputType for Option<T> {
     type RawValueType = T::RawValueType;

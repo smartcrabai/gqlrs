@@ -131,10 +131,10 @@ pub async fn test_result_object_field_catches_child_non_null_errors() {
     struct DenyGuard;
 
     #[cfg_attr(
-    all(feature = "boxed-trait", not(feature = "no_send")),
-    async_trait::async_trait
-)]
-#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
+        all(feature = "boxed-trait", not(feature = "no_send")),
+        async_trait::async_trait
+    )]
+    #[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
     impl Guard for DenyGuard {
         async fn check(&self, _: &Context<'_>) -> Result<()> {
             Err("denied".into())

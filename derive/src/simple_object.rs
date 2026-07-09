@@ -365,7 +365,8 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
                     .push(quote!(field.requires_scopes = ::std::vec![ #(#requires_scopes),* ];));
             }
 
-            let field_type_info = match (&field.output_using, field.optional, &output_using_arg_ty) {
+            let field_type_info = match (&field.output_using, field.optional, &output_using_arg_ty)
+            {
                 (Some(output_using), _, Some(output_using_arg_ty)) => {
                     inferred_output_type(&crate_name, output_using, output_using_arg_ty.clone())
                 }

@@ -615,7 +615,10 @@ pub async fn test_both_input_output_generic_with_input_name_suffix() {
         <MyObject<u32> as InputType>::type_name(),
         "MyObjectU32Input"
     );
-    assert_eq!(<MyObject<u32> as OutputTypeMarker>::type_name(), "MyObjectU32");
+    assert_eq!(
+        <MyObject<u32> as OutputTypeMarker>::type_name(),
+        "MyObjectU32"
+    );
     assert_eq!(
         <MyObject<String> as InputType>::type_name(),
         "MyObjectStringInput"
