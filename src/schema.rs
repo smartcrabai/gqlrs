@@ -7,12 +7,14 @@ use std::{
 };
 
 use async_graphql_parser::types::ExecutableDocument;
-use futures_util::stream::{self, BoxStream, FuturesOrdered, StreamExt};
+use futures_util::stream::{self, FuturesOrdered, StreamExt};
 
 use crate::{
     BatchRequest, BatchResponse, CacheControl, ContextBase, EmptyMutation, EmptySubscription,
-    ErrorFormatter, Executor, InputType, ObjectType, OutputType, OutputTypeMarker, QueryEnv,
-    Request, Response, ServerError, ServerResult, SubscriptionType, Variables,
+    ErrorFormatter, Executor, InputType, MaybeSend, MaybeSync, ObjectType, OutputType,
+    OutputTypeMarker, QueryEnv, Request, Response, ServerError, ServerResult, SubscriptionType,
+    Variables,
+    sendable::{MaybeBoxStream as BoxStream, StreamMaybeSendExt},
     context::{Data, QueryEnvInner},
     custom_directive::CustomDirectiveFactory,
     extensions::{ExtensionFactory, Extensions},
@@ -194,7 +196,7 @@ impl<Query, Mutation, Subscription> SchemaBuilder<Query, Mutation, Subscription>
     #[must_use]
     pub fn error_formatter<F>(mut self, formatter: F) -> Self
     where
-        F: Fn(ServerError) -> ServerError + Send + Sync + 'static,
+        F: Fn(ServerError) -> ServerError + MaybeSend + MaybeSync + 'static,
     {
         self.error_formatter = Some(Box::new(formatter));
         self
@@ -203,7 +205,7 @@ impl<Query, Mutation, Subscription> SchemaBuilder<Query, Mutation, Subscription>
     /// Add a global data that can be accessed in the `Schema`. You access it
     /// with `Context::data`.
     #[must_use]
-    pub fn data<D: Any + Send + Sync>(mut self, data: D) -> Self {
+    pub fn data<D: Any + MaybeSend + MaybeSync>(mut self, data: D) -> Self {
         self.data.insert(data);
         self
     }
@@ -655,7 +657,7 @@ where
         let request = request.into();
         let extensions = self.create_extensions(session_data.clone());
 
-        let stream = futures_util::stream::StreamExt::boxed({
+        let stream = ({
             let extensions = extensions.clone();
             let env = self.0.env.clone();
             asynk_strim::stream_fn(|mut yielder| async move {
@@ -729,7 +731,7 @@ where
                     yielder.yield_item(resp).await;
                 }
             })
-        });
+        }).boxed_maybe_send();
         extensions.subscribe(stream)
     }
 
@@ -739,7 +741,7 @@ where
     }
 
     /// Access global data stored in the Schema
-    pub fn data<D: Any + Send + Sync>(&self) -> Option<&D> {
+    pub fn data<D: Any + MaybeSend + MaybeSync>(&self) -> Option<&D> {
         self.0
             .env
             .data
@@ -748,7 +750,11 @@ where
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl<Query, Mutation, Subscription> Executor for Schema<Query, Mutation, Subscription>
 where
     Query: ObjectType + 'static,

@@ -12,6 +12,7 @@ use crate::{
     registry::{MetaType, MetaTypeId, Registry},
     to_value,
 };
+use crate::{MaybeSend, MaybeSync};
 
 /// A scalar that can represent any JSON value.
 ///
@@ -41,7 +42,7 @@ impl<T> From<T> for Json<T> {
     }
 }
 
-impl<T: DeserializeOwned + Serialize + Send + Sync> InputType for Json<T> {
+impl<T: DeserializeOwned + Serialize + MaybeSend + MaybeSync> InputType for Json<T> {
     type RawValueType = T;
 
     fn type_name() -> Cow<'static, str> {
@@ -75,7 +76,7 @@ impl<T: DeserializeOwned + Serialize + Send + Sync> InputType for Json<T> {
     }
 }
 
-impl<T: Serialize + Send + Sync> OutputTypeMarker for Json<T> {
+impl<T: Serialize + MaybeSend + MaybeSync> OutputTypeMarker for Json<T> {
     fn type_name() -> Cow<'static, str> {
         Cow::Borrowed("JSON")
     }
@@ -95,8 +96,12 @@ impl<T: Serialize + Send + Sync> OutputTypeMarker for Json<T> {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-impl<T: Serialize + Send + Sync> OutputType for Json<T> {
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
+impl<T: Serialize + MaybeSend + MaybeSync> OutputType for Json<T> {
     async fn resolve(
         &self,
         _ctx: &ContextSelectionSet<'_>,
@@ -164,7 +169,11 @@ impl OutputTypeMarker for serde_json::Value {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl OutputType for serde_json::Value {
     async fn resolve(
         &self,

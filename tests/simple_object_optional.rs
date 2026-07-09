@@ -2,7 +2,11 @@ use gqlrs::*;
 
 struct DenyGuard;
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl Guard for DenyGuard {
     async fn check(&self, _ctx: &Context<'_>) -> Result<()> {
         Err("Forbidden".into())

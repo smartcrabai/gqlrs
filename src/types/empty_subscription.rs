@@ -41,12 +41,27 @@ impl SubscriptionType for EmptySubscription {
         true
     }
 
+    #[cfg(not(feature = "no_send"))]
     fn create_field_stream<'a>(
         &'a self,
         _ctx: &'a Context<'_>,
     ) -> Option<Pin<Box<dyn Stream<Item = Response> + Send + 'a>>>
     where
         Self: Send + Sync + 'static + Sized,
+    {
+        Some(Box::pin(stream::once(async move {
+            let err = ServerError::new("Schema is not configured for subscription.", None);
+            Response::from_errors(vec![err])
+        })))
+    }
+
+    #[cfg(feature = "no_send")]
+    fn create_field_stream<'a>(
+        &'a self,
+        _ctx: &'a Context<'_>,
+    ) -> Option<Pin<Box<dyn Stream<Item = Response> + 'a>>>
+    where
+        Self: 'static + Sized,
     {
         Some(Box::pin(stream::once(async move {
             let err = ServerError::new("Schema is not configured for subscription.", None);

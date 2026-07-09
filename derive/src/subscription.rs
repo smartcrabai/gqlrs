@@ -469,6 +469,11 @@ pub fn generate(
 
     let visible = visible_fn(&subscription_args.visible);
     let field_count = schema_fields.len();
+    let stream_send = if cfg!(feature = "no_send") {
+        quote! {}
+    } else {
+        quote! { + ::std::marker::Send }
+    };
 
     let expanded = quote! {
         #item_impl
@@ -509,7 +514,7 @@ pub fn generate(
             fn create_field_stream<'__life>(
                 &'__life self,
                 ctx: &'__life #crate_name::Context<'_>,
-            ) -> ::std::option::Option<::std::pin::Pin<::std::boxed::Box<dyn #crate_name::futures_util::stream::Stream<Item = #crate_name::Response> + ::std::marker::Send + '__life>>> {
+            ) -> ::std::option::Option<::std::pin::Pin<::std::boxed::Box<dyn #crate_name::futures_util::stream::Stream<Item = #crate_name::Response> #stream_send + '__life>>> {
                 #(#create_stream)*
                 ::std::option::Option::None
             }

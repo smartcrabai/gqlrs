@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 #![allow(unreachable_code)]
 
+#[cfg(not(feature = "no_send"))]
 use std::sync::OnceLock;
 
 use crate::{
@@ -373,6 +374,7 @@ impl Subscription {
     }
 }
 
+#[cfg(not(feature = "no_send"))]
 static TEST_HARNESS: OnceLock<Schema<Query, Mutation, Subscription>> = OnceLock::new();
 
 pub(crate) fn validate<'a, V, F>(
@@ -383,7 +385,11 @@ where
     V: Visitor<'a> + 'a,
     F: Fn() -> V,
 {
+    #[cfg(not(feature = "no_send"))]
     let schema = TEST_HARNESS.get_or_init(|| Schema::new(Query, Mutation, Subscription));
+    #[cfg(feature = "no_send")]
+    let schema: &'static Schema<Query, Mutation, Subscription> =
+        Box::leak(Box::new(Schema::new(Query, Mutation, Subscription)));
     let registry = &schema.0.env.registry;
     let mut ctx = VisitorContext::new(registry, doc, None, None);
     let mut visitor = factory();

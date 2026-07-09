@@ -2,7 +2,7 @@ use std::{borrow::Cow, ops::Deref};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{Context, InputType, InputValueError, InputValueResult, Result, Value, registry};
+use crate::{Context, InputType, InputValueError, InputValueResult, MaybeSend, Result, Value, registry};
 
 /// Similar to `Option`, but it has three states, `undefined`, `null` and `x`.
 ///
@@ -246,7 +246,7 @@ impl<T: InputType> InputType for MaybeUndefined<T> {
         &'a self,
         ctx: &'a Context<'_>,
         input_value: Option<&'a Value>,
-    ) -> impl std::future::Future<Output = Result<()>> + Send + 'a {
+    ) -> impl std::future::Future<Output = Result<()>> + MaybeSend + 'a {
         async move {
             if let MaybeUndefined::Value(value) = self {
                 value.validate_input_guards(ctx, input_value).await?;

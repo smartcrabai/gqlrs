@@ -1,8 +1,12 @@
-use std::{future::Future, pin::Pin};
+use std::future::Future;
 
 use indexmap::IndexMap;
 
-use crate::{Context, ContextBase, Error, Name, OutputType, ServerError, ServerResult, Value};
+use crate::{
+    Context, ContextBase, Error, MaybeSend, MaybeSync, Name, OutputType, ServerError, ServerResult,
+    Value,
+    sendable::{FutureMaybeSendExt, MaybeBoxFuture},
+};
 
 /// Helper used by proc-macro-generated object resolvers to reduce emitted code.
 #[doc(hidden)]
@@ -16,13 +20,13 @@ pub fn resolve_field_async<'a, T, E, F>(
     ctx: &'a Context<'a>,
     fut: F,
     nullable: bool,
-) -> Pin<Box<dyn Future<Output = ServerResult<Option<Value>>> + Send + 'a>>
+) -> MaybeBoxFuture<'a, ServerResult<Option<Value>>>
 where
-    T: OutputType + Send,
-    E: Into<Error> + Send + Sync,
-    F: Future<Output = Result<T, E>> + Send + 'a,
+    T: OutputType + MaybeSend,
+    E: Into<Error> + MaybeSend + MaybeSync,
+    F: Future<Output = Result<T, E>> + MaybeSend + 'a,
 {
-    Box::pin(async move {
+    (async move {
         match fut.await {
             Ok(obj) => {
                 let ctx_obj = ctx.with_selection_set(&ctx.item.node.selection_set);
@@ -46,7 +50,7 @@ where
                 }
             }
         }
-    })
+    }).boxed_maybe_send()
 }
 
 #[doc(hidden)]
@@ -93,8 +97,8 @@ pub fn find_entity_params<'a>(
 pub fn resolve_simple_field_value<'a, T: OutputType + ?Sized + 'a>(
     ctx: &'a Context<'_>,
     value: &'a T,
-) -> Pin<Box<dyn Future<Output = ServerResult<Option<Value>>> + Send + 'a>> {
-    Box::pin(async move {
+) -> MaybeBoxFuture<'a, ServerResult<Option<Value>>> {
+    (async move {
         OutputType::resolve(
             value,
             &ctx.with_selection_set(&ctx.item.node.selection_set),
@@ -103,7 +107,7 @@ pub fn resolve_simple_field_value<'a, T: OutputType + ?Sized + 'a>(
         .await
         .map(Option::Some)
         .map_err(|err| ctx.set_error_path(err))
-    })
+    }).boxed_maybe_send()
 }
 
 /// Resolve a nullable field value, recording any resolver error and returning

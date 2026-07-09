@@ -1,3 +1,4 @@
+#![cfg(not(gqlrs_no_send))]
 #![allow(dead_code)]
 
 use actix_web::{HttpRequest, HttpResponse, web};

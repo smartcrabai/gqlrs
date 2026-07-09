@@ -1,10 +1,20 @@
 use std::borrow::Cow;
 
-use crate::{
-    Context, ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType,
-    OutputTypeMarker, Positioned, Result, ServerResult, Value, parser::types::Field, registry,
+use crate::{Context,
+    ContextSelectionSet,
+    InputType,
+    InputValueError,
+    InputValueResult,
+    MaybeSend,
+    OutputType,
+    OutputTypeMarker,
+    parser::types::Field,
+    Positioned,
+    registry,
     resolver_utils::resolve_list,
-};
+    Result,
+    ServerResult,
+    Value,};
 
 impl<T: InputType> InputType for Vec<T> {
     type RawValueType = Self;
@@ -48,7 +58,7 @@ impl<T: InputType> InputType for Vec<T> {
         &'a self,
         ctx: &'a Context<'_>,
         input_value: Option<&'a Value>,
-    ) -> impl std::future::Future<Output = Result<()>> + Send + 'a {
+    ) -> impl std::future::Future<Output = Result<()>> + MaybeSend + 'a {
         async move {
             if let Some(Value::List(values)) = input_value {
                 for (item, value) in self.iter().zip(values) {
@@ -79,7 +89,11 @@ impl<T: OutputTypeMarker> OutputTypeMarker for Vec<T> {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl<T: OutputType> OutputType for Vec<T> {
     async fn resolve(
         &self,

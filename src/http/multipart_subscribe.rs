@@ -1,10 +1,14 @@
 use std::{pin::pin, time::Duration};
 
 use bytes::{BufMut, Bytes, BytesMut};
-use futures_util::{FutureExt, Stream, StreamExt, stream::BoxStream};
+use futures_util::{FutureExt, Stream, StreamExt};
 use mime::Mime;
 
-use crate::{Response, runtime::Timer};
+use crate::{
+    MaybeSend, Response,
+    runtime::Timer,
+    sendable::{MaybeBoxStream as BoxStream, StreamMaybeSendExt},
+};
 
 static PART_HEADER: Bytes =
     Bytes::from_static(b"--graphql\r\nContent-Type: application/json\r\n\r\n");
@@ -16,7 +20,7 @@ static HEARTBEAT: Bytes = Bytes::from_static(b"{}\r\n");
 ///
 /// Reference: <https://www.apollographql.com/docs/router/executing-operations/subscription-multipart-protocol/>
 pub fn create_multipart_mixed_stream<'a, T>(
-    input: impl Stream<Item = Response> + Send + Unpin + 'a,
+    input: impl Stream<Item = Response> + MaybeSend + Unpin + 'a,
     timer: T,
     heartbeat_interval: Duration,
 ) -> BoxStream<'a, Bytes>
@@ -55,7 +59,7 @@ where
 
         yielder.yield_item(EOF.clone()).await;
     })
-    .boxed()
+    .boxed_maybe_send()
 }
 
 fn parse_accept(accept: &str) -> Vec<Mime> {

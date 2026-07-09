@@ -19,8 +19,6 @@ use std::{
     sync::Arc,
 };
 
-use futures_util::{FutureExt, future::BoxFuture, stream::BoxStream};
-
 pub use self::analyzer::Analyzer;
 #[cfg(feature = "apollo_tracing")]
 pub use self::apollo_tracing::ApolloTracing;
@@ -29,9 +27,10 @@ pub use self::logger::Logger;
 #[cfg(feature = "tracing")]
 pub use self::tracing::{Tracing, TracingConfig};
 use crate::{
-    Data, DataContext, Error, QueryPathNode, Request, Response, Result, SDLExportOptions,
-    SchemaEnv, ServerError, ServerResult, ValidationResult, Value, Variables,
+    Data, DataContext, Error, MaybeSend, MaybeSync, QueryPathNode, Request, Response, Result,
+    SDLExportOptions, SchemaEnv, ServerError, ServerResult, ValidationResult, Value, Variables,
     parser::types::{ExecutableDocument, Field},
+    sendable::{FutureMaybeSendExt, MaybeBoxFuture as BoxFuture, MaybeBoxStream as BoxStream},
 };
 
 /// Context for extension
@@ -58,15 +57,15 @@ pub struct ExtensionContext<'a> {
 }
 
 impl<'a> DataContext<'a> for ExtensionContext<'a> {
-    fn data<D: Any + Send + Sync>(&self) -> Result<&'a D> {
+    fn data<D: Any + MaybeSend + MaybeSync>(&self) -> Result<&'a D> {
         ExtensionContext::data::<D>(self)
     }
 
-    fn data_unchecked<D: Any + Send + Sync>(&self) -> &'a D {
+    fn data_unchecked<D: Any + MaybeSend + MaybeSync>(&self) -> &'a D {
         ExtensionContext::data::<D>(self).unwrap()
     }
 
-    fn data_opt<D: Any + Send + Sync>(&self) -> Option<&'a D> {
+    fn data_opt<D: Any + MaybeSend + MaybeSync>(&self) -> Option<&'a D> {
         ExtensionContext::data::<D>(self).ok()
     }
 }
@@ -100,7 +99,7 @@ impl<'a> ExtensionContext<'a> {
     /// # Errors
     ///
     /// Returns a `Error` if the specified type data does not exist.
-    pub fn data<D: Any + Send + Sync>(&self) -> Result<&'a D> {
+    pub fn data<D: Any + MaybeSend + MaybeSync>(&self) -> Result<&'a D> {
         self.query_data
             .and_then(|query_data| query_data.get(&TypeId::of::<D>()))
             .or_else(|| self.session_data.get(&TypeId::of::<D>()))
@@ -120,14 +119,14 @@ impl<'a> ExtensionContext<'a> {
     ///
     /// It will panic if the specified data type does not exist.
     #[deprecated(since = "7.0.12", note = "Use `data::<D>().unwrap()` instead.")]
-    pub fn data_unchecked<D: Any + Send + Sync>(&self) -> &'a D {
+    pub fn data_unchecked<D: Any + MaybeSend + MaybeSync>(&self) -> &'a D {
         self.data::<D>().unwrap()
     }
 
     /// Gets the global data defined in the `Context` or `Schema` or `None` if
     /// the specified type data does not exist.
     #[deprecated(since = "7.0.12", note = "Use `data::<D>().ok()` instead.")]
-    pub fn data_opt<D: Any + Send + Sync>(&self) -> Option<&'a D> {
+    pub fn data_opt<D: Any + MaybeSend + MaybeSync>(&self) -> Option<&'a D> {
         self.data::<D>().ok()
     }
 }
@@ -156,17 +155,38 @@ pub struct ResolveInfo<'a> {
     pub field: &'a Field,
 }
 
+#[cfg(not(feature = "no_send"))]
 type RequestFut<'a> = &'a mut (dyn Future<Output = Response> + Send + Unpin);
 
+#[cfg(feature = "no_send")]
+type RequestFut<'a> = &'a mut (dyn Future<Output = Response> + Unpin);
+
+#[cfg(not(feature = "no_send"))]
 type ParseFut<'a> = &'a mut (dyn Future<Output = ServerResult<ExecutableDocument>> + Send + Unpin);
 
+#[cfg(feature = "no_send")]
+type ParseFut<'a> = &'a mut (dyn Future<Output = ServerResult<ExecutableDocument>> + Unpin);
+
+#[cfg(not(feature = "no_send"))]
 type ValidationFut<'a> =
     &'a mut (dyn Future<Output = Result<ValidationResult, Vec<ServerError>>> + Send + Unpin);
 
+#[cfg(feature = "no_send")]
+type ValidationFut<'a> =
+    &'a mut (dyn Future<Output = Result<ValidationResult, Vec<ServerError>>> + Unpin);
+
+#[cfg(not(feature = "no_send"))]
 type ExecuteFutFactory<'a> = Box<dyn FnOnce(Option<Data>) -> BoxFuture<'a, Response> + Send + 'a>;
 
+#[cfg(feature = "no_send")]
+type ExecuteFutFactory<'a> = Box<dyn FnOnce(Option<Data>) -> BoxFuture<'a, Response> + 'a>;
+
 /// A future type used to resolve the field
+#[cfg(not(feature = "no_send"))]
 pub type ResolveFut<'a> = &'a mut (dyn Future<Output = ServerResult<Option<Value>>> + Send + Unpin);
+
+#[cfg(feature = "no_send")]
+pub type ResolveFut<'a> = &'a mut (dyn Future<Output = ServerResult<Option<Value>>> + Unpin);
 
 /// The remainder of a extension chain for request.
 pub struct NextRequest<'a> {
@@ -380,8 +400,9 @@ impl NextResolve<'_> {
 }
 
 /// Represents a GraphQL extension
-#[async_trait::async_trait]
-pub trait Extension: Sync + Send + 'static {
+#[cfg_attr(not(feature = "no_send"), async_trait::async_trait)]
+#[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
+pub trait Extension: MaybeSend + MaybeSync + 'static {
     /// Called at start query/mutation request.
     async fn request(&self, ctx: &ExtensionContext<'_>, next: NextRequest<'_>) -> Response {
         next.run(ctx).await
@@ -451,7 +472,7 @@ pub trait Extension: Sync + Send + 'static {
 /// Extension factory
 ///
 /// Used to create an extension instance.
-pub trait ExtensionFactory: Send + Sync + 'static {
+pub trait ExtensionFactory: MaybeSend + MaybeSync + 'static {
     /// Create an extended instance.
     fn create(&self) -> Arc<dyn Extension>;
 }
@@ -551,12 +572,12 @@ impl Extensions {
         execute_fut_factory: F,
     ) -> Response
     where
-        F: FnOnce(Option<Data>) -> T + Send + 'a,
-        T: Future<Output = Response> + Send + 'a,
+        F: FnOnce(Option<Data>) -> T + MaybeSend + 'a,
+        T: Future<Output = Response> + MaybeSend + 'a,
     {
         let next = NextExecute {
             chain: &self.extensions,
-            execute_fut_factory: Box::new(|data| execute_fut_factory(data).boxed()),
+            execute_fut_factory: Box::new(|data| execute_fut_factory(data).boxed_maybe_send()),
             execute_data: None,
         };
         next.run(&self.create_context(), operation_name).await

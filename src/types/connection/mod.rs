@@ -12,7 +12,7 @@ pub use cursor::{CursorType, OpaqueCursor};
 pub use edge::Edge;
 pub use page_info::PageInfo;
 
-use crate::{Error, ObjectType, OutputType, Result, SimpleObject};
+use crate::{Error, MaybeSend, MaybeSync, ObjectType, OutputType, Result, SimpleObject};
 
 /// Empty additional fields
 #[derive(Default, Copy, Clone, SimpleObject)]
@@ -20,7 +20,7 @@ use crate::{Error, ObjectType, OutputType, Result, SimpleObject};
 pub struct EmptyFields;
 
 /// Used to specify the edge name.
-pub trait EdgeNameType: Send + Sync {
+pub trait EdgeNameType: MaybeSend + MaybeSync {
     /// Returns the edge type name.
     fn type_name<T: OutputType>() -> String;
 }
@@ -35,7 +35,7 @@ impl EdgeNameType for DefaultEdgeName {
 }
 
 /// Used to specify the connection name.
-pub trait ConnectionNameType: Send + Sync {
+pub trait ConnectionNameType: MaybeSend + MaybeSync {
     /// Returns the connection type name.
     fn type_name<T: OutputType>() -> String;
 }
@@ -50,7 +50,9 @@ impl ConnectionNameType for DefaultConnectionName {
 }
 
 mod private {
-    pub trait NodesFieldSwitcher: Send + Sync {}
+    use crate::{MaybeSend, MaybeSync};
+
+    pub trait NodesFieldSwitcher: MaybeSend + MaybeSync {}
 
     impl NodesFieldSwitcher for super::DisableNodesField {}
     impl NodesFieldSwitcher for super::EnableNodesField {}
@@ -230,8 +232,8 @@ pub async fn query<
 where
     Name: ConnectionNameType,
     EdgeName: EdgeNameType,
-    Cursor: CursorType + Send + Sync,
-    <Cursor as CursorType>::Error: Display + Send + Sync + 'static,
+    Cursor: CursorType + MaybeSend + MaybeSync,
+    <Cursor as CursorType>::Error: Display + MaybeSend + MaybeSync + 'static,
     Node: OutputType,
     NodesVersion: NodesFieldSwitcherSealed,
     ConnectionFields: ObjectType,
@@ -345,8 +347,8 @@ pub async fn query_with<Cursor, T, F, R, E>(
     f: F,
 ) -> Result<T>
 where
-    Cursor: CursorType + Send + Sync,
-    <Cursor as CursorType>::Error: Display + Send + Sync + 'static,
+    Cursor: CursorType + MaybeSend + MaybeSync,
+    <Cursor as CursorType>::Error: Display + MaybeSend + MaybeSync + 'static,
     F: FnOnce(Option<Cursor>, Option<Cursor>, Option<usize>, Option<usize>) -> R,
     R: Future<Output = Result<T, E>>,
     E: Into<Error>,

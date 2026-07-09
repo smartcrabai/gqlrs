@@ -8,6 +8,7 @@ homepage = "https://github.com/smartcrabai/gqlrs"
 keywords = ["futures", "async", "graphql"]
 license = "MIT OR Apache-2.0"
 name = "gqlrs"
+links = "gqlrs"
 readme = "README.md"
 repository = "https://github.com/smartcrabai/gqlrs"
 rust-version = "1.89.0"
@@ -26,6 +27,7 @@ log = ["dep:log"]
 nullable-result = []
 
 boxed-trait = ["async-graphql-derive/boxed-trait"]
+no_send = ["async-graphql-derive/no_send"]
 dynamic-schema = []
 fast-check = ["async-graphql-derive/fast-check"]
 graphiql = ["dep:askama"]

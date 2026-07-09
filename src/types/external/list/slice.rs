@@ -1,10 +1,20 @@
 use std::{borrow::Cow, sync::Arc};
 
-use crate::{
-    Context, ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType,
-    OutputTypeMarker, Positioned, Result, ServerResult, Value, parser::types::Field, registry,
+use crate::{Context,
+    ContextSelectionSet,
+    InputType,
+    InputValueError,
+    InputValueResult,
+    MaybeSend,
+    OutputType,
+    OutputTypeMarker,
+    parser::types::Field,
+    Positioned,
+    registry,
     resolver_utils::resolve_list,
-};
+    Result,
+    ServerResult,
+    Value,};
 
 impl<'a, T: OutputTypeMarker + 'a> OutputTypeMarker for &'a [T] {
     fn type_name() -> Cow<'static, str> {
@@ -21,7 +31,11 @@ impl<'a, T: OutputTypeMarker + 'a> OutputTypeMarker for &'a [T] {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl<'a, T: OutputType + 'a> OutputType for &'a [T] {
     async fn resolve(
         &self,
@@ -53,7 +67,11 @@ macro_rules! impl_output_marker_slice_for_smart_ptr {
 
 macro_rules! impl_output_slice_for_smart_ptr {
     ($ty:ty) => {
-        #[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+        #[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
         impl<T: OutputType> OutputType for $ty {
             async fn resolve(
                 &self,
@@ -121,7 +139,7 @@ macro_rules! impl_input_slice_for_smart_ptr {
                 &'a self,
                 ctx: &'a Context<'_>,
                 input_value: Option<&'a Value>,
-            ) -> impl std::future::Future<Output = Result<()>> + Send + 'a {
+            ) -> impl std::future::Future<Output = Result<()>> + MaybeSend + 'a {
                 async move {
                     if let Some(Value::List(values)) = input_value {
                         for (item, value) in self.iter().zip(values) {

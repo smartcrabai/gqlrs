@@ -8,7 +8,7 @@ use async_graphql_value::ConstValue;
 
 use crate::{
     ContainerType, Context, ContextSelectionSet, Error, InputValueError, InputValueResult,
-    Positioned, Result, ServerResult, Value,
+    MaybeSend, MaybeSync, Positioned, Result, ServerResult, Value,
     parser::types::Field,
     registry::{self, Registry, SemanticNullability},
 };
@@ -19,13 +19,13 @@ pub trait Description {
 }
 
 /// Used to specify the GraphQL Type name.
-pub trait TypeName: Send + Sync {
+pub trait TypeName: MaybeSend + MaybeSync {
     /// Returns a GraphQL type name.
     fn type_name() -> Cow<'static, str>;
 }
 
 /// Represents a GraphQL input type.
-pub trait InputType: Send + Sync + Sized {
+pub trait InputType: MaybeSend + MaybeSync + Sized {
     /// The raw type used for validator.
     ///
     /// Usually it is `Self`, but the wrapper type is its internal type.
@@ -74,7 +74,7 @@ pub trait InputType: Send + Sync + Sized {
         &'a self,
         _ctx: &'a Context<'_>,
         _value: Option<&'a Value>,
-    ) -> impl Future<Output = Result<()>> + Send + 'a {
+    ) -> impl Future<Output = Result<()>> + MaybeSend + 'a {
         async { Ok(()) }
     }
 }
@@ -84,7 +84,7 @@ pub trait InputType: Send + Sync + Sized {
 /// This trait contains the type-level metadata methods that were previously
 /// on `OutputType`. Splitting them out reduces monomorphization when
 /// `ContainerType` is used, leading to faster compile times.
-pub trait OutputTypeMarker: Send + Sync {
+pub trait OutputTypeMarker: MaybeSend + MaybeSync {
     /// Type the name.
     fn type_name() -> Cow<'static, str>;
 
@@ -114,7 +114,11 @@ pub trait OutputTypeMarker: Send + Sync {
 }
 
 /// Represents a GraphQL output type.
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 pub trait OutputType: OutputTypeMarker {
     /// Resolve an output value to `gqlrs::Value`.
     #[cfg(feature = "boxed-trait")]
@@ -130,7 +134,7 @@ pub trait OutputType: OutputTypeMarker {
         &self,
         ctx: &ContextSelectionSet<'_>,
         field: &Positioned<Field>,
-    ) -> impl Future<Output = ServerResult<Value>> + Send;
+    ) -> impl Future<Output = ServerResult<Value>> + MaybeSend;
 }
 
 impl<T: OutputTypeMarker + ?Sized> OutputTypeMarker for &T {
@@ -147,7 +151,11 @@ impl<T: OutputTypeMarker + ?Sized> OutputTypeMarker for &T {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl<T: OutputType + ?Sized> OutputType for &T {
     #[allow(clippy::trivially_copy_pass_by_ref)]
     async fn resolve(
@@ -159,7 +167,7 @@ impl<T: OutputType + ?Sized> OutputType for &T {
     }
 }
 
-impl<T: OutputTypeMarker + Sync, E: Into<Error> + Send + Sync + Clone> OutputTypeMarker
+impl<T: OutputTypeMarker + MaybeSync, E: Into<Error> + MaybeSend + MaybeSync + Clone> OutputTypeMarker
     for Result<T, E>
 {
     fn type_name() -> Cow<'static, str> {
@@ -185,8 +193,12 @@ impl<T: OutputTypeMarker + Sync, E: Into<Error> + Send + Sync + Clone> OutputTyp
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-impl<T: OutputType + Sync, E: Into<Error> + Send + Sync + Clone> OutputType for Result<T, E> {
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
+impl<T: OutputType + MaybeSync, E: Into<Error> + MaybeSend + MaybeSync + Clone> OutputType for Result<T, E> {
     async fn resolve(
         &self,
         ctx: &ContextSelectionSet<'_>,
@@ -246,7 +258,11 @@ impl<T: OutputTypeMarker + ?Sized> OutputTypeMarker for Box<T> {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl<T: OutputType + ?Sized> OutputType for Box<T> {
     #[cfg(feature = "boxed-trait")]
     async fn resolve(
@@ -263,7 +279,7 @@ impl<T: OutputType + ?Sized> OutputType for Box<T> {
         &self,
         ctx: &ContextSelectionSet<'_>,
         field: &Positioned<Field>,
-    ) -> impl Future<Output = ServerResult<Value>> + Send {
+    ) -> impl Future<Output = ServerResult<Value>> + MaybeSend {
         T::resolve(self.as_ref(), ctx, field)
     }
 }
@@ -297,7 +313,7 @@ impl<T: InputType> InputType for Box<T> {
         &'a self,
         ctx: &'a Context<'_>,
         value: Option<&'a Value>,
-    ) -> impl Future<Output = Result<()>> + Send + 'a {
+    ) -> impl Future<Output = Result<()>> + MaybeSend + 'a {
         self.as_ref().validate_input_guards(ctx, value)
     }
 }
@@ -316,7 +332,11 @@ impl<T: OutputTypeMarker + ?Sized> OutputTypeMarker for Arc<T> {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl<T: OutputType + ?Sized> OutputType for Arc<T> {
     #[allow(clippy::trivially_copy_pass_by_ref)]
     async fn resolve(
@@ -357,7 +377,7 @@ impl<T: InputType> InputType for Arc<T> {
         &'a self,
         ctx: &'a Context<'_>,
         value: Option<&'a Value>,
-    ) -> impl Future<Output = Result<()>> + Send + 'a {
+    ) -> impl Future<Output = Result<()>> + MaybeSend + 'a {
         self.as_ref().validate_input_guards(ctx, value)
     }
 }
@@ -376,7 +396,11 @@ impl<T: OutputTypeMarker + ?Sized> OutputTypeMarker for Weak<T> {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl<T: OutputType + ?Sized> OutputType for Weak<T> {
     async fn resolve(
         &self,
@@ -388,7 +412,11 @@ impl<T: OutputType + ?Sized> OutputType for Weak<T> {
 }
 
 #[doc(hidden)]
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 pub trait ComplexObject {
     fn fields(registry: &mut registry::Registry) -> Vec<(String, registry::MetaField)>;
 
@@ -399,5 +427,5 @@ pub trait ComplexObject {
     fn resolve_field(
         &self,
         ctx: &Context<'_>,
-    ) -> impl Future<Output = ServerResult<Option<Value>>> + Send;
+    ) -> impl Future<Output = ServerResult<Option<Value>>> + MaybeSend;
 }

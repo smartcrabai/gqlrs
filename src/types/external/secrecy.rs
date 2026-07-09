@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use secrecy::{ExposeSecret, SecretBox, SecretString, zeroize::Zeroize};
 
-use crate::{Context, InputType, InputValueError, InputValueResult, Result, Value, registry};
+use crate::{Context, InputType, InputValueError, InputValueResult, MaybeSend, Result, Value, registry};
 
 impl<T: InputType + Zeroize> InputType for SecretBox<T> {
     type RawValueType = T::RawValueType;
@@ -37,7 +37,7 @@ impl<T: InputType + Zeroize> InputType for SecretBox<T> {
         &'a self,
         ctx: &'a Context<'_>,
         value: Option<&'a Value>,
-    ) -> impl std::future::Future<Output = Result<()>> + Send + 'a {
+    ) -> impl std::future::Future<Output = Result<()>> + MaybeSend + 'a {
         self.expose_secret().validate_input_guards(ctx, value)
     }
 }

@@ -7,7 +7,7 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
 use crate::{
-    Request, ServerError, ServerResult,
+    MaybeSend, MaybeSync, Request, ServerError, ServerResult,
     extensions::{Extension, ExtensionContext, ExtensionFactory, NextPrepareRequest},
     from_value,
 };
@@ -20,8 +20,9 @@ struct PersistedQuery {
 }
 
 /// Cache storage for persisted queries.
-#[async_trait::async_trait]
-pub trait CacheStorage: Send + Sync + Clone + 'static {
+#[cfg_attr(not(feature = "no_send"), async_trait::async_trait)]
+#[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
+pub trait CacheStorage: MaybeSend + MaybeSync + Clone + 'static {
     /// Load the query by `key`.
     async fn get(&self, key: String) -> Option<ExecutableDocument>;
 
@@ -40,7 +41,8 @@ impl LruCacheStorage {
     }
 }
 
-#[async_trait::async_trait]
+#[cfg_attr(not(feature = "no_send"), async_trait::async_trait)]
+#[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
 impl CacheStorage for LruCacheStorage {
     async fn get(&self, key: String) -> Option<ExecutableDocument> {
         self.0
@@ -79,7 +81,8 @@ struct ApolloPersistedQueriesExtension<T> {
     storage: T,
 }
 
-#[async_trait::async_trait]
+#[cfg_attr(not(feature = "no_send"), async_trait::async_trait)]
+#[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
 impl<T: CacheStorage> Extension for ApolloPersistedQueriesExtension<T> {
     async fn prepare_request(
         &self,

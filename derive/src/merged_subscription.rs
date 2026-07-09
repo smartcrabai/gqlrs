@@ -64,6 +64,11 @@ pub fn generate(object_args: &args::MergedSubscription) -> GeneratorResult<Token
     };
 
     let visible = visible_fn(&object_args.visible);
+    let stream_send = if cfg!(feature = "no_send") {
+        quote! {}
+    } else {
+        quote! { + ::std::marker::Send }
+    };
     let expanded = quote! {
         #[allow(clippy::all, clippy::pedantic)]
         impl #impl_generics #crate_name::SubscriptionType for #ident #ty_generics #where_clause {
@@ -106,7 +111,7 @@ pub fn generate(object_args: &args::MergedSubscription) -> GeneratorResult<Token
             fn create_field_stream<'__life>(
                 &'__life self,
                 ctx: &'__life #crate_name::Context<'__life>
-            ) -> ::std::option::Option<::std::pin::Pin<::std::boxed::Box<dyn #crate_name::futures_util::stream::Stream<Item = #crate_name::Response> + ::std::marker::Send + '__life>>> {
+            ) -> ::std::option::Option<::std::pin::Pin<::std::boxed::Box<dyn #crate_name::futures_util::stream::Stream<Item = #crate_name::Response> #stream_send + '__life>>> {
                 ::std::option::Option::None #create_field_stream
             }
         }

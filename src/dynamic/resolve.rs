@@ -1,8 +1,7 @@
-use std::{borrow::Cow, collections::BTreeMap, pin::Pin};
+use std::{borrow::Cow, collections::BTreeMap};
 
 use async_graphql_derive::SimpleObject;
 use async_graphql_parser::{Positioned, types::Field};
-use futures_util::{Future, FutureExt, future::BoxFuture};
 use indexmap::IndexMap;
 
 use crate::{
@@ -15,6 +14,7 @@ use crate::{
     extensions::ResolveInfo,
     parser::types::Selection,
     resolver_utils::create_value_object,
+    sendable::{FutureMaybeSendExt, MaybeBoxFuture},
 };
 
 /// Federation service
@@ -24,7 +24,7 @@ struct Service {
     sdl: Option<String>,
 }
 
-type BoxFieldFuture<'a> = Pin<Box<dyn Future<Output = ServerResult<(Name, Value)>> + 'a + Send>>;
+type BoxFieldFuture<'a> = MaybeBoxFuture<'a, ServerResult<(Name, Value)>>;
 
 pub(crate) async fn resolve_container(
     schema: &Schema,
@@ -61,7 +61,7 @@ fn collect_typename_field<'a>(
                 Value::from(object.name.as_str()),
             ))
         }
-        .boxed(),
+        .boxed_maybe_send(),
     )
 }
 
@@ -85,7 +85,7 @@ fn collect_schema_field<'a>(
             .await?;
             Ok((field.node.response_key().node.clone(), value))
         }
-        .boxed(),
+        .boxed_maybe_send(),
     );
 }
 
@@ -121,7 +121,7 @@ fn collect_type_field<'a>(
             .await?;
             Ok((field.node.response_key().node.clone(), value))
         }
-        .boxed(),
+        .boxed_maybe_send(),
     );
 }
 
@@ -152,7 +152,7 @@ fn collect_service_field<'a>(
 
             Ok((field.node.response_key().node.clone(), output_type))
         }
-        .boxed(),
+        .boxed_maybe_send(),
     );
 }
 
@@ -210,7 +210,7 @@ fn collect_entities_field<'a>(
                 .unwrap_or_default();
             Ok((field.node.response_key().node.clone(), value))
         }
-        .boxed(),
+        .boxed_maybe_send(),
     );
 }
 
@@ -291,7 +291,7 @@ fn collect_field<'a>(
                 .unwrap_or_default();
             Ok((field.node.response_key().node.clone(), res_value))
         }
-        .boxed(),
+        .boxed_maybe_send(),
     );
 }
 
@@ -362,7 +362,7 @@ fn collect_fields<'a>(
                 {
                     fields.push(
                         async move { Ok((field.node.response_key().node.clone(), Value::Null)) }
-                            .boxed(),
+                            .boxed_maybe_send(),
                     );
                     continue;
                 }
@@ -431,7 +431,7 @@ pub(crate) fn resolve<'a>(
     ctx: &'a Context<'a>,
     type_ref: &'a TypeRef,
     value: Option<&'a FieldValue>,
-) -> BoxFuture<'a, ServerResult<Option<Value>>> {
+) -> MaybeBoxFuture<'a, ServerResult<Option<Value>>> {
     async move {
         match (type_ref, value) {
             (TypeRef::Named(type_name), Some(value)) => {
@@ -474,7 +474,7 @@ pub(crate) fn resolve<'a>(
             (TypeRef::List(_), None) => Ok(None),
         }
     }
-    .boxed()
+    .boxed_maybe_send()
 }
 
 async fn resolve_list<'a>(

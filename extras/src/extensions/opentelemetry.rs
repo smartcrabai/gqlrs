@@ -7,10 +7,11 @@ use async_graphql::{
         NextResolve, NextSubscribe, NextValidation, ResolveInfo,
     },
     registry::{MetaType, MetaTypeName},
+    sendable::MaybeBoxStream as BoxStream,
 };
 use async_graphql_parser::types::ExecutableDocument;
 use async_graphql_value::Variables;
-use futures_util::{TryFutureExt, stream::BoxStream};
+use futures_util::TryFutureExt;
 use opentelemetry::{
     Context as OpenTelemetryContext, Key, KeyValue,
     trace::{FutureExt, SpanKind, TraceContextExt, Tracer},
@@ -103,7 +104,8 @@ struct OpenTelemetryExtension<T> {
     trace_scalars: bool,
 }
 
-#[async_trait::async_trait]
+#[cfg_attr(not(gqlrs_no_send), async_trait::async_trait)]
+#[cfg_attr(gqlrs_no_send, async_trait::async_trait(?Send))]
 impl<T> Extension for OpenTelemetryExtension<T>
 where
     T: Tracer + Send + Sync + 'static,

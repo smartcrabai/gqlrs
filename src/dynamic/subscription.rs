@@ -1,13 +1,11 @@
 use std::{borrow::Cow, fmt, fmt::Debug, sync::Arc};
 
-use futures_util::{
-    Future, FutureExt, Stream, StreamExt, TryStreamExt, future::BoxFuture, stream::BoxStream,
-};
+use futures_util::{Future, Stream, StreamExt, TryStreamExt};
 use indexmap::IndexMap;
 
 use crate::{
-    ContextSelectionSet, Data, QueryPathNode, QueryPathSegment, Response, Result, ServerResult,
-    Value,
+    ContextSelectionSet, Data, MaybeSend, MaybeSync, QueryPathNode, QueryPathSegment, Response,
+    Result, ServerResult, Value,
     dynamic::{
         FieldValue, InputValue, ObjectAccessor, ResolverContext, Schema, SchemaError, TypeRef,
         resolve::resolve,
@@ -15,6 +13,10 @@ use crate::{
     extensions::ResolveInfo,
     parser::types::Selection,
     registry::{Deprecation, MetaField, MetaType, Registry, SemanticNullability},
+    sendable::{
+        FutureMaybeSendExt, MaybeBoxFuture as BoxFuture, MaybeBoxStream as BoxStream,
+        StreamMaybeSendExt,
+    },
     subscription::BoxFieldStream,
 };
 
@@ -27,22 +29,26 @@ impl<'a> SubscriptionFieldFuture<'a> {
     /// Create a ResolverFuture
     pub fn new<Fut, S, T>(future: Fut) -> Self
     where
-        Fut: Future<Output = Result<S>> + Send + 'a,
-        S: Stream<Item = Result<T>> + Send + 'a,
-        T: Into<FieldValue<'a>> + Send + 'a,
+        Fut: Future<Output = Result<S>> + MaybeSend + 'a,
+        S: Stream<Item = Result<T>> + MaybeSend + 'a,
+        T: Into<FieldValue<'a>> + MaybeSend + 'a,
     {
         Self(
             async move {
                 let res = future.await?.map_ok(Into::into);
-                Ok(res.boxed())
+                Ok(res.boxed_maybe_send())
             }
-            .boxed(),
+            .boxed_maybe_send(),
         )
     }
 }
 
+#[cfg(not(feature = "no_send"))]
 type BoxResolverFn =
     Arc<dyn for<'a> Fn(ResolverContext<'a>) -> SubscriptionFieldFuture<'a> + Send + Sync>;
+
+#[cfg(feature = "no_send")]
+type BoxResolverFn = Arc<dyn for<'a> Fn(ResolverContext<'a>) -> SubscriptionFieldFuture<'a>>;
 
 /// A GraphQL subscription field
 pub struct SubscriptionField {
@@ -62,7 +68,10 @@ impl SubscriptionField {
     where
         N: Into<String>,
         T: Into<TypeRef>,
-        F: for<'a> Fn(ResolverContext<'a>) -> SubscriptionFieldFuture<'a> + Send + Sync + 'static,
+        F: for<'a> Fn(ResolverContext<'a>) -> SubscriptionFieldFuture<'a>
+            + MaybeSend
+            + MaybeSync
+            + 'static,
     {
         Self {
             name: name.into(),
@@ -321,7 +330,7 @@ impl Subscription {
                         Ok(())
                     })
                     .map(|res| res.unwrap_or_else(|err| Response::from_errors(vec![err])))
-                    .boxed(),
+                    .boxed_maybe_send(),
                 );
             }
         }

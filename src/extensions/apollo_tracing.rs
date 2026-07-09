@@ -71,7 +71,8 @@ struct ApolloTracingExtension {
     inner: Mutex<Inner>,
 }
 
-#[async_trait::async_trait]
+#[cfg_attr(not(feature = "no_send"), async_trait::async_trait)]
+#[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
 impl Extension for ApolloTracingExtension {
     async fn execute(
         &self,

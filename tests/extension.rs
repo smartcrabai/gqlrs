@@ -10,8 +10,8 @@ use gqlrs::{
         Extension, ExtensionContext, ExtensionFactory, NextExecute, NextParseQuery,
         NextPrepareRequest, NextRequest, NextResolve, NextSubscribe, NextValidation, ResolveInfo,
     },
-    futures_util::stream::BoxStream,
     parser::types::ExecutableDocument,
+    sendable::MaybeBoxStream as BoxStream,
     *,
 };
 
@@ -41,7 +41,8 @@ pub async fn test_extension_ctx() {
 
     struct MyExtensionImpl;
 
-    #[async_trait::async_trait]
+    #[cfg_attr(not(feature = "no_send"), async_trait::async_trait)]
+    #[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
     impl Extension for MyExtensionImpl {
         async fn parse_query(
             &self,
@@ -132,7 +133,8 @@ pub async fn test_extension_call_order() {
         calls: Arc<Mutex<Vec<&'static str>>>,
     }
 
-    #[async_trait::async_trait]
+    #[cfg_attr(not(feature = "no_send"), async_trait::async_trait)]
+    #[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
     #[allow(unused_variables)]
     impl Extension for MyExtensionImpl {
         async fn request(&self, ctx: &ExtensionContext<'_>, next: NextRequest<'_>) -> Response {
@@ -337,7 +339,8 @@ pub async fn test_extension_call_order() {
 pub async fn query_execute_with_data() {
     struct MyExtensionImpl<T>(T);
 
-    #[async_trait::async_trait]
+    #[cfg_attr(not(feature = "no_send"), async_trait::async_trait)]
+    #[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
     impl<T> Extension for MyExtensionImpl<T>
     where
         T: Copy + Sync + Send + 'static,
@@ -401,7 +404,8 @@ pub async fn subscription_execute_with_data() {
         }
     }
 
-    #[async_trait::async_trait]
+    #[cfg_attr(not(feature = "no_send"), async_trait::async_trait)]
+    #[cfg_attr(feature = "no_send", async_trait::async_trait(?Send))]
     impl Extension for MyExtensionImpl {
         async fn execute(
             &self,

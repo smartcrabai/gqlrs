@@ -269,7 +269,11 @@ impl<T: Serialize + DeserializeOwned + Send + Sync> OutputTypeMarker for OpaqueC
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl<T: Serialize + DeserializeOwned + Send + Sync> OutputType for OpaqueCursor<T> {
     async fn resolve(
         &self,

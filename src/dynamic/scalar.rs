@@ -5,7 +5,7 @@ use std::{
 
 use super::{Directive, directive::to_meta_directive_invocation};
 use crate::{
-    Value,
+    MaybeSend, MaybeSync, Value,
     dynamic::SchemaError,
     registry::{MetaType, Registry, ScalarValidatorFn},
 };
@@ -90,7 +90,10 @@ impl Scalar {
 
     /// Set the validator
     #[inline]
-    pub fn validator(self, validator: impl Fn(&Value) -> bool + Send + Sync + 'static) -> Self {
+    pub fn validator(
+        self,
+        validator: impl Fn(&Value) -> bool + MaybeSend + MaybeSync + 'static,
+    ) -> Self {
         Self {
             validator: Some(Arc::new(validator)),
             ..self

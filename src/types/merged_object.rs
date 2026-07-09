@@ -10,6 +10,7 @@ use crate::{
     registry::{MetaField, MetaType, MetaTypeId, Registry},
 };
 
+
 fn extend_fields(
     fields: &mut IndexMap<String, MetaField>,
     new_fields: IndexMap<String, MetaField>,
@@ -32,7 +33,11 @@ fn extend_fields(
 #[doc(hidden)]
 pub struct MergedObject<A, B>(pub A, pub B);
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl<A, B> ContainerType for MergedObject<A, B>
 where
     A: ContainerType,
@@ -137,7 +142,11 @@ where
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl<A, B> OutputType for MergedObject<A, B>
 where
     A: OutputType,
@@ -207,10 +216,19 @@ where
         })
     }
 
+    #[cfg(not(feature = "no_send"))]
     fn create_field_stream<'a>(
         &'a self,
         _ctx: &'a Context<'_>,
     ) -> Option<Pin<Box<dyn Stream<Item = Response> + Send + 'a>>> {
+        unreachable!()
+    }
+
+    #[cfg(feature = "no_send")]
+    fn create_field_stream<'a>(
+        &'a self,
+        _ctx: &'a Context<'_>,
+    ) -> Option<Pin<Box<dyn Stream<Item = Response> + 'a>>> {
         unreachable!()
     }
 }
@@ -246,10 +264,19 @@ impl SubscriptionType for MergedObjectTail {
         })
     }
 
+    #[cfg(not(feature = "no_send"))]
     fn create_field_stream<'a>(
         &'a self,
         _ctx: &'a Context<'_>,
     ) -> Option<Pin<Box<dyn Stream<Item = Response> + Send + 'a>>> {
+        unreachable!()
+    }
+
+    #[cfg(feature = "no_send")]
+    fn create_field_stream<'a>(
+        &'a self,
+        _ctx: &'a Context<'_>,
+    ) -> Option<Pin<Box<dyn Stream<Item = Response> + 'a>>> {
         unreachable!()
     }
 }

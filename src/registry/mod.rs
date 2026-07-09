@@ -444,7 +444,12 @@ impl Display for MetaTypeId {
 }
 
 /// A validator for scalar
+#[cfg(not(feature = "no_send"))]
 pub type ScalarValidatorFn = Arc<dyn Fn(&Value) -> bool + Send + Sync>;
+
+/// A validator for scalar
+#[cfg(feature = "no_send")]
+pub type ScalarValidatorFn = Arc<dyn Fn(&Value) -> bool>;
 
 /// Type metadata
 #[derive(Clone)]

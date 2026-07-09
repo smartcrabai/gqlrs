@@ -1,18 +1,31 @@
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::sync::Arc;
 
-use futures_util::FutureExt;
 use indexmap::IndexMap;
 
-use crate::{
-    Context, ContextBase, ContextSelectionSet, Error, Name, OutputTypeMarker, ServerError,
-    ServerResult, Value, extensions::ResolveInfo, parser::types::Selection,
-};
+use crate::{Context,
+    ContextBase,
+    ContextSelectionSet,
+    Error,
+    extensions::ResolveInfo,
+    sendable::{FutureMaybeSendExt, MaybeBoxFuture},
+    MaybeSend,
+    MaybeSync,
+    Name,
+    OutputTypeMarker,
+    parser::types::Selection,
+    ServerError,
+    ServerResult,
+    Value,};
 
 /// Represents a GraphQL container object.
 ///
 /// This helper trait allows the type to call `resolve_container` on itself in
 /// its `OutputType::resolve` implementation.
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 pub trait ContainerType: OutputTypeMarker {
     /// This function returns true of type `EmptyMutation` only.
     #[doc(hidden)]
@@ -35,7 +48,7 @@ pub trait ContainerType: OutputTypeMarker {
     fn resolve_field(
         &self,
         ctx: &Context<'_>,
-    ) -> impl Future<Output = ServerResult<Option<Value>>> + Send;
+    ) -> impl Future<Output = ServerResult<Option<Value>>> + MaybeSend;
 
     /// Collect all the fields of the container that are queried in the
     /// selection set.
@@ -48,7 +61,7 @@ pub trait ContainerType: OutputTypeMarker {
         fields: &mut Fields<'a>,
     ) -> ServerResult<()>
     where
-        Self: Send + Sync,
+        Self: MaybeSend + MaybeSync,
     {
         fields.add_set(ctx, self)
     }
@@ -69,7 +82,7 @@ pub trait ContainerType: OutputTypeMarker {
         &self,
         _: &Context<'_>,
         _params: &Value,
-    ) -> impl Future<Output = ServerResult<Option<Value>>> + Send {
+    ) -> impl Future<Output = ServerResult<Option<Value>>> + MaybeSend {
         async { Ok(None) }
     }
 
@@ -100,7 +113,7 @@ pub trait ContainerType: OutputTypeMarker {
         &self,
         ctx: &Context<'_>,
         representations: &[Value],
-    ) -> impl Future<Output = ServerResult<Vec<Option<Value>>>> + Send {
+    ) -> impl Future<Output = ServerResult<Vec<Option<Value>>>> + MaybeSend {
         async move {
             crate::futures_util::future::try_join_all(
                 representations.iter().map(|rep| self.find_entity(ctx, rep)),
@@ -110,7 +123,11 @@ pub trait ContainerType: OutputTypeMarker {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl<T: ContainerType + ?Sized> ContainerType for &T {
     async fn resolve_field(&self, ctx: &Context<'_>) -> ServerResult<Option<Value>> {
         T::resolve_field(*self, ctx).await
@@ -129,7 +146,11 @@ impl<T: ContainerType + ?Sized> ContainerType for &T {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl<T: ContainerType + ?Sized> ContainerType for Arc<T> {
     async fn resolve_field(&self, ctx: &Context<'_>) -> ServerResult<Option<Value>> {
         T::resolve_field(self, ctx).await
@@ -148,7 +169,11 @@ impl<T: ContainerType + ?Sized> ContainerType for Arc<T> {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl<T: ContainerType + ?Sized> ContainerType for Box<T> {
     async fn resolve_field(&self, ctx: &Context<'_>) -> ServerResult<Option<Value>> {
         T::resolve_field(self, ctx).await
@@ -167,8 +192,12 @@ impl<T: ContainerType + ?Sized> ContainerType for Box<T> {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
-impl<T: ContainerType, E: Into<Error> + Send + Sync + Clone> ContainerType for Result<T, E> {
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
+impl<T: ContainerType, E: Into<Error> + MaybeSend + MaybeSync + Clone> ContainerType for Result<T, E> {
     async fn resolve_field(&self, ctx: &Context<'_>) -> ServerResult<Option<Value>> {
         match self {
             Ok(value) => T::resolve_field(value, ctx).await,
@@ -266,7 +295,7 @@ async fn resolve_container_inner<'a, T: ContainerType + OutputTypeMarker + ?Size
     Ok(create_value_object(res))
 }
 
-type BoxFieldFuture<'a> = Pin<Box<dyn Future<Output = ServerResult<(Name, Value)>> + 'a + Send>>;
+type BoxFieldFuture<'a> = MaybeBoxFuture<'a, ServerResult<(Name, Value)>>;
 
 /// A set of fields on an container that are being selected.
 pub struct Fields<'a>(Vec<BoxFieldFuture<'a>>);
@@ -354,7 +383,7 @@ impl<'a> Fields<'a> {
                                             .unwrap_or_default(),
                                     ))
                                 } else {
-                                    let mut resolve_fut = resolve_fut.boxed();
+                                    let mut resolve_fut = resolve_fut.boxed_maybe_send();
 
                                     for directive in &field.node.directives {
                                         if let Some(directive_factory) = ctx

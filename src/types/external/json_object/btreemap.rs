@@ -10,12 +10,13 @@ use crate::{
     OutputTypeMarker, ServerResult, Value,
     registry::{MetaType, MetaTypeId, Registry},
 };
+use crate::{MaybeSend, MaybeSync};
 
 impl<K, V> InputType for BTreeMap<K, V>
 where
-    K: ToString + FromStr + Ord + Send + Sync,
+    K: ToString + FromStr + Ord + MaybeSend + MaybeSync,
     K::Err: Display,
-    V: Serialize + DeserializeOwned + Send + Sync,
+    V: Serialize + DeserializeOwned + MaybeSend + MaybeSync,
 {
     type RawValueType = Self;
 
@@ -74,8 +75,8 @@ where
 
 impl<K, V> OutputTypeMarker for BTreeMap<K, V>
 where
-    K: ToString + Ord + Send + Sync,
-    V: Serialize + Send + Sync,
+    K: ToString + Ord + MaybeSend + MaybeSync,
+    V: Serialize + MaybeSend + MaybeSync,
 {
     fn type_name() -> Cow<'static, str> {
         Cow::Borrowed("JSONObject")
@@ -96,11 +97,15 @@ where
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl<K, V> OutputType for BTreeMap<K, V>
 where
-    K: ToString + Ord + Send + Sync,
-    V: Serialize + Send + Sync,
+    K: ToString + Ord + MaybeSend + MaybeSync,
+    V: Serialize + MaybeSend + MaybeSync,
 {
     async fn resolve(
         &self,

@@ -31,7 +31,11 @@ use crate::{
 #[derive(Default, Copy, Clone)]
 pub struct EmptyMutation;
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl ContainerType for EmptyMutation {
     fn is_empty() -> bool {
         true
@@ -69,7 +73,11 @@ impl OutputTypeMarker for EmptyMutation {
     }
 }
 
-#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+#[cfg_attr(
+    all(feature = "boxed-trait", not(feature = "no_send")),
+    async_trait::async_trait
+)]
+#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
 impl OutputType for EmptyMutation {
     async fn resolve(
         &self,

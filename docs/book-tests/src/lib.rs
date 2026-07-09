@@ -40,6 +40,8 @@ mod en {
     mod merging_objects {}
     #[doc = include_str!("../../en/src/derived_fields.md")]
     mod derived_fields {}
+    // context.md contains warp integration examples
+    #[cfg(not(gqlrs_no_send))]
     #[doc = include_str!("../../en/src/context.md")]
     mod context {}
     #[doc = include_str!("../../en/src/query_and_mutation.md")]
@@ -58,6 +60,9 @@ mod en {
     mod depth_and_complexity {}
     #[doc = include_str!("../../en/src/dataloader.md")]
     mod dataloader {}
+    // custom_directive.md and extensions_inner_working.md reference
+    // integration crate types in some code examples
+    #[cfg(not(gqlrs_no_send))]
     #[doc = include_str!("../../en/src/custom_directive.md")]
     mod custom_directive {}
     #[doc = include_str!("../../en/src/apollo_federation.md")]
@@ -68,12 +73,16 @@ mod en {
     mod extensions {}
     #[doc = include_str!("../../en/src/extensions_available.md")]
     mod extensions_available {}
+    #[cfg(not(gqlrs_no_send))]
     #[doc = include_str!("../../en/src/extensions_inner_working.md")]
     mod extensions_inner_working {}
+    #[cfg(not(gqlrs_no_send))]
     #[doc = include_str!("../../en/src/integrations_to_warp.md")]
     mod integrations_to_warp {}
+    #[cfg(not(gqlrs_no_send))]
     #[doc = include_str!("../../en/src/integrations_to_actix_web.md")]
     mod integrations_to_actix_web {}
+    #[cfg(not(gqlrs_no_send))]
     #[doc = include_str!("../../en/src/integrations_to_poem.md")]
     mod integrations_to_poem {}
     #[doc = include_str!("../../en/src/sdl_export.md")]
@@ -114,6 +123,7 @@ mod zh_cn {
     mod merging_objects {}
     #[doc = include_str!("../../zh-CN/src/derived_fields.md")]
     mod derived_fields {}
+    #[cfg(not(gqlrs_no_send))]
     #[doc = include_str!("../../zh-CN/src/context.md")]
     mod context {}
     #[doc = include_str!("../../zh-CN/src/query_and_mutation.md")]
@@ -132,6 +142,7 @@ mod zh_cn {
     mod depth_and_complexity {}
     #[doc = include_str!("../../zh-CN/src/dataloader.md")]
     mod dataloader {}
+    #[cfg(not(gqlrs_no_send))]
     #[doc = include_str!("../../zh-CN/src/custom_directive.md")]
     mod custom_directive {}
     #[doc = include_str!("../../zh-CN/src/apollo_federation.md")]
@@ -142,12 +153,16 @@ mod zh_cn {
     mod extensions {}
     #[doc = include_str!("../../zh-CN/src/extensions_available.md")]
     mod extensions_available {}
+    #[cfg(not(gqlrs_no_send))]
     #[doc = include_str!("../../zh-CN/src/extensions_inner_working.md")]
     mod extensions_inner_working {}
+    #[cfg(not(gqlrs_no_send))]
     #[doc = include_str!("../../zh-CN/src/integrations_to_warp.md")]
     mod integrations_to_warp {}
+    #[cfg(not(gqlrs_no_send))]
     #[doc = include_str!("../../zh-CN/src/integrations_to_actix_web.md")]
     mod integrations_to_actix_web {}
+    #[cfg(not(gqlrs_no_send))]
     #[doc = include_str!("../../zh-CN/src/integrations_to_poem.md")]
     mod integrations_to_poem {}
 }
