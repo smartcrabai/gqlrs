@@ -52,7 +52,14 @@ jobs:
         working-directory: ${{ matrix.package.path }}
         run: echo PACKAGE_VERSION=$(sed -nE 's/^\s*version = "(.*?)"/\1/p' Cargo.toml) >> $GITHUB_ENV
       - name: check published version
-        run: echo PUBLISHED_VERSION=$(cargo search ${{ matrix.package.registryName }} --limit 1 | sed -nE 's/^[^"]*"//; s/".*//1p' -) >> $GITHUB_ENV
+        env:
+          REGISTRY_NAME: ${{ matrix.package.registryName }}
+        run: |
+          PUBLISHED_VERSION=$(
+            cargo search "$REGISTRY_NAME" --limit 10 \
+              | awk -v name="$REGISTRY_NAME" '$1 == name && $2 == "=" { gsub(/"/, "", $3); print $3; exit }'
+          )
+          echo "PUBLISHED_VERSION=$PUBLISHED_VERSION" >> "$GITHUB_ENV"
       - name: cargo login
         if: env.PACKAGE_VERSION != env.PUBLISHED_VERSION
         run: cargo login ${{ secrets.CRATES_TOKEN }}
@@ -69,6 +76,25 @@ jobs:
         run: |
           echo "# Cargo Publish"
           cargo publish --no-verify
+      - name: Wait for crates.io index
+        if: env.PACKAGE_VERSION != env.PUBLISHED_VERSION
+        env:
+          REGISTRY_NAME: ${{ matrix.package.registryName }}
+        run: |
+          for i in {1..30}; do
+            PUBLISHED_VERSION=$(
+              cargo search "$REGISTRY_NAME" --limit 10 \
+                | awk -v name="$REGISTRY_NAME" '$1 == name && $2 == "=" { gsub(/"/, "", $3); print $3; exit }'
+            )
+            if [ "$PUBLISHED_VERSION" = "$PACKAGE_VERSION" ]; then
+              echo "$REGISTRY_NAME $PACKAGE_VERSION is available in the crates.io index."
+              exit 0
+            fi
+            echo "Waiting for $REGISTRY_NAME $PACKAGE_VERSION in the crates.io index..."
+            sleep 10
+          done
+          echo "$REGISTRY_NAME $PACKAGE_VERSION did not appear in the crates.io index in time." >&2
+          exit 1
 
   github-release:
     name: Create GitHub Release
