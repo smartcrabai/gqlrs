@@ -1,20 +1,10 @@
 use std::{borrow::Cow, sync::Arc};
 
-use crate::{Context,
-    ContextSelectionSet,
-    InputType,
-    InputValueError,
-    InputValueResult,
-    MaybeSend,
-    OutputType,
-    OutputTypeMarker,
-    parser::types::Field,
-    Positioned,
-    registry,
-    resolver_utils::resolve_list,
-    Result,
-    ServerResult,
-    Value,};
+use crate::{
+    Context, ContextSelectionSet, InputType, InputValueError, InputValueResult, MaybeSend,
+    OutputType, OutputTypeMarker, Positioned, Result, ServerResult, Value, parser::types::Field,
+    registry, resolver_utils::resolve_list,
+};
 
 impl<'a, T: OutputTypeMarker + 'a> OutputTypeMarker for &'a [T] {
     fn type_name() -> Cow<'static, str> {

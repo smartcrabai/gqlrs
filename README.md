@@ -26,7 +26,7 @@ For compatibility with the existing Rust API and examples, many code snippets st
 
 ```toml
 [dependencies]
-async-graphql = { package = "gqlrs", version = "8.0.0-rc.5" }
+async-graphql = { package = "gqlrs", version = "0.1.0" }
 ```
 
 ## Static schema
@@ -131,7 +131,7 @@ I strongly recommend limiting the [complexity and depth](https://async-graphql.g
 - Apollo Tracing extension
 - Apollo Federation(v2)
 
-> **Note**: Minimum supported Rust version: 1.86.0 or later
+> **Note**: Minimum supported Rust version: 1.89.0 or later
 
 ## Examples
 

@@ -1,11 +1,8 @@
 name: Release
 on:
   push:
-    branches:
-      - release
-    paths:
-      - "**/Cargo.toml"
-      - ".github/workflows/release.yml"
+    tags:
+      - "v*"
 
 jobs:
   publish:
@@ -72,3 +69,22 @@ jobs:
         run: |
           echo "# Cargo Publish"
           cargo publish --no-verify
+
+  github-release:
+    name: Create GitHub Release
+    needs: publish
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Create release with generated notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "GitHub Release $TAG already exists."
+            exit 0
+          fi
+          gh release create "$TAG" --title "$TAG" --generate-notes --verify-tag

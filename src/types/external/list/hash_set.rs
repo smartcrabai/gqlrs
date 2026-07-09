@@ -1,21 +1,10 @@
 use std::{borrow::Cow, collections::HashSet, hash::Hash};
 
-use crate::{Context,
-    ContextSelectionSet,
-    Error,
-    InputType,
-    InputValueError,
-    InputValueResult,
-    MaybeSend,
-    OutputType,
-    OutputTypeMarker,
-    parser::types::Field,
-    Positioned,
-    registry,
-    resolver_utils::resolve_list,
-    Result,
-    ServerResult,
-    Value,};
+use crate::{
+    Context, ContextSelectionSet, Error, InputType, InputValueError, InputValueResult, MaybeSend,
+    OutputType, OutputTypeMarker, Positioned, Result, ServerResult, Value, parser::types::Field,
+    registry, resolver_utils::resolve_list,
+};
 
 impl<T: InputType + Hash + Eq> InputType for HashSet<T> {
     type RawValueType = Self;

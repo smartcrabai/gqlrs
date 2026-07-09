@@ -6,13 +6,12 @@ use std::{
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use crate::{
-    ContextSelectionSet, InputType, InputValueResult, OutputType, OutputTypeMarker, Positioned,
-    ServerResult, Value, from_value,
+    ContextSelectionSet, InputType, InputValueResult, MaybeSend, MaybeSync, OutputType,
+    OutputTypeMarker, Positioned, ServerResult, Value, from_value,
     parser::types::Field,
     registry::{MetaType, MetaTypeId, Registry},
     to_value,
 };
-use crate::{MaybeSend, MaybeSync};
 
 /// A scalar that can represent any JSON value.
 ///

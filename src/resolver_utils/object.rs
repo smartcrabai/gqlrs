@@ -50,7 +50,8 @@ where
                 }
             }
         }
-    }).boxed_maybe_send()
+    })
+    .boxed_maybe_send()
 }
 
 #[doc(hidden)]
@@ -107,7 +108,8 @@ pub fn resolve_simple_field_value<'a, T: OutputType + ?Sized + 'a>(
         .await
         .map(Option::Some)
         .map_err(|err| ctx.set_error_path(err))
-    }).boxed_maybe_send()
+    })
+    .boxed_maybe_send()
 }
 
 /// Resolve a nullable field value, recording any resolver error and returning

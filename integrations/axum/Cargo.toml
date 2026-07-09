@@ -9,7 +9,7 @@ keywords = ["futures", "async", "graphql", "axum"]
 license = "MIT OR Apache-2.0"
 name = "gqlrs-axum"
 repository = "https://github.com/smartcrabai/gqlrs"
-version = "8.0.0-rc.5"
+version = "0.1.0"
 
 [dependencies]
 async-graphql = { workspace = true, features = ["tokio"] }

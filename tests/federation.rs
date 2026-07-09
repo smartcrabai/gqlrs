@@ -162,10 +162,10 @@ pub async fn test_find_entity_with_context() {
     struct MyLoader;
 
     #[cfg_attr(
-    all(feature = "boxed-trait", not(feature = "no_send")),
-    async_trait::async_trait
-)]
-#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
+        all(feature = "boxed-trait", not(feature = "no_send")),
+        async_trait::async_trait
+    )]
+    #[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
     impl Loader<ID, MyObj> for MyLoader {
         type Error = Infallible;
 
@@ -1352,10 +1352,10 @@ pub async fn test_entity_guard() {
     }
 
     #[cfg_attr(
-    all(feature = "boxed-trait", not(feature = "no_send")),
-    async_trait::async_trait
-)]
-#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
+        all(feature = "boxed-trait", not(feature = "no_send")),
+        async_trait::async_trait
+    )]
+    #[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
     impl Guard for RoleGuard {
         async fn check(&self, ctx: &Context<'_>) -> Result<()> {
             if ctx.data_opt::<Role>() == Some(&self.role) {

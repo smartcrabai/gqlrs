@@ -2,15 +2,10 @@ use std::borrow::Cow;
 
 use async_graphql_parser::types::Field;
 
-use crate::{ContextSelectionSet,
-    MaybeSend,
-    MaybeSync,
-    OutputType,
-    OutputTypeMarker,
-    Positioned,
-    registry,
-    ServerResult,
-    Value,};
+use crate::{
+    ContextSelectionSet, MaybeSend, MaybeSync, OutputType, OutputTypeMarker, Positioned,
+    ServerResult, Value, registry,
+};
 
 impl<T> OutputTypeMarker for Cow<'_, T>
 where

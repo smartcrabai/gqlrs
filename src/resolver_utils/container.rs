@@ -2,20 +2,13 @@ use std::sync::Arc;
 
 use indexmap::IndexMap;
 
-use crate::{Context,
-    ContextBase,
-    ContextSelectionSet,
-    Error,
+use crate::{
+    Context, ContextBase, ContextSelectionSet, Error, MaybeSend, MaybeSync, Name, OutputTypeMarker,
+    ServerError, ServerResult, Value,
     extensions::ResolveInfo,
-    sendable::{FutureMaybeSendExt, MaybeBoxFuture},
-    MaybeSend,
-    MaybeSync,
-    Name,
-    OutputTypeMarker,
     parser::types::Selection,
-    ServerError,
-    ServerResult,
-    Value,};
+    sendable::{FutureMaybeSendExt, MaybeBoxFuture},
+};
 
 /// Represents a GraphQL container object.
 ///
@@ -197,7 +190,9 @@ impl<T: ContainerType + ?Sized> ContainerType for Box<T> {
     async_trait::async_trait
 )]
 #[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
-impl<T: ContainerType, E: Into<Error> + MaybeSend + MaybeSync + Clone> ContainerType for Result<T, E> {
+impl<T: ContainerType, E: Into<Error> + MaybeSend + MaybeSync + Clone> ContainerType
+    for Result<T, E>
+{
     async fn resolve_field(&self, ctx: &Context<'_>) -> ServerResult<Option<Value>> {
         match self {
             Ok(value) => T::resolve_field(value, ctx).await,

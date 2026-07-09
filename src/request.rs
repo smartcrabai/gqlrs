@@ -114,10 +114,7 @@ impl Request {
     /// request to schema for execution as long as query is valid.
     pub fn parsed_query(&mut self) -> Result<&ExecutableDocument, ServerError> {
         if self.parsed_query.is_none() {
-            match parse_query(&self.query) {
-                Ok(parsed) => self.parsed_query = Some(parsed),
-                Err(error) => return Err(error.into()),
-            }
+            self.parsed_query = Some(parse_query(&self.query)?);
         }
 
         // forbid_unsafe effectively bans optimize away else branch here so use unwrap

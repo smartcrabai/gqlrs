@@ -76,20 +76,16 @@ pub use cache::{CacheFactory, CacheStorage, HashMapCache, LruCache, NoCache};
 use futures_channel::{mpsc, oneshot};
 #[cfg(not(feature = "boxed-trait"))]
 use futures_util::stream::Stream;
-use futures_util::{
-    stream::{self, StreamExt, TryStreamExt},
-};
+use futures_util::stream::{self, StreamExt, TryStreamExt};
 #[cfg(feature = "no_send")]
 use futures_util::task::{LocalSpawn, LocalSpawnExt};
 #[cfg(not(feature = "no_send"))]
 use futures_util::task::{Spawn, SpawnExt};
-use crate::{
-    MaybeSend, MaybeSync, runtime::Timer,
-    sendable::MaybeBoxStream,
-};
 use rustc_hash::FxBuildHasher;
 #[cfg(feature = "tracing")]
 use tracing::{Instrument, info_span, instrument};
+
+use crate::{MaybeSend, MaybeSync, runtime::Timer, sendable::MaybeBoxStream};
 
 type FxHashMap<K, V> = scc::HashMap<K, V, FxBuildHasher>;
 
@@ -201,7 +197,10 @@ where
 
     /// Load the data set specified by the `keys`.
     #[cfg(not(feature = "boxed-trait"))]
-    fn load(&self, keys: &[K]) -> impl Future<Output = Result<HashMap<K, V>, Self::Error>> + MaybeSend;
+    fn load(
+        &self,
+        keys: &[K],
+    ) -> impl Future<Output = Result<HashMap<K, V>, Self::Error>> + MaybeSend;
 
     /// Load the data set specified by the `keys` as a stream.
     ///
@@ -303,7 +302,7 @@ impl<T> DataLoaderInner<T> {
         V: MaybeSend + MaybeSync + Clone + 'static,
         T: Loader<K, V>,
     {
-        let tid = TypeId::of::<K>();
+        let tid = TypeId::of::<(K, V)>();
         let keys_vec = keys.iter().cloned().collect::<Vec<_>>();
         let mut stream = Box::pin(self.loader.load_stream(&keys_vec));
 
@@ -608,23 +607,24 @@ impl<T, C: CacheFactory> DataLoader<T, C> {
     /// This uses the [`Loader::load_stream`] method and yields key-value pairs
     /// as they become available.
     #[cfg_attr(feature = "tracing", instrument(skip_all))]
-    pub async fn load_many_stream<K, V, I>(
-        &self,
-        keys: I,
-    ) -> LoaderStream<'static, K, V, T::Error>
+    pub async fn load_many_stream<K, V, I>(&self, keys: I) -> LoaderStream<'static, K, V, T::Error>
     where
         K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static,
         V: MaybeSend + MaybeSync + Clone + 'static,
         I: IntoIterator<Item = K>,
         T: Loader<K, V>,
     {
-        enum Action<K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static, V: MaybeSend + MaybeSync + Clone + 'static, T: Loader<K, V>> {
+        enum Action<
+            K: MaybeSend + MaybeSync + Hash + Eq + Clone + 'static,
+            V: MaybeSend + MaybeSync + Clone + 'static,
+            T: Loader<K, V>,
+        > {
             ImmediateLoad(StreamKeysAndSender<K, V, T>),
             StartFetch,
             Delay,
         }
 
-        let tid = TypeId::of::<K>();
+        let tid = TypeId::of::<(K, V)>();
 
         let (action, rx) = {
             let mut entry = self
@@ -849,10 +849,10 @@ mod tests {
     struct MyLoader;
 
     #[cfg_attr(
-    all(feature = "boxed-trait", not(feature = "no_send")),
-    async_trait::async_trait
-)]
-#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
+        all(feature = "boxed-trait", not(feature = "no_send")),
+        async_trait::async_trait
+    )]
+    #[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
     impl Loader<i32, i32> for MyLoader {
         type Error = ();
 
@@ -863,10 +863,10 @@ mod tests {
     }
 
     #[cfg_attr(
-    all(feature = "boxed-trait", not(feature = "no_send")),
-    async_trait::async_trait
-)]
-#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
+        all(feature = "boxed-trait", not(feature = "no_send")),
+        async_trait::async_trait
+    )]
+    #[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
     impl Loader<i64, i64> for MyLoader {
         type Error = ();
 
@@ -1089,10 +1089,10 @@ mod tests {
     struct StreamingLoader;
 
     #[cfg_attr(
-    all(feature = "boxed-trait", not(feature = "no_send")),
-    async_trait::async_trait
-)]
-#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
+        all(feature = "boxed-trait", not(feature = "no_send")),
+        async_trait::async_trait
+    )]
+    #[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
     impl Loader<i32, String> for StreamingLoader {
         type Error = ();
 
@@ -1212,10 +1212,10 @@ mod tests {
         struct MultiLoader;
 
         #[cfg_attr(
-    all(feature = "boxed-trait", not(feature = "no_send")),
-    async_trait::async_trait
-)]
-#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
+            all(feature = "boxed-trait", not(feature = "no_send")),
+            async_trait::async_trait
+        )]
+        #[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
         impl Loader<i32, i32> for MultiLoader {
             type Error = ();
 
@@ -1225,10 +1225,10 @@ mod tests {
         }
 
         #[cfg_attr(
-    all(feature = "boxed-trait", not(feature = "no_send")),
-    async_trait::async_trait
-)]
-#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
+            all(feature = "boxed-trait", not(feature = "no_send")),
+            async_trait::async_trait
+        )]
+        #[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
         impl Loader<i32, String> for MultiLoader {
             type Error = ();
 
@@ -1255,10 +1255,10 @@ mod tests {
         struct MyDelayLoader;
 
         #[cfg_attr(
-    all(feature = "boxed-trait", not(feature = "no_send")),
-    async_trait::async_trait
-)]
-#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
+            all(feature = "boxed-trait", not(feature = "no_send")),
+            async_trait::async_trait
+        )]
+        #[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
         impl Loader<i32, i32> for MyDelayLoader {
             type Error = ();
 
@@ -1296,10 +1296,10 @@ mod tests {
         }
 
         #[cfg_attr(
-    all(feature = "boxed-trait", not(feature = "no_send")),
-    async_trait::async_trait
-)]
-#[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
+            all(feature = "boxed-trait", not(feature = "no_send")),
+            async_trait::async_trait
+        )]
+        #[cfg_attr(all(feature = "boxed-trait", feature = "no_send"), async_trait::async_trait(?Send))]
         impl Loader<i32, i32> for CountingLoader {
             type Error = ();
 

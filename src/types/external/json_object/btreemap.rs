@@ -6,11 +6,10 @@ use indexmap::IndexMap;
 use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
-    ContextSelectionSet, InputType, InputValueError, InputValueResult, Name, OutputType,
-    OutputTypeMarker, ServerResult, Value,
+    ContextSelectionSet, InputType, InputValueError, InputValueResult, MaybeSend, MaybeSync, Name,
+    OutputType, OutputTypeMarker, ServerResult, Value,
     registry::{MetaType, MetaTypeId, Registry},
 };
-use crate::{MaybeSend, MaybeSync};
 
 impl<K, V> InputType for BTreeMap<K, V>
 where

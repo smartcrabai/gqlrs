@@ -14,7 +14,6 @@ use crate::{
     ErrorFormatter, Executor, InputType, MaybeSend, MaybeSync, ObjectType, OutputType,
     OutputTypeMarker, QueryEnv, Request, Response, ServerError, ServerResult, SubscriptionType,
     Variables,
-    sendable::{MaybeBoxStream as BoxStream, StreamMaybeSendExt},
     context::{Data, QueryEnvInner},
     custom_directive::CustomDirectiveFactory,
     extensions::{ExtensionFactory, Extensions},
@@ -24,6 +23,7 @@ use crate::{
     },
     registry::{Registry, SDLExportOptions},
     resolver_utils::{resolve_container, resolve_container_serial},
+    sendable::{MaybeBoxStream as BoxStream, StreamMaybeSendExt},
     subscription::collect_subscription_streams,
     types::QueryRoot,
     validation::{ValidationMode, check_rules},
@@ -731,7 +731,8 @@ where
                     yielder.yield_item(resp).await;
                 }
             })
-        }).boxed_maybe_send();
+        })
+        .boxed_maybe_send();
         extensions.subscribe(stream)
     }
 
