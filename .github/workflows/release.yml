@@ -56,7 +56,7 @@ jobs:
           REGISTRY_NAME: ${{ matrix.package.registryName }}
         run: |
           PUBLISHED_VERSION=$(
-            cargo search "$REGISTRY_NAME" --limit 10 \
+            cargo search "$REGISTRY_NAME" --limit 10 --color never \
               | awk -v name="$REGISTRY_NAME" '$1 == name && $2 == "=" { gsub(/"/, "", $3); print $3; exit }'
           )
           echo "PUBLISHED_VERSION=$PUBLISHED_VERSION" >> "$GITHUB_ENV"
@@ -83,7 +83,7 @@ jobs:
         run: |
           for i in {1..30}; do
             PUBLISHED_VERSION=$(
-              cargo search "$REGISTRY_NAME" --limit 10 \
+              cargo search "$REGISTRY_NAME" --limit 10 --color never \
                 | awk -v name="$REGISTRY_NAME" '$1 == name && $2 == "=" { gsub(/"/, "", $3); print $3; exit }'
             )
             if [ "$PUBLISHED_VERSION" = "$PACKAGE_VERSION" ]; then
