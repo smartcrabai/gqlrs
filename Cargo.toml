@@ -12,7 +12,7 @@ links = "gqlrs"
 readme = "README.md"
 repository = "https://github.com/smartcrabai/gqlrs"
 rust-version = "1.89.0"
-version = "8.0.0-rc.5"
+version = "0.1.0"
 
 [features]
 apollo_persisted_queries = ["dep:scc", "dep:sha2"]
@@ -157,10 +157,10 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-async-graphql = { package = "gqlrs", path = ".", version = "8.0.0-rc.5", default-features = false }
-async-graphql-derive = { package = "gqlrs-derive", path = "derive", version = "8.0.0-rc.5" }
-async-graphql-parser = { package = "gqlrs-parser", path = "parser", version = "8.0.0-rc.5" }
-async-graphql-value = { package = "gqlrs-value", path = "value", version = "8.0.0-rc.5" }
+async-graphql = { package = "gqlrs", path = ".", version = "0.1.0", default-features = false }
+async-graphql-derive = { package = "gqlrs-derive", path = "derive", version = "0.1.0" }
+async-graphql-parser = { package = "gqlrs-parser", path = "parser", version = "0.1.0" }
+async-graphql-value = { package = "gqlrs-value", path = "value", version = "0.1.0" }
 
 
 async-trait = "0.1.79"
