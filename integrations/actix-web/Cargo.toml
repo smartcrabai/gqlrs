@@ -29,6 +29,6 @@ default = ["http2"]
 
 [dev-dependencies]
 async-graphql = { workspace = true, features = ["graphiql"] }
-actix-rt = "2.9.0"
-async-lock = "3.4.0"
-serde = { version = "1", features = ["derive"] }
+actix-rt = "=2.13.0"
+async-lock = "=3.4.2"
+serde = { version = "=1.0.229", features = ["derive"] }

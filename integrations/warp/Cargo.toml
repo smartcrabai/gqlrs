@@ -21,10 +21,10 @@ serde_json.workspace = true
 warp = { version = "0.4", default-features = false, features = ["websocket"] }
 
 [dev-dependencies]
-asynk-strim = "0.1.5"
-tokio = { version = "1.36.0", default-features = false, features = [
+asynk-strim = "=0.1.5"
+tokio = { version = "=1.53.1", default-features = false, features = [
   "macros",
   "rt-multi-thread",
   "time",
 ] }
-warp = { version = "0.4", features = ["server"] }
+warp = { version = "=0.4.3", features = ["server"] }
