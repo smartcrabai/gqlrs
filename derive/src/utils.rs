@@ -494,7 +494,7 @@ fn extract_directive_call_path(directive: &Expr) -> Option<syn::Path> {
         && let Expr::Path(ref expr) = *expr.func
     {
         let mut path = expr.path.clone();
-        if path.segments.pop()?.value().ident != "apply" {
+        if path.segments.pop()?.ident != "apply" {
             return None;
         }
 
