@@ -108,7 +108,10 @@ impl<T: CacheStorage> Extension for RelayPersistedQueriesExtension<T> {
                 }
             } else {
                 // Query provided: validate hash and cache
-                let sha256_hash = format!("{:x}", Sha256::digest(request.query.as_bytes()));
+                let sha256_hash = Sha256::digest(request.query.as_bytes())
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect::<String>();
 
                 if document_id != sha256_hash {
                     Err(ServerError::new(
