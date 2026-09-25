@@ -114,7 +114,10 @@ impl<T: CacheStorage> Extension for ApolloPersistedQueriesExtension<T> {
                     Err(ServerError::new("PersistedQueryNotFound", None))
                 }
             } else {
-                let sha256_hash = format!("{:x}", Sha256::digest(request.query.as_bytes()));
+                let sha256_hash = Sha256::digest(request.query.as_bytes())
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect::<String>();
 
                 if persisted_query.sha256_hash != sha256_hash {
                     Err(ServerError::new("provided sha does not match query", None))

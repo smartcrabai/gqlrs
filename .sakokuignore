@@ -11,3 +11,6 @@ docs/en/src/cursor_connections.md
 # Test fixtures that validate character-length counting against CJK strings
 src/validators/chars_min_length.rs
 src/validators/chars_max_length.rs
+
+# Renovate configuration comments intentionally document behavior in Japanese
+renovate.json5
