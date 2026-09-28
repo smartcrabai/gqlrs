@@ -1,6 +1,6 @@
 //! Relay persisted queries extension.
 
-use std::sync::Arc;
+use std::{fmt::Write as _, sync::Arc};
 
 use async_graphql_parser::types::ExecutableDocument;
 use sha2::{Digest, Sha256};
@@ -108,7 +108,13 @@ impl<T: CacheStorage> Extension for RelayPersistedQueriesExtension<T> {
                 }
             } else {
                 // Query provided: validate hash and cache
-                let sha256_hash = format!("{:x}", Sha256::digest(request.query.as_bytes()));
+                let sha256_hash = Sha256::digest(request.query.as_bytes()).iter().fold(
+                    String::with_capacity(64),
+                    |mut s, b| {
+                        let _ = write!(s, "{b:02x}");
+                        s
+                    },
+                );
 
                 if document_id != sha256_hash {
                     Err(ServerError::new(
