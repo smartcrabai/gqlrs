@@ -1,6 +1,6 @@
 //! Apollo persisted queries extension.
 
-use std::sync::Arc;
+use std::{fmt::Write as _, sync::Arc};
 
 use async_graphql_parser::types::ExecutableDocument;
 use serde::Deserialize;
@@ -114,7 +114,13 @@ impl<T: CacheStorage> Extension for ApolloPersistedQueriesExtension<T> {
                     Err(ServerError::new("PersistedQueryNotFound", None))
                 }
             } else {
-                let sha256_hash = format!("{:x}", Sha256::digest(request.query.as_bytes()));
+                let sha256_hash = Sha256::digest(request.query.as_bytes()).iter().fold(
+                    String::with_capacity(64),
+                    |mut s, b| {
+                        let _ = write!(s, "{b:02x}");
+                        s
+                    },
+                );
 
                 if persisted_query.sha256_hash != sha256_hash {
                     Err(ServerError::new("provided sha does not match query", None))
