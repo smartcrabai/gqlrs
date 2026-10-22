@@ -6,7 +6,7 @@ on:
 
 jobs:
   publish:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       max-parallel: 1
@@ -99,7 +99,7 @@ jobs:
   github-release:
     name: Create GitHub Release
     needs: publish
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: write
     steps:
