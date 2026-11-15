@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           toolchain: ${{ matrix.rust }}
           components: rustfmt
@@ -61,7 +61,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           toolchain: ${{ matrix.rust }}
           components: rustfmt
@@ -80,10 +80,11 @@ jobs:
         run: cargo test -p gqlrs --test no_send --features no_send
       - name: Build with all runtime features except boxed-trait
         run: cargo build --features ${{ steps.meta.outputs.features }}
+      # gqlrs-rocket is excluded: rocket 0.5.2 -> ref-swap 0.1.3 uses AtomicPtr::try_update (stable since Rust 1.95), so it cannot build on MSRV 1.89.
       - name: Build
-        run: cargo build --workspace --verbose
+        run: cargo build --workspace --exclude gqlrs-rocket --verbose
       - name: Run tests
-        run: cargo test --workspace --features ${{ steps.meta.outputs.features }}
+        run: cargo test --workspace --exclude gqlrs-rocket --features ${{ steps.meta.outputs.features }}
       - name: Clean
         run: cargo clean
 
@@ -100,7 +101,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           toolchain: ${{ matrix.rust }}
           components: rustfmt
@@ -133,7 +134,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           toolchain: ${{ matrix.rust }}
           components: clippy
@@ -153,7 +154,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           toolchain: ${{ matrix.rust }}
           targets: wasm32-unknown-unknown
@@ -173,7 +174,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           toolchain: ${{ matrix.rust }}
           components: clippy, rustfmt
