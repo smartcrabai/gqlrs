@@ -1,5 +1,5 @@
 use jiff::{
-    Span, Timestamp, Zoned,
+    Span, Timestamp, ZonedDateTime,
     civil::{Date, Time},
 };
 
@@ -62,7 +62,7 @@ impl ScalarType for Timestamp {
     name = "ZonedDateTime",
     specified_by_url = "https://datatracker.ietf.org/doc/html/rfc8536"
 )]
-impl ScalarType for Zoned {
+impl ScalarType for ZonedDateTime {
     fn parse(value: Value) -> InputValueResult<Self> {
         match value {
             Value::String(s) => Ok(s.parse()?),
@@ -96,7 +96,7 @@ impl ScalarType for Span {
 #[cfg(test)]
 mod tests {
     use jiff::{
-        Span, Timestamp, ToSpan, Zoned,
+        Span, Timestamp, ToSpan, ZonedDateTime,
         civil::{Date, Time},
     };
 
@@ -175,13 +175,13 @@ mod tests {
         let cases = [
             (
                 "2022-01-12T04:00:19.12345+00:00[UTC]"
-                    .parse::<Zoned>()
+                    .parse::<ZonedDateTime>()
                     .unwrap(),
                 "2022-01-12T04:00:19.12345+00:00[UTC]",
             ),
             (
                 "2022-01-12T04:00:19.12345-05:00[America/New_York]"
-                    .parse::<Zoned>()
+                    .parse::<ZonedDateTime>()
                     .unwrap(),
                 "2022-01-12T04:00:19.12345-05:00[America/New_York]",
             ),
@@ -193,7 +193,10 @@ mod tests {
             if let Value::String(s) = value {
                 assert_eq!(s, expected);
             } else {
-                panic!("Unexpected Value type when formatting Zoned: {:?}", value);
+                panic!(
+                    "Unexpected Value type when formatting ZonedDateTime: {:?}",
+                    value
+                );
             }
         }
     }
@@ -204,20 +207,20 @@ mod tests {
             (
                 "2022-01-12T04:00:19.12345+00:00[UTC]",
                 "2022-01-12T04:00:19.12345+00:00[UTC]"
-                    .parse::<Zoned>()
+                    .parse::<ZonedDateTime>()
                     .unwrap(),
             ),
             (
                 "2022-01-12T04:00:19.12345-05:00[America/New_York]",
                 "2022-01-12T04:00:19.12345-05:00[America/New_York]"
-                    .parse::<Zoned>()
+                    .parse::<ZonedDateTime>()
                     .unwrap(),
             ),
         ];
 
         for (value, expected) in cases {
             let value = Value::String(value.to_string());
-            let parsed = <Zoned as ScalarType>::parse(value).unwrap();
+            let parsed = <ZonedDateTime as ScalarType>::parse(value).unwrap();
             assert_eq!(parsed, expected);
         }
     }
